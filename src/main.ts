@@ -12,7 +12,7 @@ export interface Config {
     [key: string]: any
 }
 
-export const CONFIG = require("./config.json") as Config;
+export const CONFIG = require("../src/config.json") as Config;
 export const DISCORD_API_TOKEN = process.env.DISCORD_API_TOKEN;
 export const GLOBAL_PREFIX = process.env.GLOBAL_PREFIX;
 export const BOT_USER_ID = "626223136047628308";
@@ -53,7 +53,7 @@ client.on("message", message => {
 export type EventListenerModule = (client: Discord.Client, connection_pool: Pool) => (...args: any) => void 
 for (const listener_name of CONFIG.event_listeners) {
     // Import each through a require (the reason it's not .ts is because the listeners will get compiled to .js)
-    let listener: EventListenerModule = require(`./events/${listener_name}.js`)(client, connection_pool);
+    let listener: EventListenerModule = require(`../events/${listener_name}.js`)(client, connection_pool);
     // Apply the listener (listener name is actually the event name)
     client.on(listener_name, listener);
 }
