@@ -377,7 +377,7 @@ export const make_manual = async function (message: Message, prefix_substitution
         );
     }
 
-    for (const module of MODULES) {
+    for (const module of await MODULES) {
         if (allowed(message, module.permissions) === false && module.hide_when_contradicts_permissions) {
             log(`make_manual hid module ${module.name}: flag module.hide_when_contradicts_permissions set.`);
             continue;

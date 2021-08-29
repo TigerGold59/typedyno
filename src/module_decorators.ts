@@ -3,7 +3,7 @@ import { ArgumentValues, BotCommand, BotCommandMetadataKey, BotCommandProcessRes
 import { DebugLogType, log, LogType } from "./utilities/log.js";
 import "reflect-metadata";
 import { Client, Message } from "discord.js";
-import * as PG from "pg";
+import { PoolInstance as Pool } from "./pg_wrapper.js";
 
 import { get_first_matching_subcommand } from "./utilities/argument_processing/arguments.js";
 import { argument_specification_from_manual, check_specification } from "./utilities/runtime_typeguard.js";
@@ -69,12 +69,7 @@ export function automatic_dispatch<DispatchTargets extends Subcommand<any>[]>(..
                 throw new TypeError(`Invalid application of automatic_dispatch decorator with non-CommandManual argument`);
             }
             case CommandManualType.MultifacetedCommandManual: {
-                descriptor.value = async function (
-                    message: Message,
-                    client: Client,
-                    pool: PG.Pool,
-                    prefix: string,
-                ): Promise<BotCommandProcessResults> {
+                descriptor.value = async function (message: Message, client: Client, pool: Pool, prefix: string): Promise<BotCommandProcessResults> {
                     const subcommands = args.map(command_value =>
                         Reflect.getMetadata(BotCommandMetadataKey.Manual, command_value),
                     ) as SubcommandManual[];
@@ -87,7 +82,7 @@ export function automatic_dispatch<DispatchTargets extends Subcommand<any>[]>(..
                         message.channel.send(
                             `${
                                 (<MultifacetedCommandManual>manual).name
-                            }: your message had no matching subcommands. Try using ${prefix}commands to see the syntax for each subcommand.`,
+                            }: your message had no matching subcommands. Try using '${prefix}commands' to see the syntax for each subcommand.`,
                         );
                         return value({ type: BotCommandProcessResultType.DidNotSucceed });
                     }
@@ -104,7 +99,7 @@ export function automatic_dispatch<DispatchTargets extends Subcommand<any>[]>(..
                         message.channel.send(
                             `${
                                 (<MultifacetedCommandManual>manual).name
-                            }: your message had no matching subcommands. Try using ${prefix}commands to see the syntax for each subcommand.`,
+                            }: your message had no matching subcommands. Try using '${prefix}commands' to see the syntax for each subcommand.`,
                         );
                         return value({ type: BotCommandProcessResultType.DidNotSucceed });
                     }
@@ -150,7 +145,7 @@ export function validate(): MethodDecorator {
         descriptor: PropertyDescriptor,
     ): PropertyDescriptor {
         const target_name = target.constructor.name;
-        log(`validate decorator: applying to target with class name ${target_name}...`);
+        log(`validate decorator: applying to target with class name ${target_name}...`, LogType.Status, DebugLogType.Decorators);
         const method_body = descriptor.value;
         if (method_body === undefined) {
             log(`validate decorator: applied to method which took value of undefined (what?). Throwing a TypeError (unacceptable)`, LogType.Error);
@@ -204,7 +199,7 @@ export function validate(): MethodDecorator {
                     args: ArgumentValues<Manual>,
                     message: Message,
                     client: Client,
-                    pool: PG.Pool,
+                    pool: Pool,
                     prefix: string | undefined,
                 ): Promise<BotCommandProcessResults> {
                     const spec = argument_specification_from_manual((manual as SubcommandManual).arguments);
@@ -224,7 +219,7 @@ export function validate(): MethodDecorator {
                     args: ArgumentValues<Manual>,
                     message: Message,
                     client: Client,
-                    pool: PG.Pool,
+                    pool: Pool,
                     prefix: string | undefined,
                 ) => Promise<BotCommandProcessResults>;
                 return descriptor as any;
@@ -236,7 +231,11 @@ export function validate(): MethodDecorator {
 export function command(): ClassDecorator {
     return function <ConstructorType extends Function>(target: ConstructorType): void | ConstructorType {
         const manual = (target as any).manual;
-        log(`Command with class name ${target.name} decorated with command():  applying manual with type ${typeof manual} to metadata.`);
+        log(
+            `Command with class name ${target.name} decorated with command():  applying manual with type ${typeof manual} to metadata.`,
+            LogType.Status,
+            DebugLogType.Decorators,
+        );
         Object.seal(target);
         Object.seal(target.prototype);
         Reflect.defineMetadata(BotCommandMetadataKey.Manual, manual, target.constructor);

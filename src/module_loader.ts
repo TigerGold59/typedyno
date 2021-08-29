@@ -3,7 +3,7 @@ import { manual_of } from "./command_manual.js";
 import { BotCommand, is_valid_BotCommand, STOCK_BOT_COMMANDS } from "./functions.js";
 import { STOCK_TABLES } from "./main.js";
 import { CONFIG } from "./config.js";
-import { log, LogType } from "./utilities/log.js";
+import { DebugLogType, log, LogType } from "./utilities/log.js";
 import { is_valid_Permissions, Permissions } from "./utilities/permissions.js";
 import { filter_map, is_string } from "./utilities/typeutils.js";
 
@@ -33,15 +33,14 @@ export interface Module {
  */
 export const load_module = async function (name: string): Promise<false | Module> {
     let module_export: Partial<Module> = {};
-    setTimeout(() => console.log("still here"), 5000);
-    console.log("starting import");
+    log(`load_module: starting import of module ${name}...`, LogType.System, DebugLogType.ModuleImports);
     try {
-        module_export = await import(`./modules/${name}/main.js`); // running from /out/
+        module_export = (await import(`./modules/${name}/main.js`)).default; // running from /out/
     } catch (err) {
         log(`load_module: Fatal error. Exiting...`, LogType.Error);
         console.error(err);
     }
-    console.log("import done");
+    log(`load_module: import of module ${name} finished.`, LogType.System, DebugLogType.ModuleImports);
 
     if (!module_export) {
         return false;

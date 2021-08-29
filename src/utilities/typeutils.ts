@@ -14,7 +14,8 @@ export const is_string = function (thing: unknown): thing is string {
 };
 
 export const is_number = function (thing?: unknown): thing is number {
-    if (!thing) {
+    if (thing === 0) return true;
+    else if (!thing) {
         return false;
     } else if (typeof thing === "number") {
         if (isNaN(thing as number)) {

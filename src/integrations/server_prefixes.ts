@@ -1,6 +1,6 @@
 import { Guild } from "discord.js";
 import { GLOBAL_PREFIX } from "../main.js";
-import * as PG from "pg";
+import { Pool, PoolInstance, PoolClient } from "../pg_wrapper.js";
 import { is_string } from "../utilities/typeutils.js";
 import { log, LogType } from "../utilities/log.js";
 
@@ -23,17 +23,17 @@ export const enum NoLocalPrefixEntryReason {
  * @param server The server to check the prefix for. If a server with no ID (?) is passed, we return null
  * @param pool The Heroku postgres server database connection pool to use when making database queries. Use this when not making a lot of requests in succession.
  */
-export async function get_prefix_entry(server: Guild | undefined | null, pool: PG.Pool): Promise<string | NoLocalPrefixEntryReason>;
+export async function get_prefix_entry(server: Guild | undefined | null, pool: PoolInstance): Promise<string | NoLocalPrefixEntryReason>;
 /**
  * Uses the Heroku postgres server database to get the local prefix, or returns null if it doesn't exist
  * @param server The server to check the prefix for. If a server with no ID (?) is passed, we return null
  * @param pool_client The Heroku postgres server database pool client to use when making database queries. The caller is responsible for its release.
  */
-export async function get_prefix_entry(server: Guild | undefined | null, pool_client: PG.PoolClient): Promise<string | NoLocalPrefixEntryReason>;
+export async function get_prefix_entry(server: Guild | undefined | null, pool_client: PoolClient): Promise<string | NoLocalPrefixEntryReason>;
 
 export async function get_prefix_entry(
     server: Guild | undefined | null,
-    query_device: PG.Pool | PG.PoolClient,
+    query_device: PoolInstance | PoolClient,
 ): Promise<string | NoLocalPrefixEntryReason> {
     if (server === undefined || server === null || "id" in server === false || is_string(server.id) === false) {
         return NoLocalPrefixEntryReason.InvalidGuildArgument;
@@ -76,7 +76,7 @@ export async function get_prefix_entry(
  * @param pool The Heroku postgres server database connection pool to use when making PostgreSQL queries
  * @returns Prefix for the start of commands. Example: '%' in "%info" or "t1" in "t1info"
  */
-export async function get_prefix(server: Guild, pool: PG.Pool): Promise<string>;
+export async function get_prefix(server: Guild, pool: PoolInstance): Promise<string>;
 /**
  * Uses the Heroku postgres server database to get the local prefix, or returns the global prefix if there is no entry
  * in the database
@@ -84,15 +84,15 @@ export async function get_prefix(server: Guild, pool: PG.Pool): Promise<string>;
  * @param pool_client The Heroku postgres server database pool client to use when making PostgreSQL queries.
  * @returns Prefix for the start of commands. Example: '%' in "%info" or "t1" in "t1info"
  */
-export async function get_prefix(server: Guild | undefined | null, pool_client: PG.Pool): Promise<string>;
+export async function get_prefix(server: Guild | undefined | null, pool_client: PoolInstance): Promise<string>;
 
-export async function get_prefix(server: Guild | undefined | null, query_device: PG.Pool | PG.PoolClient): Promise<string> {
+export async function get_prefix(server: Guild | undefined | null, query_device: PoolInstance | PoolClient): Promise<string> {
     var local_prefix;
 
-    if (query_device instanceof PG.Pool) {
+    if (query_device instanceof Pool) {
         local_prefix = await get_prefix_entry(server, query_device);
     } else {
-        local_prefix = await get_prefix_entry(server, query_device as PG.PoolClient);
+        local_prefix = await get_prefix_entry(server, query_device as PoolClient);
     }
 
     // Never return an invalid local prefix; we can be sure GLOBAL_PREFIX is valid because it's an environment variable
@@ -131,11 +131,11 @@ export interface SetPrefixResults {
  * @param server The server to set the prefix for
  * @param pool The Heroku postgres server database connection pool to use when making PostgreSQL queries.
  * @param prefix The prefix to set
- * @param pool_client The `PG.PoolClient` to use to make the database requests. If left as null or undefined, a new `PG.PoolClient` will be connected. If passed, the caller is responsible for its release.
+ * @param pool_client The `PoolClient` to use to make the database requests. If left as null or undefined, a new `PoolClient` will be connected. If passed, the caller is responsible for its release.
  * @returns `SetPrefixResults`: `results` will be the previous prefix as a string if it replaced a locally specific one, or a more specific result in the form of `SetPrefixNonStringResult` otherwise; `did_succeed` will be `true` if `get_prefix` will return the prefix passed as an argument from now on and `false` otherwise.
  */
-export const set_prefix = async function (server: Guild, pool: PG.Pool, prefix: string, pool_client?: PG.PoolClient): Promise<SetPrefixResults> {
-    let client: PG.PoolClient;
+export const set_prefix = async function (server: Guild, pool: PoolInstance, prefix: string, pool_client?: PoolClient): Promise<SetPrefixResults> {
+    let client: PoolClient;
     let did_use_passed_pool_client = true;
 
     if (is_string(server.id) === false) {
@@ -158,7 +158,7 @@ export const set_prefix = async function (server: Guild, pool: PG.Pool, prefix: 
         }
     };
 
-    // If they didn't pass a PG.PoolClient, connect one.
+    // If they didn't pass a PoolClient, connect one.
     if (!pool_client || pool_client === undefined) {
         client = await pool.connect();
         did_use_passed_pool_client = false;

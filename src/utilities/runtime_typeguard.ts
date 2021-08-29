@@ -93,6 +93,7 @@ export interface OptionalParamType {
     value: ParamValueType;
     accepts_null: boolean;
     accepts_undefined: boolean;
+    preserve_undefined: boolean;
 }
 
 export type ParamType = ParamValueType | OptionalParamType;
@@ -115,7 +116,7 @@ const enum ParamTypeValidationResult {
     Value,
 }
 
-export type NormalizedParameterValue = string | number | boolean | bigint | Date | null;
+export type NormalizedParameterValue = string | number | boolean | bigint | Date | null | undefined;
 
 export interface ParameterValidationResult {
     type_check: ParameterTypeCheckResult;
@@ -140,7 +141,9 @@ export const validate_ParamType = function (object?: unknown): ParamTypeValidati
             // @ts-expect-error
             is_boolean(object.accepts_null) &&
             // @ts-expect-error
-            is_boolean(object.accepts_undefined)
+            is_boolean(object.accepts_undefined) &&
+            // @ts-expect-error
+            (is_boolean(object.preserve_undefined) || object.preserve_undefined === undefined)
         ) {
             return ParamTypeValidationResult.Optional;
         } else {
@@ -197,7 +200,7 @@ export const validate_parameter = function (property: unknown, type: ParamType):
                 }
             } else if (property === undefined) {
                 if (optional_type.accepts_undefined) {
-                    return value(null);
+                    return value(optional_type.preserve_undefined !== false ? undefined : null);
                 } else {
                     return bad_type;
                 }
@@ -426,7 +429,12 @@ export const require_properties = function (
                 const result = validate_parameter(value, required_param.type);
                 switch (result.type_check) {
                     case ParameterTypeCheckResult.Correct: {
-                        if (result.normalized_value === undefined) {
+                        if (
+                            result.normalized_value === undefined &&
+                            (validate_ParamType(required_param.type) === ParamTypeValidationResult.Optional &&
+                                (required_param.type as OptionalParamType).preserve_undefined === true &&
+                                value === undefined) === false
+                        ) {
                             log(
                                 `${function_name}: require_properties - validate_parameter - property ${required_param.name} gave out a ParameterValidationResult that indicated the type was correct, but passed undefined as the normalized value! Returning false.`,
                                 LogType.Mismatch,
@@ -461,11 +469,9 @@ export const require_properties = function (
                                     .filter(val => val !== false)
                                     .join(" and ");
                                 log(
-                                    `${function_name}: require_properties - incorrect type for optional ${
-                                        required_param.type
-                                    } (also accepts ${accepts}) property of type ${required_param.type} named ${
-                                        required_param.name
-                                    } - got ${typeof value} from body`,
+                                    `${function_name}: require_properties - incorrect type for optional (also accepts ${accepts}) property of type ${
+                                        (<OptionalParamType>required_param.type).value
+                                    } named ${required_param.name} - got ${typeof value} from body`,
                                     LogType.Status,
                                     DebugLogType.RequirePropertiesFunctionDebug,
                                 );
@@ -573,6 +579,7 @@ export const PartialSpecification = function <T>(specification: Specification<T>
                 } else {
                     let new_type = type;
                     new_type.accepts_undefined = true;
+                    new_type.preserve_undefined = true;
                     new_specification.push(parameter);
                 }
                 continue;
@@ -585,6 +592,7 @@ export const PartialSpecification = function <T>(specification: Specification<T>
                     value: type,
                     accepts_null: false,
                     accepts_undefined: true,
+                    preserve_undefined: true,
                 };
                 // Make a new, identical parameter except the type is of the new optional type
                 let new_parameter = parameter;
@@ -629,7 +637,7 @@ export const argument_specification_from_manual = function <T extends readonly C
 ): Specification<GetArgsResult<typeof manual_args>["values"]> {
     let res: Parameter[] = [];
     for (const arg of manual_args) {
-        let partial: Partial<Parameter> = { name: arg.name };
+        let partial: Partial<Parameter> = { name: arg.id };
         if (is_ParamValueType(arg.further_constraint)) {
             partial.type = arg.further_constraint;
         } else partial.type = ParamValueType.String;
@@ -639,6 +647,7 @@ export const argument_specification_from_manual = function <T extends readonly C
                 value: partial.type,
                 accepts_null: true,
                 accepts_undefined: false,
+                preserve_undefined: false,
             };
         }
 

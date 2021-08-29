@@ -14,7 +14,7 @@
 `added_by`: BigInt NOT NULL,
 `updated_at`: Int NOT NULL,
 `server`: BigInt NOT NULL,
-`hash`: varchar(43) NOT NULL // holds SHA-256 base64 representation
+`hash`: varchar(45) NOT NULL // holds SHA-256 base64 representation
 UNIQUE (name, server)
 
 ## Table: `trickjump_entries`

@@ -227,6 +227,27 @@ export const parse_loop_with_initial_state = function (
 
     res.push(current_segment);
 
+    if (argument_identifier_segment.length > 0) {
+        // we have at least one valid digit in the argument identifier section
+        const last = str.length - 1;
+        if (just_referred_to_argument) {
+            return [InvalidSyntaxStringReason.MultipleArgumentsReferredToByIdentifierWithoutSeparatingCharacters, last];
+        }
+        const argument_number = Number(argument_identifier_segment);
+        if (Number.isInteger(argument_number) === false || argument_number < 1) return [InvalidSyntaxStringReason.IllegalArgumentIdentifier, last];
+        if (argument_number - 1 >= argument_references.length) return [InvalidSyntaxStringReason.NonexistentArgumentReferenced, last];
+        if (argument_references[argument_number - 1] !== false) return [InvalidSyntaxStringReason.ArgumentReferencedMoreThanOnce, last];
+        // if we're referencing an optional arg outside its keyoff scope
+        if (key_off_stack.includes(argument_number) === false && args[argument_number - 1].optional) {
+            return [InvalidSyntaxStringReason.OptionalArgumentReferredToByIdentifierOutsideItsKeyOff, last];
+        }
+        res.push({
+            content: null,
+            type: SyntaxStringSegmentType.ArgumentIdentifier,
+            argument_number: argument_number,
+        });
+    }
+
     return [res, to_parse.length - 1];
 };
 
@@ -418,7 +439,7 @@ export const get_args = function (prefix: string, command: SimpleCommandManual, 
         // @ts-expect-error
         const val = groups[`arg_${(index + 1).toString()}`];
         if (is_string(val)) renamed_params[arg.id] = val;
-        else renamed_params[arg.name] = null;
+        else renamed_params[arg.id] = null;
     });
 
     return {

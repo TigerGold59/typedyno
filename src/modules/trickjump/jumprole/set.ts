@@ -1,13 +1,14 @@
 import { Client, Message, Snowflake } from "discord.js";
-import * as PG from "pg";
+import { PoolInstance as Pool } from "../../../pg_wrapper.js";
 
 import { ArgumentValues, BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
-import { validate } from "../../../module_decorators.js";
+import { command, validate } from "../../../module_decorators.js";
 import { log, LogType } from "../../../utilities/log.js";
 import { Permissions } from "../../../utilities/permissions.js";
 import { CreateJumproleResult, create_jumprole } from "./internals/jumprole_postgres.js";
 import { Jumprole, KingdomNameToKingdom } from "./internals/jumprole_type.js";
+@command()
 export class JumproleSet extends Subcommand<typeof JumproleSet.manual> {
     constructor() {
         super(JumproleSet.manual, JumproleSet.no_use_no_see, JumproleSet.permissions);
@@ -59,14 +60,16 @@ export class JumproleSet extends Subcommand<typeof JumproleSet.manual> {
         args: ArgumentValues<typeof JumproleSet.manual>,
         message: Message,
         _client: Client,
-        pool: PG.Pool,
+        pool: Pool,
         prefix: string | undefined,
     ): Promise<BotCommandProcessResults> {
-        const reply = message.channel.send;
+        const reply = async function (response: string) {
+            await message.channel.send(response);
+        };
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
         const jumprole_object: Jumprole = {
-            id: -1, // not used in create
+            id: 0, // not used in create
             name: args.name,
             kingdom: args.kingdom === null ? null : KingdomNameToKingdom(args.kingdom),
             location: args.location,
@@ -74,7 +77,7 @@ export class JumproleSet extends Subcommand<typeof JumproleSet.manual> {
             link: args.link,
             description: args.description,
             added_by: message.author.id,
-            updated_at: new Date(),
+            updated_at: Math.round(Date.now() / 1000),
             server: message.guild?.id as Snowflake,
             hash: "recomputed later",
         };

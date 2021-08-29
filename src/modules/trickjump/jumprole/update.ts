@@ -1,15 +1,16 @@
 import { Client, Guild, Message, Snowflake } from "discord.js";
-import * as PG from "pg";
+import { PoolInstance as Pool } from "../../../pg_wrapper.js";
 
 import { ArgumentValues, BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
-import { validate } from "../../../module_decorators.js";
+import { command, validate } from "../../../module_decorators.js";
 import { log, LogType } from "../../../utilities/log.js";
 import { Permissions } from "../../../utilities/permissions.js";
-import { is_text_channel } from "../../../utilities/typeutils.js";
+import { is_string, is_text_channel } from "../../../utilities/typeutils.js";
 import { ModifyJumproleResultType, modify_jumprole } from "./internals/jumprole_postgres.js";
 import { Jumprole, KingdomNameToKingdom } from "./internals/jumprole_type.js";
 
+@command()
 export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
     constructor() {
         super(JumproleUpdate.manual, JumproleUpdate.no_use_no_see, JumproleUpdate.permissions);
@@ -61,24 +62,34 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
         values: ArgumentValues<typeof JumproleUpdate.manual>,
         message: Message,
         _client: Client,
-        pool: PG.Pool,
+        pool: Pool,
         prefix: string | undefined,
     ): Promise<BotCommandProcessResults> {
-        const reply = message.channel.send;
+        const reply = async function (response: string) {
+            message.channel.send(response);
+        };
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
         if (is_text_channel(message) === false) {
             return { type: BotCommandProcessResultType.Unauthorized };
         }
 
+        const change_intention = (provided: string | null): string | null | undefined => {
+            if (provided === "UNSET") return null;
+            else if (is_string(provided)) return provided;
+            else return undefined;
+        };
+
         const jumprole_object: Partial<Jumprole> = {
-            kingdom: values.kingdom === null ? null : KingdomNameToKingdom(values.kingdom),
-            location: values.location,
-            jump_type: values.jump_type,
-            link: values.link,
+            kingdom: is_string(change_intention(values.kingdom))
+                ? KingdomNameToKingdom(change_intention(values.kingdom) as string)
+                : (change_intention(values.kingdom) as null | undefined),
+            location: change_intention(values.location),
+            jump_type: change_intention(values.jump_type),
+            link: change_intention(values.link),
             description: values.description === null ? undefined : values.description,
             added_by: message.author.id,
-            updated_at: new Date(),
+            updated_at: Math.round(Date.now() / 1000),
             server: message.guild?.id as Snowflake,
         };
 

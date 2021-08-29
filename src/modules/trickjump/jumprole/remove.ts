@@ -1,12 +1,13 @@
 import { Client, Guild, Message } from "discord.js";
-import * as PG from "pg";
+import { PoolInstance as Pool } from "../../../pg_wrapper.js";
 
 import { ArgumentValues, BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
-import { validate } from "../../../module_decorators.js";
+import { command, validate } from "../../../module_decorators.js";
 import { Permissions } from "../../../utilities/permissions.js";
 import { DeleteJumproleResult, delete_jumprole } from "./internals/jumprole_postgres.js";
 
+@command()
 export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
     constructor() {
         super(JumproleRemove.manual, JumproleRemove.no_use_no_see, JumproleRemove.permissions);
@@ -33,10 +34,12 @@ export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
         values: ArgumentValues<typeof JumproleRemove.manual>,
         message: Message,
         _client: Client,
-        pool: PG.Pool,
+        pool: Pool,
         prefix: string,
     ): Promise<BotCommandProcessResults> {
-        const reply = message.channel.send;
+        const reply = async function (response: string) {
+            message.channel.send(response);
+        };
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
         const name = values.name;
 

@@ -1,5 +1,5 @@
 import { Client, Message } from "discord.js";
-import * as PG from "pg";
+import { PoolInstance as Pool } from "./pg_wrapper.js";
 
 import { process_message_for_commands } from "./functions.js";
 import { get_prefix } from "./integrations/server_prefixes.js";
@@ -15,9 +15,10 @@ import { is_number, is_string } from "./utilities/typeutils.js";
  * @param client Bot client object, which may be used in a response to a command
  * @param pool Connection pool object, used in database requests
  */
-export const process_message = async function (message: Message, client: Client, pool: PG.Pool) {
+export const process_message = async function (message: Message, client: Client, pool: Pool) {
     // Only use this area for non-command responses
     // such as replying to DMs.
+    if (message.author.id === BOT_USER_ID) return;
     const command_results = await process_message_for_commands(message, client, pool);
 
     if (command_results.did_find_command === true) {

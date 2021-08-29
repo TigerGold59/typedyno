@@ -1,5 +1,5 @@
 import { Client, Message } from "discord.js";
-import * as PG from "pg";
+import { PoolInstance as Pool } from "../../../../pg_wrapper.js";
 
 import { BotCommand, BotCommandProcessResults, BotCommandProcessResultType } from "../../../../functions.js";
 import { JumproleSet } from "../set.js";
@@ -25,7 +25,7 @@ export class Jumprole extends BotCommand {
     static readonly permissions = undefined;
 
     @automatic_dispatch(new JumproleSet(), new JumproleUpdate(), new JumproleRemove())
-    async process(_message: Message, _client: Client, _pool: PG.Pool, _prefix: string | undefined): Promise<BotCommandProcessResults> {
+    async process(_message: Message, _client: Client, _pool: Pool, _prefix: string | undefined): Promise<BotCommandProcessResults> {
         // Do before calling subcommand
         log("jumprole: dispatching command call automatically to subcommand.", LogType.Status, DebugLogType.AutomaticDispatchPassThrough);
         // Return { type: BotCommandProcessResultType.PassThrough to pass through to the subcommand }

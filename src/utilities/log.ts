@@ -20,6 +20,8 @@ export const enum DebugLogType {
     ProcessMessageForCommandsFunctionDebug = "process_message_for_commands_function_debug",
     AutomaticDispatchPassThrough = "automatic_dispatch_pass_through",
     RequirePropertiesFunctionDebug = "require_properties_function_debug",
+    ModuleImports = "module_imports",
+    ComputeJumproleHashValues = "compute_jumprole_hash_values",
 }
 
 export const chalkify = function (message: string, color: LogType): string {

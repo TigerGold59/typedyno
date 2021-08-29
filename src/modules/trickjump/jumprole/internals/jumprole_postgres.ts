@@ -1,4 +1,4 @@
-import * as PG from "pg";
+import { PoolInstance as Pool, PoolClient } from "../../../../pg_wrapper.js";
 import { log, LogType } from "../../../../utilities/log.js";
 import { Snowflake } from "../../../../utilities/permissions.js";
 import { check_specification } from "../../../../utilities/runtime_typeguard.js";
@@ -20,7 +20,7 @@ export const DELETE_JUMPROLE_BY_ID = `DELETE FROM trickjump_jumps WHERE id=$1`;
 export const DELETE_JUMPROLE_BY_NAME_AND_SERVER = `DELETE FROM trickjump_jumps WHERE name=$1 AND server=$2`;
 export const INSERT_JUMPROLE = `INSERT INTO trickjump_jumps (name, description, kingdom, location, jump_type, link, added_by, updated_at, server, hash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`;
 
-type Queryable = PG.Pool | PG.PoolClient;
+type Queryable = Pool | PoolClient;
 
 export const enum ModifyJumproleResultType {
     InvalidJumproleHandle,
@@ -118,7 +118,7 @@ export const get_jumprole = async (handle: JumproleHandle, queryable: Queryable)
  * Changes a `Jumprole` object in the PostgreSQL database.
  * @param handle The handle which identifies the `Jumprole` to change
  * @param merger An object which contains the keys to be changed and the values to be changed to.
- * @param queryable The `PG.Pool` or `PG.PoolClient` to make the query using
+ * @param queryable The `Pool` or `PoolClient` to make the query using
  * @returns `ModifyJumproleResult` indicating the result and what the new object is, if it succeeded
  */
 export const modify_jumprole = async function (
@@ -149,7 +149,9 @@ export const modify_jumprole = async function (
     // comes out with all of the keys included in the Jumprole specification,
     // to just the ones which aren't undefined, i.e. they are being specified
     // and should be changed
-    const change_keys = Object.keys(merger_result).filter((prop_name: string) => merger_result[prop_name as keyof Jumprole] !== undefined);
+    const change_keys = Object.keys(merger_result).filter(
+        (prop_name: string) => merger_result[prop_name as keyof Jumprole] !== undefined && prop_name !== "hash" && prop_name !== "id",
+    );
 
     // Useful for generating the substitution signatures, i.e. $2, in the
     // database query string
@@ -168,13 +170,13 @@ export const modify_jumprole = async function (
         // string shares one array of parameters to be substituted into the query
         case JumproleHandleType.ID: {
             let id = handle as number;
-            request_tail = ` WHERE id=$${property_count + 1}`;
+            request_tail = ` WHERE id=$${property_count + 2}`;
             query_tail.push(id);
             break;
         }
         case JumproleHandleType.NameAndServer: {
             let handle_tuple = handle as [string, string];
-            request_tail = ` WHERE name=$${property_count + 1} AND server=$${property_count + 2}`;
+            request_tail = ` WHERE name=$${property_count + 2} AND server=$${property_count + 3}`;
             query_tail.push(...handle_tuple);
             break;
         }
@@ -196,13 +198,17 @@ export const modify_jumprole = async function (
     // filled out in the DB query string
     type QueryAssignment = [string, any];
     const stringify_assignment = function (assignment: QueryAssignment, index: number): string {
-        return `${assignment[0]} = $${index.toString()}`;
+        return `${assignment[0]} = $${(index + 1).toString()}`;
     };
 
     let query_assignments: QueryAssignment[] = [];
 
     for (const change_key of change_keys) {
         switch (change_key) {
+            // Never change IDs
+            case "id": {
+                continue;
+            }
             // Make sure the values given for these properties
             // in the merger object have the correct length
             case "name": {
@@ -270,16 +276,6 @@ export const modify_jumprole = async function (
                 }
                 break;
             }
-            // Pass the date of updated_at to the server as a number, not a Date object
-            case "updated_at": {
-                let date = merger_result["updated_at"] as Date | null;
-                if (date === null) {
-                    query_assignments.push(["updated_at", null]);
-                } else {
-                    query_assignments.push(["updated_at", Math.round(date.getTime() / 1000)]);
-                }
-                continue;
-            }
             // Do not make a query assignment for the hash.
             // We will deal with it later.
             case "hash": {
@@ -302,7 +298,16 @@ export const modify_jumprole = async function (
     }
 
     // Assign the merger object to the old object, merging it and creating the new one
-    Object.assign(target_obj, merger_result);
+    const filtered_merger_result = ((): Partial<Jumprole> => {
+        let res = {};
+        for (const prop_name in merger_result) {
+            // { ts-malfunction }
+            // @ts-expect-error
+            if (merger_result[prop_name] !== undefined) res[prop_name] = merger_result[prop_name];
+        }
+        return res;
+    })();
+    Object.assign(target_obj, filtered_merger_result);
 
     let hash = compute_jumprole_hash(target_obj);
     target_obj.hash = hash;
@@ -341,7 +346,7 @@ export const enum DeleteJumproleResult {
 /**
  *
  * @param handle The handle that refers to the `Jumprole` to delete
- * @param queryable The `PG.Pool` or `PG.PoolClient` used to make the PostgreSQL database query
+ * @param queryable The `Pool` or `PoolClient` used to make the PostgreSQL database query
  * @returns `DeleteJumproleResult` indicating whether the function succeeded and if not, what the problem was
  */
 export const delete_jumprole = async function (handle: JumproleHandle, queryable: Queryable): Promise<DeleteJumproleResult> {
@@ -407,7 +412,7 @@ export const enum CreateJumproleResult {
  * Adds a `Jumprole` object to the database, recomputing its hash and updating its `updated_at` value to the current date.
  * This means the `hash` and `updated_at` properties must still be provided, but they are not used.
  * @param jumprole The `Jumprole` object to add to the database.
- * @param queryable The `PG.Pool` or `PG.PoolClient` used to execute the PostgreSQL database query.
+ * @param queryable The `Pool` or `PoolClient` used to execute the PostgreSQL database query.
  * @returns `CreateJumproleResult` indicating either success or failure, and what the problem was if there was one.
  */
 export const create_jumprole = async function (jumprole: Jumprole, queryable: Queryable): Promise<CreateJumproleResult> {
@@ -447,7 +452,7 @@ export const create_jumprole = async function (jumprole: Jumprole, queryable: Qu
         return CreateJumproleResult.LinkTooLong;
     }
 
-    jumprole_result.updated_at = new Date();
+    jumprole_result.updated_at = Math.round(Date.now() / 1000);
     jumprole_result.hash = compute_jumprole_hash(jumprole);
 
     const query_string = INSERT_JUMPROLE;
@@ -459,7 +464,7 @@ export const create_jumprole = async function (jumprole: Jumprole, queryable: Qu
         jumprole_result.jump_type,
         jumprole_result.link,
         jumprole_result.added_by,
-        Math.floor(jumprole_result.updated_at.getTime() / 1000),
+        jumprole_result.updated_at,
         jumprole_result.server,
         jumprole_result.hash,
     ];

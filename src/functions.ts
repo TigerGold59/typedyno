@@ -1,5 +1,5 @@
 import { Message, Client, Guild } from "discord.js";
-import * as PG from "pg";
+import { PoolInstance as Pool } from "./pg_wrapper.js";
 import { CommandManual, manual_of, is_no_use_no_see as is_no_use_no_see, permissions_of, make_manual, SubcommandManual } from "./command_manual.js";
 import { get_prefix, SetPrefixNonStringResult, set_prefix } from "./integrations/server_prefixes.js";
 import { CONFIG } from "./config.js";
@@ -9,7 +9,7 @@ import { DebugLogType, log, LogType } from "./utilities/log.js";
 import { allowed, Permissions } from "./utilities/permissions.js";
 import { escape_reg_exp, is_string, is_text_channel } from "./utilities/typeutils.js";
 import { Paste, url } from "./integrations/paste_ee.js";
-import { argument_specification_from_manual, check_specification } from "./utilities/runtime_typeguard.js";
+import { argument_specification_from_manual, check_specification, ParamValueType } from "./utilities/runtime_typeguard.js";
 import { get_args, handle_GetArgsResult } from "./utilities/argument_processing/arguments.js";
 import { GetArgsResult } from "./utilities/argument_processing/arguments_types.js";
 import { automatic_dispatch, command, validate } from "./module_decorators.js";
@@ -37,8 +37,8 @@ export interface BotCommandProcessResults {
 }
 
 export type BotCommandProcess =
-    | ((message: Message, client: Client, pool: PG.Pool, prefix: string) => Promise<BotCommandProcessResults> | BotCommandProcessResults)
-    | ((message: Message, client: Client, pool: PG.Pool) => Promise<BotCommandProcessResults> | BotCommandProcessResults);
+    | ((message: Message, client: Client, pool: Pool, prefix: string) => Promise<BotCommandProcessResults> | BotCommandProcessResults)
+    | ((message: Message, client: Client, pool: Pool) => Promise<BotCommandProcessResults> | BotCommandProcessResults);
 
 export const enum BotCommandMetadataKey {
     Permissions = "typedyno_botcommand:permissions",
@@ -62,7 +62,7 @@ export abstract class BotCommand {
     }
 
     // Command should return whether the command succeeded or not
-    abstract process(message: Message, client: Client, pool: PG.Pool, prefix: string): PromiseLike<BotCommandProcessResults>;
+    abstract process(message: Message, client: Client, pool: Pool, prefix: string): PromiseLike<BotCommandProcessResults>;
 }
 
 export type ArgumentValues<Manual extends SubcommandManual> = Exclude<GetArgsResult<Manual["arguments"]>["values"], null>;
@@ -79,11 +79,11 @@ export abstract class Subcommand<Manual extends SubcommandManual> extends BotCom
         values: ArgumentValues<Manual>,
         message: Message,
         client: Client,
-        pool: PG.Pool,
+        pool: Pool,
         prefix: string,
     ): PromiseLike<BotCommandProcessResults>;
 
-    async process(message: Message, client: Client, pool: PG.Pool, prefix: string): Promise<BotCommandProcessResults> {
+    async process(message: Message, client: Client, pool: Pool, prefix: string): Promise<BotCommandProcessResults> {
         const manual = manual_of(this) as SubcommandManual;
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
@@ -178,7 +178,7 @@ export interface ParseMessageResult {
  * @param client Bot client object, may be used in action command requires
  * @returns Whether the message was found to be a valid command, and
  */
-export const process_message_for_commands = async function (message: Message, client: Client, pool: PG.Pool): Promise<ParseMessageResult> {
+export const process_message_for_commands = async function (message: Message, client: Client, pool: Pool): Promise<ParseMessageResult> {
     const prefix = await get_prefix(message.guild, pool);
 
     let valid_command: BotCommand | null = null;
@@ -223,7 +223,7 @@ export const process_message_for_commands = async function (message: Message, cl
     let using_module: string | null = null;
 
     // Check loaded module commands
-    for (const module of MODULES) {
+    for (const module of await MODULES) {
         if (allowed(message, module.permissions)) {
             // Skip checking command call if the module is already restricted here
             // Check module commands
@@ -302,7 +302,7 @@ namespace StockCommands {
 
         static readonly permissions = undefined;
 
-        async process(message: Message, _client: Client, _pool: PG.Pool, prefix: string): Promise<BotCommandProcessResults> {
+        async process(message: Message, _client: Client, _pool: Pool, prefix: string): Promise<BotCommandProcessResults> {
             const paste = await make_manual(message, prefix);
 
             if (is_string(paste.error)) {
@@ -343,13 +343,7 @@ namespace StockCommands {
         static readonly no_use_no_see = false;
         static readonly permissions = undefined as Permissions | undefined;
 
-        @validate() async activate(
-            _args: ArgumentValues<typeof PrefixGet.manual>,
-            message: Message,
-            _client: Client,
-            pool: PG.Pool,
-            _prefix: string,
-        ) {
+        @validate() async activate(_args: ArgumentValues<typeof PrefixGet.manual>, message: Message, _client: Client, pool: Pool, _prefix: string) {
             const prefix_result = await get_prefix(message.guild, pool);
             if (prefix_result.trim() === GLOBAL_PREFIX.trim()) {
                 message.channel.send(`The global prefix is "${prefix_result}" and it hasn't been changed locally, but you already knew that.`);
@@ -383,6 +377,7 @@ namespace StockCommands {
                     name: "server ID",
                     id: "guild_id",
                     optional: true,
+                    further_constraint: ParamValueType.Snowflake,
                 },
             ],
             description:
@@ -397,7 +392,7 @@ namespace StockCommands {
             args: ArgumentValues<typeof PrefixSet.manual>,
             message: Message,
             client: Client,
-            pool: PG.Pool,
+            pool: Pool,
             _prefix: string,
         ): Promise<BotCommandProcessResults> {
             if (CONFIG.admins.includes(message.author.id)) {
@@ -465,7 +460,7 @@ namespace StockCommands {
         @automatic_dispatch(new PrefixGet(), new PrefixSet()) async process(
             _message: Message,
             _client: Client,
-            _pool: PG.Pool,
+            _pool: Pool,
             _prefix: string,
         ): Promise<BotCommandProcessResults> {
             log(`Prefix command: passing through to subcommand`, LogType.Status, DebugLogType.AutomaticDispatchPassThrough);
@@ -490,7 +485,7 @@ namespace StockCommands {
 
         static readonly permissions = undefined;
 
-        async process(message: Message, _client: Client, _pool: PG.Pool, prefix: string): Promise<BotCommandProcessResults> {
+        async process(message: Message, _client: Client, _pool: Pool, prefix: string): Promise<BotCommandProcessResults> {
             let base_info = `**Useful commands**:\n${prefix}commands: Lists the commands this bot has.\n**GitHub**: https://github.com/TigerGold59/typedyno`;
             if (prefix === GLOBAL_PREFIX) {
                 base_info += `\nThe prefix on this server is the same as the global prefix, ${GLOBAL_PREFIX}.`;

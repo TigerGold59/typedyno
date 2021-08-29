@@ -1,5 +1,5 @@
 import { BinaryLike, createHash } from "node:crypto";
-import { log, LogType } from "../../../../utilities/log.js";
+import { DebugLogType, log, LogType } from "../../../../utilities/log.js";
 import { ParamValueType, PartialSpecification, require_properties, Specification } from "../../../../utilities/runtime_typeguard.js";
 import { is_valid_Snowflake, Snowflake } from "../../../../utilities/permissions.js";
 import { is_number, is_string } from "../../../../utilities/typeutils.js";
@@ -74,7 +74,7 @@ export interface Jumprole {
     jump_type: string | null;
     link: string | null;
     added_by: Snowflake;
-    updated_at: Date;
+    updated_at: number;
     server: Snowflake;
     hash: string;
 }
@@ -124,18 +124,44 @@ export const optional_hashable = function (thing?: string | number | null): Bina
 
 export const compute_jumprole_hash = function (jumprole: Jumprole): string {
     const hash = createHash("sha256");
-    hash.update(jumprole.id.toString());
     hash.update(jumprole.name);
+    log(`compute_jumprole_hash: hashing jumprole.name ("${jumprole.name}")`, LogType.Status, DebugLogType.ComputeJumproleHashValues);
     hash.update(jumprole.description);
+    log(`compute_jumprole_hash: hashing jumprole.description ("${jumprole.description}")`, LogType.Status, DebugLogType.ComputeJumproleHashValues);
     // Make sure we hash null or undefined different than any string value
     optional_hashable(jumprole.kingdom).forEach(value => hash.update(value));
+    log(
+        `compute_jumprole_hash: hashing jumprole.kingdom (${jumprole.kingdom === null ? "null" : `"${jumprole.kingdom.toString()}"`})`,
+        LogType.Status,
+        DebugLogType.ComputeJumproleHashValues,
+    );
     optional_hashable(jumprole.location).forEach(value => hash.update(value));
+    log(
+        `compute_jumprole_hash: hashing jumprole.location (${jumprole.location === null ? "null" : `"${jumprole.location}"`})`,
+        LogType.Status,
+        DebugLogType.ComputeJumproleHashValues,
+    );
     optional_hashable(jumprole.jump_type).forEach(value => hash.update(value));
+    log(
+        `compute_jumprole_hash: hashing jumprole.jump_type (${jumprole.jump_type === null ? "null" : `"${jumprole.jump_type}"`})`,
+        LogType.Status,
+        DebugLogType.ComputeJumproleHashValues,
+    );
     optional_hashable(jumprole.link).forEach(value => hash.update(value));
+    log(
+        `compute_jumprole_hash: hashing jumprole.link (${jumprole.link === null ? "null" : `"${jumprole.link}"`})`,
+        LogType.Status,
+        DebugLogType.ComputeJumproleHashValues,
+    );
     hash.update(jumprole.added_by);
-    hash.update(jumprole.updated_at.getTime().toString());
+    log(`compute_jumprole_hash: hashing jumprole.added_by ("${jumprole.added_by}")`, LogType.Status, DebugLogType.ComputeJumproleHashValues);
+    hash.update(jumprole.updated_at.toString());
+    log(`compute_jumprole_hash: hashing jumprole.updated_at (${jumprole.updated_at})`, LogType.Status, DebugLogType.ComputeJumproleHashValues);
     hash.update(jumprole.server);
-    return hash.digest("base64");
+    log(`compute_jumprole_hash: hashing jumprole.server ("${jumprole.server}")`, LogType.Status, DebugLogType.ComputeJumproleHashValues);
+    const digest = hash.digest("base64");
+    log(`compute_jumprole_hash: final digest is ${digest}.`, LogType.Status, DebugLogType.ComputeJumproleHashValues);
+    return digest;
 };
 
 export const check_jumprole_handle = function (thing?: unknown): JumproleHandleType {
@@ -152,14 +178,15 @@ export const check_jumprole_handle = function (thing?: unknown): JumproleHandleT
 };
 
 export const PGJumproleSPECIFICATION: Specification<PGJumprole> = [
-    { type: ParamValueType.UInt4S, name: "id" },
+    { type: ParamValueType.UInt4N, name: "id" },
     { type: ParamValueType.String, name: "name" },
     { type: ParamValueType.String, name: "description" },
     {
         type: {
-            value: ParamValueType.KingdomIndexS,
+            value: ParamValueType.KingdomIndexN,
             accepts_null: true,
             accepts_undefined: true,
+            preserve_undefined: false,
         },
         name: "kingdom",
     },
@@ -168,6 +195,7 @@ export const PGJumproleSPECIFICATION: Specification<PGJumprole> = [
             value: ParamValueType.String,
             accepts_null: true,
             accepts_undefined: true,
+            preserve_undefined: false,
         },
         name: "location",
     },
@@ -176,6 +204,7 @@ export const PGJumproleSPECIFICATION: Specification<PGJumprole> = [
             value: ParamValueType.String,
             accepts_null: true,
             accepts_undefined: true,
+            preserve_undefined: false,
         },
         name: "jump_type",
     },
@@ -184,17 +213,18 @@ export const PGJumproleSPECIFICATION: Specification<PGJumprole> = [
             value: ParamValueType.String,
             accepts_null: true,
             accepts_undefined: true,
+            preserve_undefined: false,
         },
         name: "link",
     },
     { type: ParamValueType.Snowflake, name: "added_by" },
-    { type: ParamValueType.DateAsUInt4Like, name: "updated_at" },
+    { type: ParamValueType.UInt4N, name: "updated_at" },
     { type: ParamValueType.Snowflake, name: "server" },
     { type: ParamValueType.String, name: "hash" },
 ] as const;
 
 export const JumproleSPECIFICATION: Specification<Jumprole> = [
-    { type: ParamValueType.UInt4S, name: "id" },
+    { type: ParamValueType.UInt4N, name: "id" },
     { type: ParamValueType.String, name: "name" },
     { type: ParamValueType.String, name: "description" },
     {
@@ -202,6 +232,7 @@ export const JumproleSPECIFICATION: Specification<Jumprole> = [
             value: ParamValueType.KingdomIndexN,
             accepts_null: true,
             accepts_undefined: false,
+            preserve_undefined: false,
         },
         name: "kingdom",
     },
@@ -210,6 +241,7 @@ export const JumproleSPECIFICATION: Specification<Jumprole> = [
             value: ParamValueType.String,
             accepts_null: true,
             accepts_undefined: false,
+            preserve_undefined: false,
         },
         name: "location",
     },
@@ -218,6 +250,7 @@ export const JumproleSPECIFICATION: Specification<Jumprole> = [
             value: ParamValueType.String,
             accepts_null: true,
             accepts_undefined: false,
+            preserve_undefined: false,
         },
         name: "jump_type",
     },
@@ -226,11 +259,12 @@ export const JumproleSPECIFICATION: Specification<Jumprole> = [
             value: ParamValueType.String,
             accepts_null: true,
             accepts_undefined: false,
+            preserve_undefined: false,
         },
         name: "link",
     },
     { type: ParamValueType.Snowflake, name: "added_by" },
-    { type: ParamValueType.DateAsUInt4Like, name: "updated_at" },
+    { type: ParamValueType.UInt4N, name: "updated_at" },
     { type: ParamValueType.Snowflake, name: "server" },
     { type: ParamValueType.String, name: "hash" },
 ] as const;
