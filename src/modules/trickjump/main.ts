@@ -1,6 +1,6 @@
 import { Module } from "../../module_loader.js";
 import { InclusionSpecifierType } from "../../utilities/permissions.js";
-import { JumproleCMD } from "./jumprole/internals/jumprole_cmd.js";
+import { JumproleCMD } from "./jumprole/jumprole_cmd.js";
 
 // Main module export object
 const trickjump_module: Module = {

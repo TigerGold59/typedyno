@@ -1,13 +1,16 @@
 import { Client, Message, Snowflake } from "discord.js";
 import { PoolInstance as Pool } from "../../../pg_wrapper.js";
 
-import { ArgumentValues, BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 import { command, validate } from "../../../module_decorators.js";
 import { log, LogType } from "../../../utilities/log.js";
 import { Permissions } from "../../../utilities/permissions.js";
 import { CreateJumproleResult, create_jumprole } from "./internals/jumprole_postgres.js";
 import { Jumprole, KingdomNameToKingdom } from "./internals/jumprole_type.js";
+import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
+
+// TODO: Use INSERT INTO ... ON CONFLICT (name, server) DO UPDATE... query instead of checking if it already exists
 @command()
 export class JumproleSet extends Subcommand<typeof JumproleSet.manual> {
     constructor() {
@@ -57,7 +60,7 @@ export class JumproleSet extends Subcommand<typeof JumproleSet.manual> {
 
     @validate()
     async activate(
-        args: ArgumentValues<typeof JumproleSet.manual>,
+        args: ValidatedArguments<typeof JumproleSet.manual>,
         message: Message,
         _client: Client,
         pool: Pool,

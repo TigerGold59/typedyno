@@ -22,7 +22,7 @@ export const process_message = async function (message: Message, client: Client,
     const command_results = await process_message_for_commands(message, client, pool);
 
     if (command_results.did_find_command === true) {
-        if (command_results.command_authorized === false) {
+        if (command_results.command_authorized === false && command_results.no_use_no_see !== true) {
             if (is_string(command_results.not_authorized_reason)) {
                 message.channel.send(`You are not authorized to use that command. Reason: ${command_results.not_authorized_reason}`);
             } else {

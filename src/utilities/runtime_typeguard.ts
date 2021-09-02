@@ -18,6 +18,7 @@ export enum ParamValueType {
     String = "string", // string
     Number = "number", // number
     Boolean = "boolean", // boolean
+    BooleanS = "boolean represented as string",
     NumberLike = "number, safe-sized BigInt, or number-convertible string", // number
     IntegerLike = "integer, safe-sized BigInt, or integer-convertible string", // number
     UnsignedIntegerLike = "positive integer, safe-sized BigInt, or likewise convertible string", // number
@@ -35,6 +36,39 @@ export enum ParamValueType {
     KingdomIndexS = "positive string-represented integer less than 19", // number
     KingdomIndexN = "positive number-represented integer less than 19", // number
 }
+
+export type HasMap<Union extends string, List extends readonly any[]> = {
+    [P in Union]: List[number] extends Exclude<List[number], P> ? false : true;
+};
+export type HasAllMembers<Union extends string, List extends readonly any[]> = HasMap<Union, List>[keyof HasMap<Union, List>] extends true
+    ? List
+    : never;
+export type HasAllKeys<Union extends string, Structure extends object, _Value extends any> = Union extends keyof Structure ? true : false;
+
+const ParamValueTypeNormalizationMap = {
+    [ParamValueType.String]: "string" as string,
+    [ParamValueType.Number]: 0 as number,
+    [ParamValueType.Boolean]: true as boolean,
+    [ParamValueType.BooleanS]: true as boolean,
+    [ParamValueType.NumberLike]: 0 as number,
+    [ParamValueType.IntegerLike]: 0 as number,
+    [ParamValueType.UnsignedIntegerLike]: 0 as number,
+    [ParamValueType.Snowflake]: "string" as string,
+    [ParamValueType.UInt4S]: 0 as number,
+    [ParamValueType.UInt4N]: 0 as number,
+    [ParamValueType.UInt4Like]: 0 as number,
+    [ParamValueType.DateAsUInt4Like]: new Date(),
+    [ParamValueType.UInt8S]: 0n as bigint,
+    [ParamValueType.UInt8B]: 0n as bigint,
+    [ParamValueType.UInt8Like]: 0n as bigint,
+    [ParamValueType.BigInt]: 0n as bigint,
+    [ParamValueType.BigIntLike]: 0n as bigint,
+    [ParamValueType.Date]: new Date() as Date,
+    [ParamValueType.KingdomIndexS]: 0 as number,
+    [ParamValueType.KingdomIndexN]: 0 as number,
+} as const;
+
+export type ParamValueTypeMap = typeof ParamValueTypeNormalizationMap;
 
 /**
  * ParamValueTypes that are completely symmetric
@@ -71,6 +105,7 @@ export const TRANSFORM_TABLE: Record<ParamValueType, BaseParamValueType[]> = {
     [ParamValueType.String]: [],
     [ParamValueType.Number]: [],
     [ParamValueType.Boolean]: [],
+    [ParamValueType.BooleanS]: [ParamValueType.Boolean],
     [ParamValueType.NumberLike]: [ParamValueType.String, ParamValueType.Number],
     [ParamValueType.IntegerLike]: [ParamValueType.String, ParamValueType.Number, ParamValueType.BigInt],
     [ParamValueType.UnsignedIntegerLike]: [ParamValueType.String, ParamValueType.Number, ParamValueType.BigInt],
@@ -215,6 +250,13 @@ export const validate_parameter = function (property: unknown, type: ParamType):
                 case ParamValueType.Boolean: {
                     if (is_boolean(property)) return value(property);
                     else return bad_type;
+                }
+                case ParamValueType.BooleanS: {
+                    if (is_string(property) === false) return bad_type;
+                    const lower = (property as string).toLowerCase();
+                    if (lower === "y" || lower === "yes" || lower === "true") return value(true);
+                    else if (lower === "n" || lower === "no" || lower === "false") return value(false);
+                    else return bad_value;
                 }
                 case ParamValueType.String: {
                     if (is_string(property)) return value(property);

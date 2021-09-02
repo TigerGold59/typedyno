@@ -1,5 +1,6 @@
 import { DMChannel, Guild, Message, TextChannel } from "discord.js";
 import { readFile } from "fs";
+import { log, LogType } from "./log.js";
 
 export const is_string = function (thing: unknown): thing is string {
     if (thing === "") {
@@ -109,4 +110,13 @@ export const read_file = async function (filepath: string): Promise<string> {
             },
         );
     });
+};
+
+export const query_failure = function (function_name: string, query_string: string, query_parameters: any[], err: any): void {
+    log(`${function_name}: unexpectedly failed when attempting query.`, LogType.Error);
+    log(`Query string:`, LogType.Error);
+    log(query_string, LogType.Error);
+    log(`Query parameters: `, LogType.Error);
+    log(safe_serialize(query_parameters), LogType.Error);
+    log(safe_serialize(err), LogType.Error);
 };

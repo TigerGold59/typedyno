@@ -12,6 +12,20 @@
 
 **Columns**: `snowflake`, `permissions`
 
-`snowflake`: varchar PRIMARY KEY
+`snowflake`: BigInt PRIMARY KEY
 
 `permissions`: varchar
+
+## Table: `servers`
+
+**Columns**: `snowflake`, `full_access`, `server`
+
+`snowflake`: BigInt NOT NULL
+
+`full_access`: boolean NOT NULL
+
+`server`: BigInt NOT NULL
+
+UNIQUE (snowflake, server)
+
+`

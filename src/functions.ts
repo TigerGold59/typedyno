@@ -7,12 +7,20 @@ import { GLOBAL_PREFIX, MAINTAINER_TAG, MODULES } from "./main.js";
 import { performance } from "perf_hooks";
 import { DebugLogType, log, LogType } from "./utilities/log.js";
 import { allowed, Permissions } from "./utilities/permissions.js";
-import { escape_reg_exp, is_string, is_text_channel } from "./utilities/typeutils.js";
+import { escape_reg_exp, is_string, is_text_channel, safe_serialize } from "./utilities/typeutils.js";
 import { Paste, url } from "./integrations/paste_ee.js";
 import { argument_specification_from_manual, check_specification, ParamValueType } from "./utilities/runtime_typeguard.js";
 import { get_args, handle_GetArgsResult } from "./utilities/argument_processing/arguments.js";
-import { GetArgsResult } from "./utilities/argument_processing/arguments_types.js";
+import { GetArgsResult, ValidatedArguments } from "./utilities/argument_processing/arguments_types.js";
 import { automatic_dispatch, command, validate } from "./module_decorators.js";
+import {
+    create_designate_handle,
+    DesignateRemoveUserResult,
+    DesignateUserStatus,
+    designate_remove_user,
+    designate_set_user,
+    designate_user_status,
+} from "./designate.js";
 
 export const GiveCheck = async (message: Message): Promise<boolean> => {
     try {
@@ -48,7 +56,7 @@ export const enum BotCommandMetadataKey {
 export abstract class BotCommand {
     static readonly manual: CommandManual = { name: "blank", arguments: [], description: "You shouldn't be seeing this.", syntax: "" };
 
-    static readonly no_use_no_see = false;
+    static readonly no_use_no_see = false as boolean;
     static readonly permissions = undefined as Permissions | undefined;
 
     constructor(command_manual: CommandManual, no_use_no_see: boolean, permissions?: Permissions) {
@@ -67,6 +75,20 @@ export abstract class BotCommand {
 
 export type ArgumentValues<Manual extends SubcommandManual> = Exclude<GetArgsResult<Manual["arguments"]>["values"], null>;
 
+/*export abstract class ParentCommand<Manual extends MultifacetedCommandManual> extends BotCommand {
+    constructor(command_manual: Manual, no_use_no_see: boolean, permissions?: Permissions) {
+        super(command_manual, no_use_no_see, permissions);
+        Reflect.defineMetadata(BotCommandMetadataKey.Permissions, permissions, this);
+        Reflect.defineMetadata(BotCommandMetadataKey.Manual, command_manual, this);
+        Reflect.defineMetadata(BotCommandMetadataKey.NoUseNoSee, no_use_no_see, this);
+    }
+
+    abstract before_dispatch(subcommand_name: string, message: Message, client: Client, pool: Pool, prefix: string): Promise<BotCommandProcessResults>
+
+    async process(message: Message, client: Client, pool: Pool, prefix: string): Promise<BotCommandProcessResults> {
+    }
+}*/
+
 export abstract class Subcommand<Manual extends SubcommandManual> extends BotCommand {
     constructor(command_manual: Manual, no_use_no_see: boolean, permissions?: Permissions) {
         super(command_manual, no_use_no_see, permissions);
@@ -76,7 +98,7 @@ export abstract class Subcommand<Manual extends SubcommandManual> extends BotCom
     }
 
     abstract activate(
-        values: ArgumentValues<Manual>,
+        values: ValidatedArguments<Manual>,
         message: Message,
         client: Client,
         pool: Pool,
@@ -104,7 +126,7 @@ export abstract class Subcommand<Manual extends SubcommandManual> extends BotCom
             return { type: BotCommandProcessResultType.Unauthorized };
         }
 
-        return await this.activate(values as ArgumentValues<Manual>, message, client, pool, prefix);
+        return await this.activate(values as ValidatedArguments<Manual>, message, client, pool, prefix);
     }
 }
 
@@ -163,12 +185,13 @@ export const make_command_regex = function (command_name: string, prefix: string
 
 export interface ParseMessageResult {
     did_find_command: boolean;
+    no_use_no_see?: boolean;
     command_worked?: boolean;
     command_authorized?: boolean;
     call_to_return_span_ms?: number;
     command_name?: string;
     did_use_module: boolean;
-    module_name?: string;
+    module_name: string | null;
     not_authorized_reason?: string;
 }
 
@@ -215,6 +238,7 @@ export const process_message_for_commands = async function (message: Message, cl
                     command_authorized: false,
                     command_name: manual.name,
                     did_use_module: false,
+                    module_name: null,
                 };
             }
         }
@@ -265,13 +289,12 @@ export const process_message_for_commands = async function (message: Message, cl
 
         return {
             did_find_command: true,
+            no_use_no_see: is_no_use_no_see(valid_command),
             command_worked: result.type === BotCommandProcessResultType.Succeeded,
             command_authorized: result.type !== BotCommandProcessResultType.Unauthorized,
             call_to_return_span_ms: end_time - start_time,
             command_name: manual_of(valid_command)!.name,
             did_use_module: using_module !== null,
-            // { ts-malfunction }
-            // @ts-expect-error
             module_name: using_module,
             not_authorized_reason: result.not_authorized_message,
         };
@@ -280,6 +303,7 @@ export const process_message_for_commands = async function (message: Message, cl
         return {
             did_find_command: false,
             did_use_module: false,
+            module_name: null,
         };
     }
 };
@@ -343,7 +367,13 @@ namespace StockCommands {
         static readonly no_use_no_see = false;
         static readonly permissions = undefined as Permissions | undefined;
 
-        @validate() async activate(_args: ArgumentValues<typeof PrefixGet.manual>, message: Message, _client: Client, pool: Pool, _prefix: string) {
+        @validate() async activate(
+            _args: ValidatedArguments<typeof PrefixGet.manual>,
+            message: Message,
+            _client: Client,
+            pool: Pool,
+            _prefix: string,
+        ) {
             const prefix_result = await get_prefix(message.guild, pool);
             if (prefix_result.trim() === GLOBAL_PREFIX.trim()) {
                 message.channel.send(`The global prefix is "${prefix_result}" and it hasn't been changed locally, but you already knew that.`);
@@ -389,7 +419,7 @@ namespace StockCommands {
         static readonly permissions = undefined as Permissions | undefined;
 
         @validate() async activate(
-            args: ArgumentValues<typeof PrefixSet.manual>,
+            args: ValidatedArguments<typeof PrefixSet.manual>,
             message: Message,
             client: Client,
             pool: Pool,
@@ -499,6 +529,276 @@ namespace StockCommands {
             };
         }
     }
+
+    @command()
+    export class DesignateSet extends Subcommand<typeof DesignateSet.manual> {
+        constructor() {
+            super(DesignateSet.manual, DesignateSet.no_use_no_see, DesignateSet.permissions);
+        }
+
+        static readonly manual = {
+            name: "set",
+            description: "Designate people who have power in the server to do things like set a prefix, designate others, and set mod channels.",
+            arguments: [
+                {
+                    name: "user ID",
+                    id: "user_snowflake",
+                    optional: false,
+                    further_constraint: ParamValueType.Snowflake,
+                },
+                {
+                    name: "allow designating others",
+                    id: "allow_designating",
+                    optional: true,
+                    further_constraint: ParamValueType.BooleanS,
+                },
+            ],
+            syntax: "<prefix>designate set USER $1{opt $2}[ FULL $2]",
+        } as const;
+
+        static readonly no_use_no_see = true;
+        static readonly permissions = undefined as Permissions | undefined;
+
+        @validate() async activate(
+            args: ValidatedArguments<typeof DesignateSet.manual>,
+            message: Message,
+            _client: Client,
+            pool: Pool,
+            prefix: string,
+        ): Promise<BotCommandProcessResults> {
+            const reply = async (response: string): Promise<void> => {
+                await message.channel.send(response);
+            };
+
+            const target_handle = create_designate_handle(args.user_snowflake, message);
+            const asker_handle = create_designate_handle(message.author.id, message);
+            const user_status = await designate_user_status(asker_handle, pool);
+            const intention = args.allow_designating === true;
+            switch (user_status) {
+                case DesignateUserStatus.UserIsAdmin:
+                case DesignateUserStatus.FullAccess: {
+                    const new_status = await designate_set_user(target_handle, intention, pool);
+                    switch (new_status) {
+                        case null: {
+                            await reply(`${prefix}designate set: an internal error occurred (query failure). Contact @${MAINTAINER_TAG} for help.`);
+                            return { type: BotCommandProcessResultType.DidNotSucceed };
+                        }
+                        case DesignateUserStatus.UserNotInRegistry: {
+                            await reply(
+                                `${prefix}designate set: an internal error occurred (new status was UserNotInRegistry even after calling designate_set_user). Contact @${MAINTAINER_TAG} for help.`,
+                            );
+                            return { type: BotCommandProcessResultType.DidNotSucceed };
+                        }
+                        case DesignateUserStatus.UserIsAdmin: {
+                            return {
+                                type: BotCommandProcessResultType.Unauthorized,
+                                not_authorized_message: "The user whose designation you are trying to set is a bot admin.",
+                            };
+                        }
+                        default: {
+                            await GiveCheck(message);
+                            return { type: BotCommandProcessResultType.Succeeded };
+                        }
+                    }
+                }
+                case DesignateUserStatus.InvalidHandle: {
+                    log(`DesignateAdd: invalid designate handle for asker (${safe_serialize(asker_handle)})`, LogType.Error);
+                    await reply(
+                        `${prefix}designate set: an internal error occurred (invalid designate handle for asker). Contact @${MAINTAINER_TAG} for help.`,
+                    );
+                    return { type: BotCommandProcessResultType.DidNotSucceed };
+                }
+                default: {
+                    return {
+                        type: BotCommandProcessResultType.Unauthorized,
+                        not_authorized_message: "The user of this command does not have designate full access power.",
+                    };
+                }
+            }
+        }
+    }
+
+    @command()
+    export class DesignateRemove extends Subcommand<typeof DesignateRemove.manual> {
+        constructor() {
+            super(DesignateRemove.manual, DesignateRemove.no_use_no_see, DesignateRemove.permissions);
+        }
+
+        static readonly manual = {
+            name: "remove",
+            description: "Remove the power of people who have designate privileges.",
+            arguments: [
+                {
+                    name: "user ID",
+                    id: "user_snowflake",
+                    optional: false,
+                    further_constraint: ParamValueType.Snowflake,
+                },
+            ],
+            syntax: "<prefix>designate remove USER $1",
+        } as const;
+
+        static readonly no_use_no_see = true;
+        static readonly permissions = undefined as Permissions | undefined;
+
+        @validate() async activate(
+            args: ValidatedArguments<typeof DesignateSet.manual>,
+            message: Message,
+            _client: Client,
+            pool: Pool,
+            prefix: string,
+        ): Promise<BotCommandProcessResults> {
+            const reply = async (response: string): Promise<void> => {
+                await message.channel.send(response);
+            };
+
+            const target_handle = create_designate_handle(args.user_snowflake, message);
+            const asker_handle = create_designate_handle(message.author.id, message);
+            const user_status = await designate_user_status(asker_handle, pool);
+            switch (user_status) {
+                case DesignateUserStatus.UserIsAdmin:
+                case DesignateUserStatus.FullAccess: {
+                    const result = await designate_remove_user(target_handle, pool);
+                    switch (result) {
+                        case DesignateRemoveUserResult.UserAlreadyNotInRegistry: {
+                            await reply(`${prefix}designate remove: User already had no designate privileges.`);
+                            return { type: BotCommandProcessResultType.Succeeded };
+                        }
+                        case DesignateRemoveUserResult.InvalidHandle: {
+                            log(`DesignateRemove: invalid designate handle for target (${safe_serialize(target_handle)})`, LogType.Error);
+                            await reply(
+                                `${prefix}designate remove: an internal error occurred (invalid designate handle for target). Contact @${MAINTAINER_TAG} for help.`,
+                            );
+                            return { type: BotCommandProcessResultType.DidNotSucceed };
+                        }
+                        case DesignateRemoveUserResult.QueryError: {
+                            await reply(`${prefix}designate set: an internal error occurred (query failure). Contact @${MAINTAINER_TAG} for help.`);
+                            return { type: BotCommandProcessResultType.DidNotSucceed };
+                        }
+                        case DesignateRemoveUserResult.UserRemoved: {
+                            await GiveCheck(message);
+                            return { type: BotCommandProcessResultType.Succeeded };
+                        }
+                        case DesignateRemoveUserResult.UserIsAdmin: {
+                            return {
+                                type: BotCommandProcessResultType.Unauthorized,
+                                not_authorized_message: "The user whose designation you are trying to remove is a bot admin.",
+                            };
+                        }
+                    }
+                }
+                case DesignateUserStatus.InvalidHandle: {
+                    log(`DesignateAdd: invalid designate handle for asker (${safe_serialize(asker_handle)})`, LogType.Error);
+                    await reply(
+                        `${prefix}designate remove: an internal error occurred (invalid designate handle for asker). Contact @${MAINTAINER_TAG} for help.`,
+                    );
+                    return { type: BotCommandProcessResultType.DidNotSucceed };
+                }
+                default: {
+                    return {
+                        type: BotCommandProcessResultType.Unauthorized,
+                        not_authorized_message: "The user of this command must have designate full access power.",
+                    };
+                }
+            }
+        }
+    }
+
+    @command()
+    export class DesignateGet extends Subcommand<typeof DesignateGet.manual> {
+        constructor() {
+            super(DesignateGet.manual, DesignateGet.no_use_no_see, DesignateGet.permissions);
+        }
+
+        static readonly manual = {
+            name: "get",
+            description: "Check someone's designate privileges.",
+            arguments: [
+                {
+                    name: "user ID",
+                    id: "user_snowflake",
+                    optional: true,
+                    further_constraint: ParamValueType.Snowflake,
+                },
+            ],
+            syntax: "<prefix>designate get{opt $1}[ USER $1]",
+        } as const;
+
+        static readonly no_use_no_see = false;
+        static readonly permissions = undefined;
+
+        @validate() async activate(
+            args: ValidatedArguments<typeof DesignateGet.manual>,
+            message: Message,
+            _client: Client,
+            pool: Pool,
+            prefix: string,
+        ): Promise<BotCommandProcessResults> {
+            const reply = async (response: string): Promise<void> => {
+                await message.channel.send(response);
+            };
+            const target_id = args.user_snowflake === null ? message.author.id : args.user_snowflake;
+            const start_string = args.user_snowflake === null ? `You're` : `The user with ID ${args.user_snowflake} is`;
+            const target_handle = create_designate_handle(target_id, message);
+
+            const status = await designate_user_status(target_handle, pool);
+
+            switch (status) {
+                case DesignateUserStatus.FullAccess: {
+                    await reply(`${start_string} currently at the level of full access (able to designate others).`);
+                    return { type: BotCommandProcessResultType.Succeeded };
+                }
+                case DesignateUserStatus.UserIsAdmin: {
+                    await reply(`${start_string} a bot admin (able to designate others, unable to be removed from designate).`);
+                    return { type: BotCommandProcessResultType.Succeeded };
+                }
+                case DesignateUserStatus.NoFullAccess: {
+                    await reply(`${start_string} currently at the level of partial access (unable to designate others, but otherwise priviledged).`);
+                    return { type: BotCommandProcessResultType.Succeeded };
+                }
+                case DesignateUserStatus.UserNotInRegistry: {
+                    await reply(`${start_string} not in the designate registry for this server (no designate privileges).`);
+                    return { type: BotCommandProcessResultType.Succeeded };
+                }
+                case DesignateUserStatus.InvalidHandle: {
+                    await reply(
+                        `${prefix}designate get: unknown internal error (designate_user_status returned InvalidHandle). Contact @${MAINTAINER_TAG} for help.`,
+                    );
+                    return { type: BotCommandProcessResultType.DidNotSucceed };
+                }
+            }
+        }
+    }
+
+    @command()
+    export class Designate extends BotCommand {
+        constructor() {
+            super(Designate.manual, Designate.no_use_no_see, Designate.permissions);
+        }
+        static readonly manual = {
+            name: "designate",
+            description: "Manage user permissions in this server.",
+            subcommands: [DesignateSet.manual, DesignateRemove.manual, DesignateGet.manual],
+        } as const;
+
+        static readonly no_use_no_see = false;
+        static readonly permissions = undefined;
+
+        @automatic_dispatch(new DesignateSet(), new DesignateRemove(), new DesignateGet()) async process(
+            _message: Message,
+            _client: Client,
+            _pool: Pool,
+            _prefix: string,
+        ): Promise<BotCommandProcessResults> {
+            log(`Designate command: passing through to subcommand`, LogType.Status, DebugLogType.AutomaticDispatchPassThrough);
+            return { type: BotCommandProcessResultType.PassThrough };
+        }
+    }
 }
 
-export const STOCK_BOT_COMMANDS: BotCommand[] = [new StockCommands.GetCommands(), new StockCommands.Info(), new StockCommands.Prefix()];
+export const STOCK_BOT_COMMANDS: BotCommand[] = [
+    new StockCommands.GetCommands(),
+    new StockCommands.Info(),
+    new StockCommands.Prefix(),
+    new StockCommands.Designate(),
+];

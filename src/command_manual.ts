@@ -5,7 +5,7 @@ import { GLOBAL_PREFIX, MODULES } from "./main.js";
 import { DebugLogType, log, LogType } from "./utilities/log.js";
 import { allowed, Permissions } from "./utilities/permissions.js";
 import { is_ParamValueType, ParamValueType } from "./utilities/runtime_typeguard.js";
-import { escape_reg_exp, is_string, safe_serialize } from "./utilities/typeutils.js";
+import { escape_reg_exp, is_boolean, is_string, safe_serialize } from "./utilities/typeutils.js";
 
 export const manual_of = function (command: BotCommand): CommandManual | undefined {
     return Reflect.getMetadata(BotCommandMetadataKey.Manual, command) as CommandManual | undefined;
@@ -59,6 +59,9 @@ export interface SubcommandManual {
     // In the example with the optional, the pipelines are only required if argument $2 is present.
     readonly syntax: string;
     readonly arguments: readonly CommandArgument[];
+    // Display all syntaxes, or compact it down into a readable optional thing
+    // TODO: Implement
+    readonly compact_syntaxes?: boolean;
     // A description of the subcommand to be added on in the manual.
     readonly description: string;
 }
@@ -104,6 +107,12 @@ const is_valid_SimpleCommandManual = function (thing: any): thing is SimpleComma
             DebugLogType.ManualValidationFailedReason,
         );
         return false;
+    } else if ("compact_syntaxes" in thing && is_boolean(thing.compact_syntaxes) === false && thing.compact_syntaxes !== undefined) {
+        log(
+            `is_valid_SimpleCommandManual returned false - thing had non-boolean and non-undefined property "compact_syntaxes"`,
+            LogType.Mismatch,
+            DebugLogType.ManualValidationFailedReason,
+        );
     }
 
     for (const element of thing.arguments) {

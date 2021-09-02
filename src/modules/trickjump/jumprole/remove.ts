@@ -1,11 +1,12 @@
 import { Client, Guild, Message } from "discord.js";
 import { PoolInstance as Pool } from "../../../pg_wrapper.js";
 
-import { ArgumentValues, BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 import { command, validate } from "../../../module_decorators.js";
 import { Permissions } from "../../../utilities/permissions.js";
 import { DeleteJumproleResult, delete_jumprole } from "./internals/jumprole_postgres.js";
+import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 
 @command()
 export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
@@ -31,7 +32,7 @@ export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
 
     @validate()
     async activate(
-        values: ArgumentValues<typeof JumproleRemove.manual>,
+        values: ValidatedArguments<typeof JumproleRemove.manual>,
         message: Message,
         _client: Client,
         pool: Pool,

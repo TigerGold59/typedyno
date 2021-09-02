@@ -2,7 +2,7 @@ import { PoolInstance as Pool, PoolClient } from "../../../../pg_wrapper.js";
 import { log, LogType } from "../../../../utilities/log.js";
 import { Snowflake } from "../../../../utilities/permissions.js";
 import { check_specification } from "../../../../utilities/runtime_typeguard.js";
-import { safe_serialize } from "../../../../utilities/typeutils.js";
+import { query_failure, safe_serialize } from "../../../../utilities/typeutils.js";
 import {
     check_jumprole_handle,
     compute_jumprole_hash,
@@ -39,15 +39,6 @@ export interface ModifyJumproleResult {
     result_type: ModifyJumproleResultType;
     new: Jumprole | undefined;
 }
-
-export const query_failure = function (function_name: string, query_string: string, query_parameters: any[], err: any): void {
-    log(`${function_name}: unexpectedly failed when attempting query.`, LogType.Error);
-    log(`Query string:`, LogType.Error);
-    log(query_string, LogType.Error);
-    log(`Query parameters: `, LogType.Error);
-    log(safe_serialize(query_parameters), LogType.Error);
-    log(safe_serialize(err), LogType.Error);
-};
 
 export const get_jumprole = async (handle: JumproleHandle, queryable: Queryable): Promise<Jumprole | null> => {
     const type = check_jumprole_handle(handle);

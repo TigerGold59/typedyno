@@ -1,5 +1,5 @@
 import { CommandManual, CommandManualType, CommandManualValidation, MultifacetedCommandManual, SubcommandManual } from "./command_manual.js";
-import { ArgumentValues, BotCommand, BotCommandMetadataKey, BotCommandProcessResults, BotCommandProcessResultType, Subcommand } from "./functions.js";
+import { BotCommand, BotCommandMetadataKey, BotCommandProcessResults, BotCommandProcessResultType, Subcommand } from "./functions.js";
 import { DebugLogType, log, LogType } from "./utilities/log.js";
 import "reflect-metadata";
 import { Client, Message } from "discord.js";
@@ -8,6 +8,7 @@ import { PoolInstance as Pool } from "./pg_wrapper.js";
 import { get_first_matching_subcommand } from "./utilities/argument_processing/arguments.js";
 import { argument_specification_from_manual, check_specification } from "./utilities/runtime_typeguard.js";
 import { is_text_channel, safe_serialize } from "./utilities/typeutils.js";
+import { ValidatedArguments } from "./utilities/argument_processing/arguments_types.js";
 
 type ClassType<Instance extends object> = Function & { prototype: Instance };
 // type ConcreteClassType<Instance extends object> = new (...args: any[]) => Instance & { prototype: Instance };
@@ -196,7 +197,7 @@ export function validate(): MethodDecorator {
             case CommandManualType.SimpleCommandManual: {
                 descriptor.value = async function activate(
                     this: any,
-                    args: ArgumentValues<Manual>,
+                    args: ValidatedArguments<Manual>,
                     message: Message,
                     client: Client,
                     pool: Pool,
@@ -216,7 +217,7 @@ export function validate(): MethodDecorator {
 
                     return await method_body.apply(this, [args, message, client, pool, prefix]);
                 } as (
-                    args: ArgumentValues<Manual>,
+                    args: ValidatedArguments<Manual>,
                     message: Message,
                     client: Client,
                     pool: Pool,

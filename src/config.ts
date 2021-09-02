@@ -19,7 +19,7 @@ export const CONFIG: Config = {
         decorators: false,
         timing: true,
         manual_validation_failed_reason: false,
-        key_off_function_debug: true,
+        key_off_function_debug: false,
         make_manual_function_debug: true,
         process_message_for_commands_function_debug: false,
         automatic_dispatch_pass_through: true,
