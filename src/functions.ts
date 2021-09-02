@@ -411,8 +411,8 @@ namespace StockCommands {
                 },
             ],
             description:
-                "Sets the provided string as the local prefix, overriding the global prefix.\nYou must be a bot admin or designated server manager to use this command.",
-            syntax: "<prefix>prefix set $1",
+                "Sets the provided string as the local prefix, overriding the global prefix.\nYou must be a bot admin or have designated privileges to use this command.",
+            syntax: "<prefix>prefix set NEW $1{opt $2}[ SERVER $2]",
         } as const;
 
         static readonly no_use_no_see = false;
@@ -427,9 +427,6 @@ namespace StockCommands {
         ): Promise<BotCommandProcessResults> {
             if (CONFIG.admins.includes(message.author.id)) {
                 const result = await set_prefix(
-                    // if message is not in a valid text channel, the if above this will trigger and this clause will not run
-                    // is_text_channel explicitly checks whether message.guild instanceof Guild === true
-                    // { ts-malfunction }
                     args.guild_id === null ? (message.guild as Guild) : await client.guilds.fetch(args.guild_id as string),
                     pool,
                     args.new_prefix,

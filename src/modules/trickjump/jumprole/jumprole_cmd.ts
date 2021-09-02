@@ -36,7 +36,7 @@ export class Jumprole extends BotCommand {
         const reply = async (response: string) => {
             await message.channel.send(response);
         };
-        if (message.content.toLowerCase().startsWith(`${prefix}jumprole choose`)) {
+        if (message.content.toLowerCase().startsWith(`${prefix.toLowerCase()}jumprole choose`)) {
             return { type: BotCommandProcessResultType.PassThrough };
         }
         // Do before calling subcommand
@@ -44,7 +44,7 @@ export class Jumprole extends BotCommand {
         const authorized_channels = await pool.query(GET_SERVER_JUMPROLE_CHANNEL, [message.guild!.id]);
         if (authorized_channels.rowCount === 0) {
             await reply(
-                `${prefix}jumprole: this server has not designated a jumprole commands channel. Have a user with designate privileges create one using \`${prefix}jumprole choose <channel ID>\`. Check whether a user has designate privileges using \`${prefix}designate get <user ID>\`.`,
+                `${prefix}jumprole: this server has not designated a jumprole commands channel. Have a user with designate privileges create one, using \`${prefix}jumprole choose\`. You can see available syntaxes using \`${prefix}commands\`.`,
             );
             return { type: BotCommandProcessResultType.DidNotSucceed };
         } else if (authorized_channels.rowCount > 1) {

@@ -53,6 +53,7 @@ export class JumproleSet extends Subcommand<typeof JumproleSet.manual> {
         ],
         description: "Creates or updates a Jumprole with the specified properties.",
         syntax: "<prefix>jumprole set NAME $1{opt $2}[ KINGDOM $2]{opt $3}[ LOCATION $3]{opt $4}[ JUMP TYPE $4]{opt $5}[ LINK $5] INFO $6",
+        compact_syntaxes: true,
     } as const;
 
     static readonly no_use_no_see = false;

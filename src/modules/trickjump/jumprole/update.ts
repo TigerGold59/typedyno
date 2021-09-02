@@ -53,6 +53,7 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
         ],
         description: "Updates the specified properties of the jumprole.",
         syntax: "<prefix>jumprole update NAME $1{opt $2}[ KINGDOM $2]{opt $3}[ LOCATION $3]{opt $4}[ JUMP TYPE $4]{opt $5}[ LINK $5]{opt $6}[ INFO $6]",
+        compact_syntaxes: true,
     } as const;
 
     static readonly no_use_no_see = false;

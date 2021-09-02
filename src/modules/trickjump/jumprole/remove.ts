@@ -24,7 +24,8 @@ export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
             },
         ],
         description: "Removes the given Jumprole and clears it from all users' Jumprole lists.",
-        syntax: "<prefix>jumprole remove $1",
+        syntax: "<prefix>jumprole remove NAME $1",
+        compact_syntaxes: true,
     } as const;
 
     static readonly no_use_no_see = false;

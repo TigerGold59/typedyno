@@ -16,7 +16,7 @@ export const permissions_of = function (command: BotCommand): Permissions | unde
 };
 
 export const is_no_use_no_see = function (command: BotCommand): boolean {
-    return Boolean(Reflect.getMetadata(BotCommandMetadataKey.Manual, command));
+    return Boolean(Reflect.getMetadata(BotCommandMetadataKey.NoUseNoSee, command));
 };
 
 /**
@@ -232,21 +232,72 @@ export const key_off = function (syntax_string: string, argument_index: number, 
     }
 };
 
+export const key_off_describe_optional = function (syntax_string: string, argument_index: number, provided: boolean): string {
+    const regex = keying_off_regex(argument_index);
+    // log(`key_off created regex ${regex.source} for syntax string "${syntax_string}" and argument index ${argument_index.toString()} (provided: ${provided ? "true" : "false"}).`)
+    if (provided === false) {
+        return syntax_string.replace(regex, "");
+    } else {
+        const matches = syntax_string.matchAll(regex);
+
+        log(`Found matches for keying_off_regex.`, LogType.Status, DebugLogType.KeyOffFunctionDebug);
+
+        const matches_arr = [...matches];
+        log(`matches_arr: ${JSON.stringify(matches_arr)}`, LogType.Status, DebugLogType.KeyOffFunctionDebug);
+
+        // Replace each match with the content in the braces surrounded by optional description
+        for (const match of matches_arr) {
+            log(`Match: ${match[0]}, replacement: (optional:${match[1]})`, LogType.Status, DebugLogType.KeyOffFunctionDebug);
+            syntax_string = syntax_string.replace(match[0], `(optional:${match[1]})`);
+        }
+
+        return syntax_string;
+    }
+};
+
 /**
  * Used for command manual text generation.
- * @param command_arguments The list of arguments possible to provide to the command or subcommand
+ * @param command The SimpleCommandManual which we will be creating a syntax list for
  * @param syntax_string A string which provides information about how to format the command and what parts depend on whether optional arguments are provided
  * @param prefix_substitution What to replace the <prefix> placeholder in the syntax string with
  * @returns A list of syntax strings consisting of every possible combination of providing or not providing each optional argument
  */
-export const generate_syntaxes = function (
-    command_arguments: readonly CommandArgument[],
-    syntax_string: string,
-    prefix_substitution: string,
-): string[] {
+export const generate_syntaxes = function (command: SimpleCommandManual, syntax_string: string, prefix_substitution: string): string[] {
+    const command_arguments = command.arguments;
     // List of optional arguments
     let optional_arguments = command_arguments.filter(argument => argument.optional);
+    const argument_names = command_arguments.map(argument => argument.name);
 
+    let argument_names_indices: { [key: string]: number } = {};
+    let checked = 0;
+    const efficient_index_of = (name: string): number => {
+        if (name in argument_names_indices) return argument_names_indices[name];
+        else {
+            while (argument_names[checked] !== name) {
+                argument_names_indices[argument_names[checked]] = checked;
+                checked++;
+            }
+            return checked;
+        }
+    };
+    const finish_syntax_string = (state_dependent_syntax: string): string => {
+        // Replace the argument numbers with their descriptions
+        for (let i = 0; i < command_arguments.length; i++) {
+            state_dependent_syntax = state_dependent_syntax.replace(argument_identifier(i), `<${argument_names[i]}>`);
+        }
+
+        // Replace the prefix preholder
+        state_dependent_syntax = state_dependent_syntax.replace("<prefix>", prefix_substitution);
+        return state_dependent_syntax;
+    };
+
+    if (command.compact_syntaxes === true) {
+        let res = syntax_string;
+        for (let i = 0; i < optional_arguments.length; i++) {
+            res = key_off_describe_optional(res, command_arguments.indexOf(optional_arguments[i]), true);
+        }
+        return [finish_syntax_string(res)];
+    }
     // Array showing which optional arguments we are considering not provided, for making the syntax list
     const state = optional_arguments.map(() => false);
 
@@ -281,17 +332,11 @@ export const generate_syntaxes = function (
 
         // Replace the parts that key off of whether the optional argument is provided, using the state
         for (let i = 0; i < optional_arguments.length; i++) {
-            let argument_index = command_arguments.map(argument => argument.name).indexOf(optional_arguments[i].name);
+            let argument_index = efficient_index_of(optional_arguments[i].name);
             state_dependent_syntax = key_off(state_dependent_syntax, argument_index, state[i]);
         }
 
-        // Replace the argument numbers with their descriptions
-        for (let i = 0; i < command_arguments.length; i++) {
-            state_dependent_syntax = state_dependent_syntax.replace(argument_identifier(i), `<${command_arguments[i].name}>`);
-        }
-
-        // Replace the prefix preholder
-        state_dependent_syntax = state_dependent_syntax.replace("<prefix>", prefix_substitution);
+        state_dependent_syntax = finish_syntax_string(state_dependent_syntax);
 
         syntaxes.push(state_dependent_syntax);
     }
@@ -299,13 +344,11 @@ export const generate_syntaxes = function (
     // Do one more iteration for when all are true or there are no optional arguments
     let state_dependent_syntax = syntax_string;
     for (let i = 0; i < optional_arguments.length; i++) {
-        let argument_index = command_arguments.map(argument => argument.name).indexOf(optional_arguments[i].name);
+        let argument_index = argument_names.indexOf(optional_arguments[i].name);
         state_dependent_syntax = key_off(state_dependent_syntax, argument_index, state[i]);
     }
-    for (let i = 0; i < command_arguments.length; i++) {
-        state_dependent_syntax = state_dependent_syntax.replace(argument_identifier(i), `<${command_arguments[i].name}>`);
-    }
-    state_dependent_syntax = state_dependent_syntax.replace("<prefix>", prefix_substitution);
+    state_dependent_syntax = finish_syntax_string(state_dependent_syntax);
+
     syntaxes.push(state_dependent_syntax);
 
     return syntaxes;
@@ -314,7 +357,7 @@ export const generate_syntaxes = function (
 export const INDENT = "    ";
 
 export const make_simple_command_manual = function (manual: SimpleCommandManual, prefix_substitution: string): string {
-    let syntaxes = generate_syntaxes(manual.arguments, manual.syntax, prefix_substitution);
+    let syntaxes = generate_syntaxes(manual, manual.syntax, prefix_substitution);
 
     const syntax_accumulation = indent(
         syntaxes
