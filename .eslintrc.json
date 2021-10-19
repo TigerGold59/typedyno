@@ -1,0 +1,36 @@
+{
+    "env": {
+        "browser": true,
+        "es2021": true
+    },
+    "extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended", "plugin:@typescript-eslint/recommended-requiring-type-checking"],
+    "parser": "@typescript-eslint/parser",
+    "parserOptions": {
+        "ecmaVersion": 12,
+        "sourceType": "module",
+        "project": "./tsconfig.json"
+    },
+    "plugins": ["@typescript-eslint", "@ts-imports"],
+    "rules": {
+        "linebreak-style": ["error", "unix"],
+        "semi": ["error", "always"],
+        "complexity": ["error", { "max": 25 }],
+        "eqeqeq": "error",
+        "no-confusing-arrow": "error",
+        "no-unneeded-ternary": "error",
+        "no-unused-vars": "off",
+        "@typescript-eslint/no-unused-vars": ["off"], // , { "varsIgnorePattern": "^_" }
+        "@typescript-eslint/ban-types": [
+            "error",
+            {
+                "types": {
+                    "QueryResult": "Using a QueryResult<any> type introduces type unsafety into the function that has it. Instead, use a table-specific query result type defined in a table_types.d.ts file.",
+                    "PoolClient": "Using a PoolClient type makes it harder to handle the ownership and release cycle of PoolClients. Instead, use the Queryable and use_client API defined in pg_wrapper.ts",
+                    "Pool": "Using a Pool type makes it harder to handle the ownership and release cycle of PoolClients. Instead, use the Queryable and use_client API defined in pg_wrapper.ts, or disable this rule for top-level uses."
+                }
+            }
+        ],
+        "@typescript-eslint/no-unsafe-call": ["off"],
+        "@ts-imports/force-js-extension": "on"
+    }
+}

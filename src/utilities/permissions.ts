@@ -17,14 +17,6 @@ export const is_valid_Snowflake = function (thing?: unknown): boolean {
     return false;
 };
 
-export const Snowflake_to_BigInt = function (thing: Snowflake): number {
-    if (is_string(thing)) {
-        return Math.round(Number(thing));
-    } else {
-        return Math.round(thing);
-    }
-};
-
 export const enum InclusionSpecifierType {
     Whitelist = "Whitelist",
     Blacklist = "Blacklist",
@@ -66,14 +58,26 @@ export const is_valid_InclusionSpecifier = function (thing?: Partial<InclusionSp
     return true;
 };
 
-export const is_valid_Permissions = function (thing?: any): boolean {
+export const is_valid_Permissions = function (thing: unknown): thing is Permissions {
     if (!thing) {
         return false;
-    } else if (thing.servers !== null && thing.servers !== undefined && is_valid_InclusionSpecifier(thing.servers) === false) {
+    } else if (
+        (thing as Permissions).servers !== null &&
+        (thing as Permissions).servers !== undefined &&
+        is_valid_InclusionSpecifier((thing as Permissions).servers) === false
+    ) {
         return false;
-    } else if (thing.channels !== null && thing.channels !== undefined && is_valid_InclusionSpecifier(thing.channels) === false) {
+    } else if (
+        (thing as Permissions).channels !== null &&
+        (thing as Permissions).channels !== undefined &&
+        is_valid_InclusionSpecifier((thing as Permissions).channels) === false
+    ) {
         return false;
-    } else if (thing.users !== null && thing.users !== undefined && is_valid_InclusionSpecifier(thing.users) === false) {
+    } else if (
+        (thing as Permissions).users !== null &&
+        (thing as Permissions).users !== undefined &&
+        is_valid_InclusionSpecifier((thing as Permissions).users) === false
+    ) {
         return false;
     }
 
@@ -96,7 +100,7 @@ export const allowed_under = function (snowflake?: Snowflake, specifier?: Inclus
         return TentativePermissionType.AllowedIfLowerLevelAllowed;
     }
 
-    let list = specifier.list;
+    const list = specifier.list;
     switch (specifier.type) {
         case InclusionSpecifierType.Blacklist:
             if (list.includes(snowflake)) {
@@ -125,6 +129,7 @@ export const allowed_under = function (snowflake?: Snowflake, specifier?: Inclus
     }
 };
 
+// eslint-disable-next-line complexity
 export const allowed = function (message: Message, permissions?: Permissions): boolean {
     if (!permissions) {
         return true;
@@ -154,6 +159,7 @@ export const allowed = function (message: Message, permissions?: Permissions): b
                         case TentativePermissionType.AllowedIfLowerLevelWhitelisted:
                             return true;
                     }
+                    break;
                 case TentativePermissionType.AllowedIfLowerLevelWhitelisted: // Check lower levels for whitelist allowance
                     switch (
                         allowed_under(message.author.id, permissions.users) // User level
@@ -166,6 +172,7 @@ export const allowed = function (message: Message, permissions?: Permissions): b
                             return false;
                     }
             }
+            break;
         case TentativePermissionType.AllowedIfLowerLevelWhitelisted: // Check lower levels for whitelisted allowance
             switch (
                 allowed_under(message.channel.id, permissions.channels) // Channel level
@@ -181,6 +188,7 @@ export const allowed = function (message: Message, permissions?: Permissions): b
                         case TentativePermissionType.NotAllowed:
                             return false;
                     }
+                    break;
                 case TentativePermissionType.AllowedIfLowerLevelWhitelisted:
                     switch (
                         allowed_under(message.author.id, permissions.users) // User level
@@ -192,6 +200,7 @@ export const allowed = function (message: Message, permissions?: Permissions): b
                         case TentativePermissionType.NotAllowed:
                             return false;
                     }
+                    break;
                 case TentativePermissionType.AllowedIfLowerLevelAllowed: // Not sufficient. Channel must be whitelisted
                 case TentativePermissionType.NotAllowed:
                     return false;

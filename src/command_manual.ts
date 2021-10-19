@@ -1,14 +1,18 @@
-import { Message } from "discord.js";
-import { BotCommand, BotCommandMetadataKey, STOCK_BOT_COMMANDS } from "./functions.js";
+import type { Message } from "discord.js";
+import { BotCommand, BotCommandMetadataKey } from "./functions.js";
 import { CreatePasteResult, create_paste } from "./integrations/paste_ee.js";
 import { GLOBAL_PREFIX, MODULES } from "./main.js";
 import { DebugLogType, log, LogType } from "./utilities/log.js";
 import { allowed, Permissions } from "./utilities/permissions.js";
-import { is_ParamValueType, ParamValueType } from "./utilities/runtime_typeguard.js";
-import { escape_reg_exp, is_boolean, is_string, safe_serialize } from "./utilities/typeutils.js";
+import { AnyStructure, InferNormalizedType, log_stack, NormalizedStructure, Structure } from "./utilities/runtime_typeguard/runtime_typeguard.js";
+import * as Structs from "./utilities/runtime_typeguard/standard_structures.js";
+import { escape_reg_exp, is_string } from "./utilities/typeutils.js";
 
-export const manual_of = function (command: BotCommand): CommandManual | undefined {
-    return Reflect.getMetadata(BotCommandMetadataKey.Manual, command) as CommandManual | undefined;
+export const manual_of = function (command: BotCommand | { constructor: new (...args: unknown[]) => BotCommand }): CommandManual {
+    let metadata = Reflect.getMetadata(BotCommandMetadataKey.Manual, command) as CommandManual | undefined;
+    if (metadata === undefined) {
+        return (command.constructor as Function & { manual: CommandManual }).manual;
+    } else return metadata;
 };
 
 export const permissions_of = function (command: BotCommand): Permissions | undefined {
@@ -30,21 +34,18 @@ export interface CommandArgument {
     // Whether the argument can be left out
     readonly optional: boolean;
     // For auto-generating constraint
-    readonly further_constraint?: ParamValueType;
+    readonly further_constraint?: AnyStructure;
 }
 
-const is_valid_CommandArgument = function (thing?: Partial<CommandArgument>): thing is CommandArgument {
-    if (!thing) {
-        return false;
-    } else if (is_string(thing.name) === false || is_string(thing.id) === false) {
-        return false;
-    } else if (thing.optional !== true && thing.optional !== false) {
-        return false;
-    } else if (thing.further_constraint !== undefined && is_ParamValueType(thing.further_constraint) === false) {
-        return false;
-    } else {
-        return true;
-    }
+const CommandArgumentStructure = Structs.object({
+    name: Structs.string,
+    id: Structs.string,
+    optional: Structs.boolean,
+    further_constraint: Structs.Optional(Structs.StructureStructure),
+});
+
+const is_valid_CommandArgument = function (thing: unknown): thing is CommandArgument {
+    return CommandArgumentStructure.check(thing).succeeded;
 };
 
 /**
@@ -71,65 +72,30 @@ export interface SubcommandManual {
  */
 export type SimpleCommandManual = SubcommandManual;
 
-const is_valid_SimpleCommandManual = function (thing: any): thing is SimpleCommandManual {
-    if (!thing) {
-        log(
-            `is_valid_SimpleCommandManual returned false - thing was null, undefined, an empty string, or another falsy object`,
-            LogType.Mismatch,
-            DebugLogType.ManualValidationFailedReason,
-        );
-        return false;
-    } else if (is_string(thing.name) === false) {
-        log(
-            `is_valid_SimpleCommandManual returned false - thing had no string property "name"`,
-            LogType.Mismatch,
-            DebugLogType.ManualValidationFailedReason,
-        );
-        return false;
-    } else if (is_string(thing.syntax) === false) {
-        log(
-            `is_valid_SimpleCommandManual returned false - thing had no string property "syntax"`,
-            LogType.Mismatch,
-            DebugLogType.ManualValidationFailedReason,
-        );
-        return false;
-    } else if (!thing.arguments || Array.isArray(thing.arguments) === false) {
-        log(
-            `is_valid_SimpleCommandManual returned false - thing had no array property "arguments"`,
-            LogType.Mismatch,
-            DebugLogType.ManualValidationFailedReason,
-        );
-        return false;
-    } else if (is_string(thing.description) === false) {
-        log(
-            `is_valid_SimpleCommandManual returned false - thing had no string property "description"`,
-            LogType.Mismatch,
-            DebugLogType.ManualValidationFailedReason,
-        );
-        return false;
-    } else if ("compact_syntaxes" in thing && is_boolean(thing.compact_syntaxes) === false && thing.compact_syntaxes !== undefined) {
-        log(
-            `is_valid_SimpleCommandManual returned false - thing had non-boolean and non-undefined property "compact_syntaxes"`,
-            LogType.Mismatch,
-            DebugLogType.ManualValidationFailedReason,
-        );
-    }
+const SimpleCommandManualStructure = Structs.object({
+    name: Structs.string,
+    syntax: Structs.string,
+    arguments: Structs.array(CommandArgumentStructure),
+    compact_syntaxes: Structs.Optional(Structs.boolean),
+    description: Structs.string,
+});
 
-    for (const element of thing.arguments) {
-        if (is_valid_CommandArgument(element) === false) {
-            log(
-                `is_valid_SimpleCommandManual returned false - thing had non-command-argument item "${safe_serialize(element)}" in thing.arguments`,
-                LogType.Mismatch,
-                DebugLogType.ManualValidationFailedReason,
-            );
-            return false;
-        }
+const is_valid_SimpleCommandManual = function (thing: unknown): thing is SimpleCommandManual {
+    const result = SimpleCommandManualStructure.check(thing);
+    if (result.succeeded) return true;
+    else {
+        log_stack(result, `is_valid_SimpleCommandManual`, DebugLogType.ManualValidationFailedReason);
+        return false;
     }
-
-    return true;
 };
 
 const is_valid_SubcommandManual = is_valid_SimpleCommandManual;
+
+const MultifacetedCommandManualStructure = Structs.object({
+    name: Structs.string,
+    subcommands: Structs.array(SimpleCommandManualStructure),
+    description: Structs.string,
+});
 
 export interface MultifacetedCommandManual {
     // Name of command, i.e. tj in %tj list
@@ -139,24 +105,13 @@ export interface MultifacetedCommandManual {
     readonly description: string;
 }
 
-const is_valid_MultifacetedCommandManual = function (thing?: any): thing is MultifacetedCommandManual {
-    if (!thing) {
-        return false;
-    } else if (is_string(thing.name) === false) {
-        return false;
-    } else if (!thing.subcommands || Array.isArray(thing.subcommands) === false) {
-        return false;
-    } else if (is_string(thing.description) === false) {
+const is_valid_MultifacetedCommandManual = function (thing: unknown): thing is MultifacetedCommandManual {
+    const result = MultifacetedCommandManualStructure.check(thing);
+    if (result.succeeded) return true;
+    else {
+        log_stack(result, `is_valid_MultifacetedCommandManual`, DebugLogType.ManualValidationFailedReason);
         return false;
     }
-
-    for (const element of thing.subcommands) {
-        if (is_valid_SubcommandManual(element) === false) {
-            return false;
-        }
-    }
-
-    return true;
 };
 
 export type CommandManual = SimpleCommandManual | MultifacetedCommandManual;
@@ -265,10 +220,10 @@ export const key_off_describe_optional = function (syntax_string: string, argume
 export const generate_syntaxes = function (command: SimpleCommandManual, syntax_string: string, prefix_substitution: string): string[] {
     const command_arguments = command.arguments;
     // List of optional arguments
-    let optional_arguments = command_arguments.filter(argument => argument.optional);
+    const optional_arguments = command_arguments.filter(argument => argument.optional);
     const argument_names = command_arguments.map(argument => argument.name);
 
-    let argument_names_indices: { [key: string]: number } = {};
+    const argument_names_indices: { [key: string]: number } = {};
     let checked = 0;
     const efficient_index_of = (name: string): number => {
         if (name in argument_names_indices) return argument_names_indices[name];
@@ -319,7 +274,7 @@ export const generate_syntaxes = function (command: SimpleCommandManual, syntax_
         }
     };
 
-    let syntaxes: string[] = [];
+    const syntaxes: string[] = [];
 
     // Further explanation: state includes booleans, or 1s and 0s, that represent whether...
     // a given optional argument is included. We are using the binary counting algorithm to efficiently and...
@@ -332,7 +287,7 @@ export const generate_syntaxes = function (command: SimpleCommandManual, syntax_
 
         // Replace the parts that key off of whether the optional argument is provided, using the state
         for (let i = 0; i < optional_arguments.length; i++) {
-            let argument_index = efficient_index_of(optional_arguments[i].name);
+            const argument_index = efficient_index_of(optional_arguments[i].name);
             state_dependent_syntax = key_off(state_dependent_syntax, argument_index, state[i]);
         }
 
@@ -344,7 +299,7 @@ export const generate_syntaxes = function (command: SimpleCommandManual, syntax_
     // Do one more iteration for when all are true or there are no optional arguments
     let state_dependent_syntax = syntax_string;
     for (let i = 0; i < optional_arguments.length; i++) {
-        let argument_index = argument_names.indexOf(optional_arguments[i].name);
+        const argument_index = argument_names.indexOf(optional_arguments[i].name);
         state_dependent_syntax = key_off(state_dependent_syntax, argument_index, state[i]);
     }
     state_dependent_syntax = finish_syntax_string(state_dependent_syntax);
@@ -357,7 +312,7 @@ export const generate_syntaxes = function (command: SimpleCommandManual, syntax_
 export const INDENT = "    ";
 
 export const make_simple_command_manual = function (manual: SimpleCommandManual, prefix_substitution: string): string {
-    let syntaxes = generate_syntaxes(manual, manual.syntax, prefix_substitution);
+    const syntaxes = generate_syntaxes(manual, manual.syntax, prefix_substitution);
 
     const syntax_accumulation = indent(
         syntaxes
@@ -385,7 +340,7 @@ export const create_manual_entry = function (command_manual: CommandManual, pref
     } else if (type === CommandManualType.SimpleCommandManual) {
         return make_simple_command_manual(command_manual as SimpleCommandManual, prefix_substitution);
     } else if (type === CommandManualType.MultifacetedCommandManual) {
-        let manual = command_manual as MultifacetedCommandManual;
+        const manual = command_manual as MultifacetedCommandManual;
         const subcommand_list = `${manual.name} <${manual.subcommands.map(subcommand => subcommand.name).join("/")}>\n`;
         let accumulator = subcommand_list;
         accumulator += indent(`Description: ${manual.description}`) + "\n\n";
@@ -397,14 +352,14 @@ export const create_manual_entry = function (command_manual: CommandManual, pref
     }
 };
 
-export const make_manual = async function (message: Message, prefix_substitution: string): Promise<CreatePasteResult> {
+export const make_manual = async function (message: Message, prefix_substitution: string, stock_commands: BotCommand[]): Promise<CreatePasteResult> {
     log(`make_manual function called. Process starting...`, LogType.Status, DebugLogType.MakeManualFunctionDebug);
 
-    let manual_section_accumulator: string[] = [];
+    const manual_section_accumulator: string[] = [];
 
-    let stock_manual_accumulator: string[] = [];
+    const stock_manual_accumulator: string[] = [];
 
-    for (const bot_command of STOCK_BOT_COMMANDS) {
+    for (const bot_command of stock_commands) {
         const manual = manual_of(bot_command);
         if (manual === undefined) {
             log(`make_manual skipped stock bot function: instance had no manual saved as metadata. Continuing...`, LogType.Error);
@@ -434,7 +389,7 @@ export const make_manual = async function (message: Message, prefix_substitution
             log(`make_manual hid module ${module.name}: flag module.hide_when_contradicts_permissions set.`);
             continue;
         } else {
-            let module_manual_accumulator: string[] = [`Module ${module.name}`];
+            const module_manual_accumulator: string[] = [`Module ${module.name}`];
             if (module.servers_are_universes) {
                 module_manual_accumulator[0] += "\n(Module commands don't carry data between servers)";
             }
@@ -478,4 +433,26 @@ export const make_manual = async function (message: Message, prefix_substitution
         `TypeDyno Command Manual\n=======================\nLocal Prefix - ${prefix_substitution}\nNote: The prefix shown in this manual is only for this server.\nThe global prefix is ${GLOBAL_PREFIX}, but this may be overridden by individual servers.\n\n\n` +
             full_manual,
     );
+};
+
+type BaseStructureType<Argument extends CommandArgument> = Argument["further_constraint"] extends Structure<NormalizedStructure>
+    ? Argument["further_constraint"]
+    : Structure<string>;
+type StructureType<Argument extends CommandArgument> = Argument["optional"] extends false
+    ? BaseStructureType<Argument>
+    : Structure<InferNormalizedType<BaseStructureType<Argument>> | null>;
+type ArgumentRepresentation<Manual extends SubcommandManual> = {
+    [P in keyof Manual["arguments"] & number as Manual["arguments"][P]["name"]]: StructureType<Manual["arguments"][P]>;
+};
+export const argument_structure_from_manual = <Manual extends SubcommandManual>(
+    manual: Manual,
+): Structs.RecordStructure<ArgumentRepresentation<Manual>, Structure<never>, Structure<undefined>> => {
+    const record: Record<string, AnyStructure> = {};
+    for (const argument of manual.arguments) {
+        if (argument.further_constraint instanceof Structure) {
+            if (argument.optional) record[argument.id] = Structs.Nullable(argument.further_constraint);
+            else record[argument.id] = argument.further_constraint;
+        } else record[argument.id] = argument.optional ? Structs.Nullable(Structs.string) : Structs.string;
+    }
+    return Structs.object(record as ArgumentRepresentation<Manual>);
 };

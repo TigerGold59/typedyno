@@ -18,7 +18,6 @@
         "target": "esnext",
         "experimentalDecorators": true
     },
-    "include": [
-        "src/**/*"
-    ],
+    "include": ["src/**/*"],
+    "exclude": ["src/modules/trickjump/tj"]
 }

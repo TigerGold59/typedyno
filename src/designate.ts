@@ -1,10 +1,10 @@
-import { Message } from "discord.js";
-import { PoolClient } from "pg";
 import { CONFIG } from "./config.js";
-import { PoolInstance } from "./pg_wrapper.js";
-import { log, LogType } from "./utilities/log.js";
-import { is_valid_Snowflake, Snowflake } from "./utilities/permissions.js";
+import { Message } from "discord.js";
+import { Queryable, MakesSingleRequest, use_client, UsesClient } from "./pg_wrapper.js";
+import { LogType, log } from "./utilities/log.js";
+import { Snowflake, is_valid_Snowflake } from "./utilities/permissions.js";
 import { is_boolean, is_text_channel, query_failure } from "./utilities/typeutils.js";
+import { ServerQueryResults } from "./postgresql/table_types.js";
 
 const DESIGNATE_INSERT_USER = "INSERT INTO servers (snowflake, full_access, server) VALUES ($1, $2, $3)";
 const DESIGNATE_CHANGE_USER_STATUS = "UPDATE servers SET full_access=$1 WHERE snowflake=$2 AND server=$3";
@@ -18,13 +18,13 @@ export interface DesignateHandle {
 
 export const is_valid_DesignateHandle = (handle?: unknown): handle is DesignateHandle => {
     return (
-        // @ts-expect-error
+        // @ts-expect-error the in operator doesn't throw an error when it returns false. lol
         typeof handle === "object" && "user" in handle && "server" in handle && is_valid_Snowflake(handle.user) && is_valid_Snowflake(handle.server)
     );
 };
 
 export const create_designate_handle = (user_id: Snowflake, message: Message): DesignateHandle => {
-    if (is_text_channel(message)) return { user: user_id, server: message.guild!.id };
+    if (is_text_channel(message)) return { user: user_id, server: message.guild.id };
     else throw new TypeError(`create_designate_handle: invalid message object (type ${typeof message})`);
 };
 
@@ -42,12 +42,12 @@ export const enum DesignateUserStatus {
  * @param queryable A `PoolInstance` or `PoolClient`
  * @returns `DesignateUserStatus`
  */
-export const designate_user_status = async (handle: DesignateHandle, queryable: PoolInstance | PoolClient): Promise<DesignateUserStatus> => {
+export const designate_user_status = async (handle: DesignateHandle, queryable: Queryable<MakesSingleRequest>): Promise<DesignateUserStatus> => {
     if (is_valid_DesignateHandle(handle) === false) return DesignateUserStatus.InvalidHandle;
 
     if (CONFIG.admins.includes(handle.user)) return DesignateUserStatus.UserIsAdmin;
 
-    const res = await queryable.query(DESIGNATE_USER_EXISTS, [handle.user, handle.server]);
+    const res = (await queryable.query(DESIGNATE_USER_EXISTS, [handle.user, handle.server])) as ServerQueryResults;
 
     if (res.rowCount < 1) return DesignateUserStatus.UserNotInRegistry;
     else return res.rows[0].full_access ? DesignateUserStatus.FullAccess : DesignateUserStatus.NoFullAccess;
@@ -63,12 +63,14 @@ export const designate_user_status = async (handle: DesignateHandle, queryable: 
 export const designate_set_user = async (
     handle: DesignateHandle,
     allow_full_access: boolean,
-    queryable: PoolInstance | PoolClient,
+    queryable: Queryable<UsesClient>,
 ): Promise<DesignateUserStatus | null> => {
     if (CONFIG.admins.includes(handle.user)) return DesignateUserStatus.UserIsAdmin;
 
     if (is_boolean(allow_full_access) === false) return DesignateUserStatus.InvalidHandle;
-    const status = await designate_user_status(handle, queryable);
+    const client = await use_client(queryable);
+
+    const status = await designate_user_status(handle, client);
 
     switch (status) {
         case DesignateUserStatus.InvalidHandle: {
@@ -77,23 +79,27 @@ export const designate_set_user = async (
         case DesignateUserStatus.UserNotInRegistry: {
             const query_params = [allow_full_access, handle.user, handle.server];
             try {
-                await queryable.query(DESIGNATE_INSERT_USER, query_params);
-                return await designate_user_status(handle, queryable);
+                await client.query(DESIGNATE_INSERT_USER, query_params);
+                return await designate_user_status(handle, client);
             } catch (err) {
                 log(`designate_set_user: UserNotInRegistry case - query unexpectedly failed`, LogType.Error);
                 query_failure("designate_set_user", DESIGNATE_INSERT_USER, query_params, err);
                 return null;
+            } finally {
+                client.handle_release();
             }
         }
         default: {
             const query_params = [allow_full_access, handle.user, handle.server];
             try {
-                await queryable.query(DESIGNATE_CHANGE_USER_STATUS, query_params);
-                return await designate_user_status(handle, queryable);
+                await client.query(DESIGNATE_CHANGE_USER_STATUS, query_params);
+                return await designate_user_status(handle, client);
             } catch (err) {
                 log(`designate_set_user: default case - query unexpectedly failed`, LogType.Error);
                 query_failure("designate_set_user", DESIGNATE_CHANGE_USER_STATUS, query_params, err);
                 return null;
+            } finally {
+                client.handle_release();
             }
         }
     }
@@ -107,10 +113,11 @@ export const enum DesignateRemoveUserResult {
     InvalidHandle,
 }
 
-export const designate_remove_user = async (handle: DesignateHandle, queryable: PoolInstance | PoolClient): Promise<DesignateRemoveUserResult> => {
+export const designate_remove_user = async (handle: DesignateHandle, queryable: Queryable<UsesClient>): Promise<DesignateRemoveUserResult> => {
     if (CONFIG.admins.includes(handle.user)) return DesignateRemoveUserResult.UserIsAdmin;
 
-    const status = await designate_user_status(handle, queryable);
+    const client = await use_client(queryable);
+    const status = await designate_user_status(handle, client);
 
     switch (status) {
         case DesignateUserStatus.UserNotInRegistry: {
@@ -122,9 +129,11 @@ export const designate_remove_user = async (handle: DesignateHandle, queryable: 
         default: {
             const query_params = [handle.user, handle.server];
             try {
-                await queryable.query(DESIGNATE_REMOVE_USER, query_params);
+                await client.query(DESIGNATE_REMOVE_USER, query_params);
+                client.handle_release();
                 return DesignateRemoveUserResult.UserRemoved;
             } catch (err) {
+                client.handle_release();
                 log(`designate_remove_user: default case - query unexpectedly failed`, LogType.Error);
                 query_failure("designate_remove_user", DESIGNATE_CHANGE_USER_STATUS, query_params, err);
                 return DesignateRemoveUserResult.QueryError;

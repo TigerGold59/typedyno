@@ -1,5 +1,5 @@
 import { CommandArgument, SubcommandManual } from "../../command_manual.js";
-import { ParamValueType, ParamValueTypeMap } from "../runtime_typeguard.js";
+import { AnyStructure, InferNormalizedType } from "../runtime_typeguard/runtime_typeguard.js";
 import { is_string } from "../typeutils.js";
 
 export const is_alphabetic = function (str: string): boolean {
@@ -143,8 +143,8 @@ export interface GetArgsResult<ArgumentList extends readonly CommandArgument[]> 
     syntax_string_compilation_error: [InvalidSyntaxStringReason, number] | null;
 }
 
-type BaseType<Argument extends CommandArgument> = Argument["further_constraint"] extends ParamValueType
-    ? ParamValueTypeMap[Argument["further_constraint"]]
+type BaseType<Argument extends CommandArgument> = Argument["further_constraint"] extends AnyStructure
+    ? InferNormalizedType<Argument["further_constraint"]>
     : string;
 
 export type ValidatedArguments<Manual extends SubcommandManual> = {

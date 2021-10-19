@@ -22,6 +22,7 @@ export const enum DebugLogType {
     RequirePropertiesFunctionDebug = "require_properties_function_debug",
     ModuleImports = "module_imports",
     ComputeJumproleHashValues = "compute_jumprole_hash_values",
+    StructureCheckResult = "structure_check_result",
 }
 
 export const chalkify = function (message: string, color: LogType): string {
@@ -57,25 +58,33 @@ export const chalkify = function (message: string, color: LogType): string {
 };
 
 export const get_timestamp = function (): string {
-    let date = new Date();
+    const date = new Date();
     return `(${date.getDate().toString()}/${(date.getMonth() + 1).toString()}/${date.getFullYear().toString()} ${date.getHours().toString()}:${date
         .getMinutes()
         .toString()}) `;
 };
 
 import { CONFIG } from "../config.js";
+import { is_string, safe_serialize } from "./typeutils.js";
 
 export const log = function (
-    message: string,
+    message: unknown,
     type: LogType = LogType.None,
     debug_log_type: DebugLogType = DebugLogType.None,
-    no_timestamp: boolean = false,
-) {
+    no_timestamp = false,
+): void {
     let timestamp = "";
     if (no_timestamp === false) {
         timestamp = get_timestamp() + " ";
     }
     if (CONFIG.debug[debug_log_type] || type === LogType.Error) {
-        console.log(timestamp + chalkify(message, type));
+        let serialized: string;
+        let did_serialize = false;
+        if (is_string(message)) serialized = message;
+        else {
+            serialized = safe_serialize(message);
+            did_serialize = true;
+        }
+        console.log(`${timestamp}${did_serialize ? "[SERIALIZED] " : ""}${chalkify(serialized, type)}`);
     }
 };

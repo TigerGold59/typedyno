@@ -1,16 +1,16 @@
 import * as Discord from "discord.js";
-import { process_message } from "./message.js";
 
 import { load_modules, Module } from "./module_loader.js";
 
 import { CONFIG } from "./config.js";
+import { process_message } from "./message.js";
 
 export const DISCORD_API_TOKEN = process.env.DISCORD_API_TOKEN as string;
 export const GLOBAL_PREFIX = process.env.GLOBAL_PREFIX as string;
 export const BOT_USER_ID = "864326626111913995";
 export const STOCK_TABLES = ["prefixes", "users"];
 export const MAINTAINER_TAG = "TigerGold59#8729";
-export type EventListenerModule = (client: Discord.Client, connection_pool: PoolInstance) => (...args: any) => void;
+export type EventListenerModule = (client: Discord.Client, connection_pool: PoolInstance) => (...args: unknown[]) => void;
 
 import { log, LogType } from "./utilities/log.js";
 import { Pool, PoolInstance } from "./pg_wrapper.js";
@@ -45,31 +45,35 @@ export const MODULES = (async (): Promise<Module[]> => {
 
         // Set status
         if (!CONFIG.presence_data) {
-            client.user.setPresence({
+            void client.user.setPresence({
                 activity: {
                     name: "@ for server prefix",
                 },
             });
         } else {
-            client.user.setPresence(CONFIG.presence_data);
+            void client.user.setPresence(CONFIG.presence_data);
         }
     });
 
     // Send messages through messages.ts
     client.on("message", message => {
-        process_message(message, client, connection_pool);
+        void process_message(message, client, connection_pool);
     });
 
     // Use event listener files
     for (const listener_name of CONFIG.event_listeners) {
         // Import each through a require (the reason it's not .ts is because the listeners will get compiled to .js)
-        let listener: EventListenerModule = require(`../events/${listener_name}.js`)(client, connection_pool);
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const listener = (require(`../events/${listener_name}.js`) as (client: Discord.Client, pool: PoolInstance) => EventListenerModule)(
+            client,
+            connection_pool,
+        );
         // Apply the listener (listener name is actually the event name)
         client.on(listener_name, listener);
     }
 
     // Actually log the bot in
-    client.login(DISCORD_API_TOKEN);
+    void client.login(DISCORD_API_TOKEN);
 
     // Listen for errors that require ending the process, instead of sitting idly
     const error_listener_function_connection = () => {

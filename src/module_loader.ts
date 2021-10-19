@@ -1,11 +1,12 @@
 import { randomBytes } from "crypto";
 import { manual_of } from "./command_manual.js";
-import { BotCommand, is_valid_BotCommand, STOCK_BOT_COMMANDS } from "./functions.js";
+import { BotCommand, is_valid_BotCommand } from "./functions.js";
 import { STOCK_TABLES } from "./main.js";
 import { CONFIG } from "./config.js";
 import { DebugLogType, log, LogType } from "./utilities/log.js";
 import { is_valid_Permissions, Permissions } from "./utilities/permissions.js";
 import { filter_map, is_string } from "./utilities/typeutils.js";
+import { STOCK_BOT_COMMANDS } from "./stock_commands.js";
 
 type ModuleCommand = BotCommand;
 export interface Module {
@@ -35,9 +36,9 @@ export const load_module = async function (name: string): Promise<false | Module
     let module_export: Partial<Module> = {};
     log(`load_module: starting import of module ${name}...`, LogType.System, DebugLogType.ModuleImports);
     try {
-        module_export = (await import(`./modules/${name}/main.js`)).default; // running from /out/
+        module_export = ((await import(`./modules/${name}/main.js`)) as { default: Module }).default; // running from /out/
     } catch (err) {
-        log(`load_module: Fatal error. Exiting...`, LogType.Error);
+        log("load_module: Fatal error. Exiting...", LogType.Error);
         console.error(err);
     }
     log(`load_module: import of module ${name} finished.`, LogType.System, DebugLogType.ModuleImports);
@@ -58,16 +59,14 @@ export const load_module = async function (name: string): Promise<false | Module
         return false;
     }
 
-    // { ts-malfunction }
-    // @ts-expect-error
+    // @ts-expect-error we checked whether it was an array up there
     for (const thing of module_export.tables) {
         if (is_string(thing) === false) {
             return false;
         }
     }
 
-    // { ts-malfunction }
-    // @ts-expect-error
+    // @ts-expect-error we checked whether it was an array up there
     for (const thing of module_export.functions) {
         if (is_valid_BotCommand(thing) === false) {
             return false;
@@ -97,7 +96,7 @@ export const has_overlap = function <T>(array_one: T[], array_two: T[]): T | fal
 export const load_modules = async function (): Promise<Module[]> {
     const use = CONFIG.use;
 
-    let modules = [];
+    const modules = [];
 
     for (const element of use) {
         if (is_string(element) === false) {
@@ -115,23 +114,23 @@ export const load_modules = async function (): Promise<Module[]> {
 
     const stock_symbol = randomBytes(16).toString("base64");
 
-    let table_name_dictionary: { [key: string]: string } = (function (): {
+    const table_name_dictionary: { [key: string]: string } = (function (): {
         [key: string]: string;
     } {
-        let dictionary: { [key: string]: string } = {};
+        const dictionary: { [key: string]: string } = {};
         for (const table_name of STOCK_TABLES) {
             dictionary[table_name] = stock_symbol;
         }
         return dictionary;
     })();
-    let function_name_dictionary: Record<string, string> = (function (): {
+    const function_name_dictionary: Record<string, string> = (function (): {
         [key: string]: string;
     } {
-        let dictionary: { [key: string]: string } = {};
+        const dictionary: { [key: string]: string } = {};
         for (const bot_command of STOCK_BOT_COMMANDS) {
             const manual = manual_of(bot_command);
             if (manual === undefined) {
-                log(`load_modules skipped stock bot function: instance had no manual saved as metadata. Continuing...`, LogType.Error);
+                log("load_modules skipped stock bot function: instance had no manual saved as metadata. Continuing...", LogType.Error);
                 continue;
             }
 
@@ -140,12 +139,12 @@ export const load_modules = async function (): Promise<Module[]> {
         return dictionary;
     })();
 
-    let valid_modules: Module[] = [];
+    const valid_modules: Module[] = [];
 
     for (const module of modules) {
         const table_overlap = has_overlap(module.tables, Object.keys(table_name_dictionary));
         if (table_overlap !== false) {
-            let overlap_keep = table_name_dictionary[table_overlap];
+            const overlap_keep = table_name_dictionary[table_overlap];
             log(
                 `Conflict detected while loading modules: Module ${
                     module.name
@@ -156,7 +155,7 @@ export const load_modules = async function (): Promise<Module[]> {
             );
             continue;
         } else {
-            for (const table_name in module.tables) {
+            for (const table_name of module.tables) {
                 table_name_dictionary[table_name] = module.name;
             }
         }
@@ -177,7 +176,7 @@ export const load_modules = async function (): Promise<Module[]> {
 
         const function_overlap = has_overlap(module_function_names, Object.keys(function_name_dictionary));
         if (function_overlap !== false) {
-            let overlap_keep = function_name_dictionary[function_overlap];
+            const overlap_keep = function_name_dictionary[function_overlap];
             log(
                 `Conflict detected while loading modules: Module ${
                     module.name
@@ -188,7 +187,7 @@ export const load_modules = async function (): Promise<Module[]> {
             );
             continue;
         } else {
-            for (const function_name in module_function_names) {
+            for (const function_name of module_function_names) {
                 function_name_dictionary[function_name] = module.name;
             }
         }

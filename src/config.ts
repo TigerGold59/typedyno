@@ -1,12 +1,12 @@
-import { PresenceData } from "discord.js";
-import { DebugLogType } from "./utilities/log";
+import type { DebugLogType } from "./utilities/log.js";
+import type { PresenceData } from "discord.js";
 
 export type Config = {
     admins: readonly string[];
     use: readonly string[];
     event_listeners: readonly string[];
     presence_data: PresenceData | null;
-    debug: { [P in DebugLogType]: boolean };
+    debug: { [_P in DebugLogType]: boolean };
 };
 
 export const CONFIG: Config = {
@@ -26,5 +26,6 @@ export const CONFIG: Config = {
         require_properties_function_debug: true,
         module_imports: true,
         compute_jumprole_hash_values: false,
+        structure_check_result: true,
     },
 } as const;

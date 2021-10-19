@@ -28,6 +28,7 @@ import {
  * @param argument_references A reference to an array that holds information about whether an argument has already been referred to by its identifier (there cannot be two references to an argument, because if there could which value would it take when the command was run?)
  * @returns A tuple where `return[0]` is the syntax string, parsed into an array of segments, and `return[1]` is the index at which the last character read was located.
  */
+// eslint-disable-next-line complexity
 export const parse_loop_with_initial_state = function (
     args: readonly CommandArgument[],
     str: string,
@@ -36,7 +37,7 @@ export const parse_loop_with_initial_state = function (
     top_level_call: boolean,
     argument_references: boolean[],
 ): [SyntaxStringSegmentContent[] | InvalidSyntaxStringReason, number] {
-    let res: SyntaxStringSegmentContent[] = [];
+    const res: SyntaxStringSegmentContent[] = [];
 
     let current_segment = "";
     let auxiliary_segment = "";
@@ -253,7 +254,7 @@ export const parse_loop_with_initial_state = function (
 
 // TODO: make a prefix-agnostic syntax string to argument regex compiler so that we can use the same compiled syntax string, even for different prefixes
 
-let syntax_string_compile_cache: {
+const syntax_string_compile_cache: {
     [key: string]: {
         [key: string]: [RegExp, { [key: number]: number }];
     };
@@ -274,8 +275,8 @@ export const syntax_string_to_argument_regex = function (
     if (prefix in syntax_string_compile_cache && syntax_string in syntax_string_compile_cache[prefix]) {
         return syntax_string_compile_cache[prefix][syntax_string];
     }
-    let key_off_stack: number[] = [];
-    let argument_references: boolean[] = args.length > 0 ? [false] : [];
+    const key_off_stack: number[] = [];
+    const argument_references: boolean[] = args.length > 0 ? [false] : [];
     for (let i = 1; i < args.length; i++) argument_references.push(false);
 
     const result = parse_loop_with_initial_state(args, syntax_string, SyntaxStringParserState.None, key_off_stack, true, argument_references);
@@ -364,14 +365,14 @@ export const get_args = function (prefix: string, command: SimpleCommandManual, 
 
     const argument_key_off_list = result[1] as { [key: number]: number };
 
-    const match = invocation.match(result[0]);
+    const match = result[0].exec(invocation);
 
     if (match === null) return failed(false, null);
-    let groups = match.groups;
+    const groups = match.groups;
 
-    let optional_arguments = [];
-    let required_arguments = [];
-    let required_arg_numbers: number[] = [];
+    const optional_arguments = [];
+    const required_arguments = [];
+    const required_arg_numbers: number[] = [];
     command.arguments.forEach((arg, index) => {
         if (arg.optional) optional_arguments.push(arg);
         else {
@@ -395,7 +396,7 @@ export const get_args = function (prefix: string, command: SimpleCommandManual, 
             syntax_string_compilation_error: null,
         };
 
-    let inconsistent_key_offs: [string, number, boolean][] = [];
+    const inconsistent_key_offs: [string, number, boolean][] = [];
 
     for (const argument_number in argument_key_off_list) {
         const keyed_off_count = argument_key_off_list[argument_number];
@@ -433,10 +434,8 @@ export const get_args = function (prefix: string, command: SimpleCommandManual, 
         }
     }
 
-    let renamed_params: { [key: string]: string | null } = {};
+    const renamed_params: { [key: string]: string | null } = {};
     command.arguments.forEach((arg, index) => {
-        // { ts-malfunction }
-        // @ts-expect-error
         const val = groups[`arg_${(index + 1).toString()}`];
         if (is_string(val)) renamed_params[arg.id] = val;
         else renamed_params[arg.id] = null;
@@ -467,7 +466,7 @@ export const get_first_matching_subcommand = function <List extends readonly (re
         const subcommand_name = args[i][0] as ContainedSubcommandNames<typeof args>;
         const manual = args[i][1];
         const result = get_args(prefix, manual, invocation);
-        if (result.succeeded) return [subcommand_name, result as any];
+        if (result.succeeded) return [subcommand_name, result];
     }
 
     return false;
@@ -476,16 +475,16 @@ export const get_first_matching_subcommand = function <List extends readonly (re
 export const handle_GetArgsResult = async function <ArgumentList extends readonly CommandArgument[]>(
     message: Message,
     result: ArgumentValues<ArgumentList>,
-    prefix: string | undefined,
+    prefix: string,
 ): Promise<boolean> {
     if (result.succeeded) return true;
 
     if (result.compiled) {
         if (result.inconsistent_key_offs.length > 0) {
-            message.channel.send(
-                `Command invocation error: the provided message contained some elements which were inconsistent in determining whether an optional argument was being provided.`,
+            await message.channel.send(
+                "Command invocation error: the provided message contained some elements which were inconsistent in determining whether an optional argument was being provided.",
             );
-            message.channel.send(
+            await message.channel.send(
                 `Detail: ${result.inconsistent_key_offs
                     .map(tuple => {
                         return `in the case of ${tuple[0]}, the first group that determined whether it was provided ${
@@ -496,13 +495,13 @@ export const handle_GetArgsResult = async function <ArgumentList extends readonl
             );
             return false;
         } else {
-            message.channel.send(
+            await message.channel.send(
                 `Command invocation error: the command was formatted incorrectly. Use '${prefix}commands' to see the correct syntaxes.`,
             );
             return false;
         }
     } else {
-        message.channel.send(
+        await message.channel.send(
             `Developer-level error: the provided syntax string for the command failed to compile (error: ${(
                 result.syntax_string_compilation_error as [InvalidSyntaxStringReason, number]
             ).join()}). Contact @${MAINTAINER_TAG} for help.`,

@@ -1,17 +1,16 @@
-import { Client, Message, Snowflake } from "discord.js";
-import { PoolInstance as Pool } from "../../../pg_wrapper.js";
+import { Client } from "discord.js";
+import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
 
 import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
-import { command, validate } from "../../../module_decorators.js";
+import { validate } from "../../../module_decorators.js";
 import { log, LogType } from "../../../utilities/log.js";
 import { Permissions } from "../../../utilities/permissions.js";
-import { CreateJumproleResult, create_jumprole } from "./internals/jumprole_postgres.js";
-import { Jumprole, KingdomNameToKingdom } from "./internals/jumprole_type.js";
+//import { CreateJumproleResult, create_jumprole } from "./internals/jumprole_postgres.js";
+import { Jumprole, KingdomNameToKingdom, CreateJumproleResultType } from "./internals/jumprole_type.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
-
-// TODO: Use INSERT INTO ... ON CONFLICT (name, server) DO UPDATE... query instead of checking if it already exists
-@command()
+import { TextChannelMessage } from "../../../utilities/typeutils.js";
+import { GetTierResultType, Tier } from "./internals/tier_type.js";
 export class JumproleSet extends Subcommand<typeof JumproleSet.manual> {
     constructor() {
         super(JumproleSet.manual, JumproleSet.no_use_no_see, JumproleSet.permissions);
@@ -23,6 +22,11 @@ export class JumproleSet extends Subcommand<typeof JumproleSet.manual> {
             {
                 name: "name",
                 id: "name",
+                optional: false,
+            },
+            {
+                name: "tier",
+                id: "tier",
                 optional: false,
             },
             {
@@ -52,108 +56,113 @@ export class JumproleSet extends Subcommand<typeof JumproleSet.manual> {
             },
         ],
         description: "Creates or updates a Jumprole with the specified properties.",
-        syntax: "<prefix>jumprole set NAME $1{opt $2}[ KINGDOM $2]{opt $3}[ LOCATION $3]{opt $4}[ JUMP TYPE $4]{opt $5}[ LINK $5] INFO $6",
+        syntax: "<prefix>jumprole set NAME $1 TIER $2 {opt $3}[ KINGDOM $3]{opt $4}[ LOCATION $4]{opt $5}[ JUMP TYPE $5]{opt $6}[ LINK $6] INFO $7",
         compact_syntaxes: true,
     } as const;
 
     static readonly no_use_no_see = false;
     static readonly permissions = undefined as Permissions | undefined;
 
-    @validate()
+    @validate
     async activate(
         args: ValidatedArguments<typeof JumproleSet.manual>,
-        message: Message,
+        message: TextChannelMessage,
         _client: Client,
-        pool: Pool,
-        prefix: string | undefined,
+        queryable: Queryable<UsesClient>,
+        prefix: string,
     ): Promise<BotCommandProcessResults> {
-        const reply = async function (response: string) {
-            await message.channel.send(response);
+        const reply = async function (response: string, use_prefix = true) {
+            await message.channel.send(`${use_prefix ? `${prefix}jumprole set: ` : ""}${response}`);
         };
+
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
-        const jumprole_object: Jumprole = {
-            id: 0, // not used in create
-            name: args.name,
-            kingdom: args.kingdom === null ? null : KingdomNameToKingdom(args.kingdom),
-            location: args.location,
-            jump_type: args.jump_type,
-            link: args.link,
-            description: args.description,
-            added_by: message.author.id,
-            updated_at: Math.round(Date.now() / 1000),
-            server: message.guild?.id as Snowflake,
-            hash: "recomputed later",
-        };
+        const client = await use_client(queryable);
 
-        const query_result = await create_jumprole(jumprole_object, pool);
+        const get_tier = await Tier.Get(args.tier, message.guild.id, client);
 
-        switch (query_result) {
-            case CreateJumproleResult.Success: {
-                await GiveCheck(message);
-                return { type: BotCommandProcessResultType.Succeeded };
+        switch (get_tier.result) {
+            case GetTierResultType.InvalidName: {
+                await reply(`invalid tier name.`);
+                return failed;
             }
-            case CreateJumproleResult.QueryFailed: {
-                await reply(
-                    `${prefix}jumprole set: an unknown internal error caused the database query to fail. Contact @${MAINTAINER_TAG} for help.`,
+            case GetTierResultType.InvalidServer: {
+                await reply(`an unknown internal error caused message.guild.id to be an invalid Snowflake. Contact @${MAINTAINER_TAG} for help.`);
+                log(`jumprole set: Tier.get - an unknown internal error caused message.guild.id to be an invalid Snowflake.`, LogType.Error);
+                return failed;
+            }
+            case GetTierResultType.NoMatchingEntries: {
+                await reply(`no tier with name "${args.tier} exists in this server."`);
+                return failed;
+            }
+            case GetTierResultType.QueryFailed: {
+                await reply(`an unknown internal error caused the database query to fail. Contact @${MAINTAINER_TAG} for help.`);
+                return failed;
+            }
+            case GetTierResultType.Success: {
+                const query_result = await Jumprole.Create(
+                    {
+                        name: args.name,
+                        kingdom: args.kingdom === null ? null : KingdomNameToKingdom(args.kingdom),
+                        location: args.location,
+                        tier: get_tier.tier,
+                        jump_type: args.jump_type,
+                        link: args.link,
+                        description: args.description,
+                        added_by: message.author.id,
+                        server: message.guild.id,
+                    },
+                    queryable,
                 );
-                return failed;
-            }
-            case CreateJumproleResult.InvalidJumproleObject: {
-                await reply(
-                    `${prefix}jumprole set: an unknown internal error caused the passed Jumprole object to be invalid. Contact @${MAINTAINER_TAG} for help.`,
-                );
-                return failed;
-            }
-            case CreateJumproleResult.JumproleAlreadyExists: {
-                await reply(
-                    `${prefix}jumprole set: A Jumprole with that name already exists. Please use '${prefix}jumprole update' in order to change already existing Jumproles.`,
-                );
-                return failed;
-            }
-            case CreateJumproleResult.NameTooLong: {
-                await reply(`${prefix}jumprole set: The given name was too long (length: ${args.name.length.toString()} chars, limit: 100 chars).`);
-                return failed;
-            }
-            case CreateJumproleResult.LinkTooLong: {
-                await reply(
-                    `${prefix}jumprole set: The given link was too long (length: ${(
-                        args.link as string
-                    ).length.toString()} chars, limit: 150 chars).`,
-                );
-                return failed;
-            }
-            case CreateJumproleResult.LocationTooLong: {
-                await reply(
-                    `${prefix}jumprole set: The given location was too long (length: ${(
-                        args.location as string
-                    ).length.toString()} chars, limit: 200 chars).`,
-                );
-                return failed;
-            }
-            case CreateJumproleResult.JumpTypeTooLong: {
-                await reply(
-                    `${prefix}jumprole set: The given jump type was too long (length: ${(
-                        args.jump_type as string
-                    ).length.toString()} chars, limit: 200 chars).`,
-                );
-                return failed;
-            }
-            case CreateJumproleResult.DescriptionTooLong: {
-                await reply(
-                    `${prefix}jumprole set: The given description was too long (length: ${(
-                        args.description as string
-                    ).length.toString()} chars, limit: 1500 chars).`,
-                );
-                return failed;
-            }
-            default: {
-                log(
-                    `jumprole_set: received invalid option in switch (CreateJumproleResult) that brought us to the default case. Informing the user of the error...`,
-                    LogType.Error,
-                );
-                await reply(`${prefix}jumprole set: unknown internal error. Contact @${MAINTAINER_TAG} for help.`);
-                return failed;
+
+                switch (query_result.type) {
+                    case CreateJumproleResultType.Success: {
+                        await GiveCheck(message);
+                        return { type: BotCommandProcessResultType.Succeeded };
+                    }
+                    case CreateJumproleResultType.QueryFailed: {
+                        await reply(`an unknown internal error caused the database query to fail. Contact @${MAINTAINER_TAG} for help.`);
+                        return failed;
+                    }
+                    case CreateJumproleResultType.JumproleAlreadyExists: {
+                        await reply(
+                            `a Jumprole with that name already exists. Please use '${prefix}jumprole update' in order to change already existing Jumproles.`,
+                        );
+                        return failed;
+                    }
+                    case CreateJumproleResultType.InvalidName: {
+                        await reply(`the given name was too long (length: ${args.name.length.toString()} chars, limit: 100 chars).`);
+                        return failed;
+                    }
+                    case CreateJumproleResultType.InvalidLink: {
+                        await reply(`the given link was too long (length: ${(args.link as string).length.toString()} chars, limit: 150 chars).`);
+                        return failed;
+                    }
+                    case CreateJumproleResultType.InvalidLocation: {
+                        await reply(
+                            `the given location was too long (length: ${(args.location as string).length.toString()} chars, limit: 200 chars).`,
+                        );
+                        return failed;
+                    }
+                    case CreateJumproleResultType.InvalidJumpType: {
+                        await reply(
+                            `the given jump type was too long (length: ${(args.jump_type as string).length.toString()} chars, limit: 200 chars).`,
+                        );
+                        return failed;
+                    }
+                    case CreateJumproleResultType.InvalidDescription: {
+                        await reply(`the given description was too long (length: ${args.description.length.toString()} chars, limit: 1500 chars).`);
+                        return failed;
+                    }
+                    default: {
+                        log(
+                            `jumprole_set: received invalid option in switch (CreateJumproleResultType) that brought us to the default case. Informing the user of the error...`,
+                            LogType.Error,
+                        );
+                        await reply(`unknown internal error. Contact @${MAINTAINER_TAG} for help.`);
+                        return failed;
+                    }
+                }
             }
         }
     }

@@ -1,14 +1,16 @@
-import { Client, Guild, Message } from "discord.js";
-import { PoolInstance as Pool } from "../../../pg_wrapper.js";
+import { Client } from "discord.js";
+import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
 
 import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
-import { command, validate } from "../../../module_decorators.js";
+import { validate } from "../../../module_decorators.js";
 import { Permissions } from "../../../utilities/permissions.js";
-import { DeleteJumproleResult, delete_jumprole } from "./internals/jumprole_postgres.js";
+import { Jumprole, DeleteJumproleResult, GetJumproleResultType } from "./internals/jumprole_type.js";
+//import { DeleteJumproleResult, delete_jumprole } from "./internals/jumprole_postgres.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
+import { TextChannelMessage } from "../../../utilities/typeutils.js";
+import { log, LogType } from "../../../utilities/log.js";
 
-@command()
 export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
     constructor() {
         super(JumproleRemove.manual, JumproleRemove.no_use_no_see, JumproleRemove.permissions);
@@ -31,42 +33,76 @@ export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
     static readonly no_use_no_see = false;
     static readonly permissions = undefined as Permissions | undefined;
 
-    @validate()
+    @validate
     async activate(
         values: ValidatedArguments<typeof JumproleRemove.manual>,
-        message: Message,
+        message: TextChannelMessage,
         _client: Client,
-        pool: Pool,
+        queryable: Queryable<UsesClient>,
         prefix: string,
     ): Promise<BotCommandProcessResults> {
-        const reply = async function (response: string) {
-            message.channel.send(response);
+        const reply = async function (response: string, use_prefix = true) {
+            await message.channel.send(`${use_prefix ? `${prefix}jumprole remove: ` : ""}${response}`);
         };
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
         const name = values.name;
 
-        const result = await delete_jumprole([name, (message.guild as Guild).id], pool);
+        const client = await use_client(queryable);
 
-        switch (result) {
-            case DeleteJumproleResult.Success: {
-                GiveCheck(message);
-                return { type: BotCommandProcessResultType.Succeeded };
+        const instance = await Jumprole.Get(name, message.guild.id, client);
+        switch (instance.type) {
+            case GetJumproleResultType.InvalidName: {
+                await reply(`invalid jump name. Contact @${MAINTAINER_TAG} for help as this should have been caught earlier.`);
+                return { type: BotCommandProcessResultType.Invalid };
             }
-            case DeleteJumproleResult.InvalidJumproleHandle: {
+            case GetJumproleResultType.InvalidServerSnowflake: {
+                log(
+                    `jumprole remove: Jumprole.Get with arguments [${name}, ${message.guild.id}] failed with error GetJumproleResultType.InvalidServerSnowflake.`,
+                    LogType.Error,
+                );
                 await reply(
-                    `${prefix}jumprole remove: an unknown internal error caused the JumproleHandle passed to delete_jumprole to be invalid. Contact @${MAINTAINER_TAG} for help.`,
+                    `an unknown error caused Jumprole.Get to return GetJumproleResultType.InvalidServerSnowflake. Contact @${MAINTAINER_TAG} for help.`,
                 );
                 return failed;
             }
-            case DeleteJumproleResult.NoneMatchJumproleHandle: {
-                await reply(`${prefix}jumprole remove: no Jumprole exists with that name.`);
-                return failed;
-            }
-            case DeleteJumproleResult.QueryFailed: {
+            case GetJumproleResultType.GetTierWithIDFailed: {
                 await reply(
-                    `${prefix}jumprole remove: an unknown internal error caused the database query to fail. Contact @${MAINTAINER_TAG} for help.`,
+                    "an unknown error caused Jumprole.Get to fail with error GetJumproleResultType.GetTierWithIDFailed. It is possible that its tier was deleted.",
+                );
+                log(
+                    `jumprole remove: Jumprole.Get with arguments [${name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.GetTierWithIDFailed.`,
+                    LogType.Error,
                 );
                 return failed;
+            }
+            case GetJumproleResultType.NoneMatched: {
+                await reply(`a jump with that name doesn't exist in this server. You can list all roles with \`${prefix}tj list\`.`);
+                return failed;
+            }
+            case GetJumproleResultType.QueryFailed: {
+                await reply(`${prefix}jumprole remove: an unknown error occurred (query failure). Contact @${MAINTAINER_TAG} for help.`);
+                return failed;
+            }
+            case GetJumproleResultType.Unknown: {
+                log(
+                    `jumprole remove: Jumprole.Get with arguments [${name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.Unknown.`,
+                );
+                await reply(`an unknown error occurred after Jumprole.Get. Contact @${MAINTAINER_TAG} for help.`);
+                return failed;
+            }
+            case GetJumproleResultType.Success: {
+                const result = await instance.jumprole.delete(client);
+
+                switch (result) {
+                    case DeleteJumproleResult.Success: {
+                        await GiveCheck(message);
+                        return { type: BotCommandProcessResultType.Succeeded };
+                    }
+                    case DeleteJumproleResult.QueryFailed: {
+                        await reply(`an unknown internal error caused the database query to fail. Contact @${MAINTAINER_TAG} for help.`);
+                        return failed;
+                    }
+                }
             }
         }
     }
