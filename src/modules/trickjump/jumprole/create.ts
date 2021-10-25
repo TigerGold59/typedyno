@@ -10,14 +10,14 @@ import { Permissions } from "../../../utilities/permissions.js";
 import { Jumprole, KingdomNameToKingdom, CreateJumproleResultType } from "./internals/jumprole_type.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { TextChannelMessage } from "../../../utilities/typeutils.js";
-import { GetTierResultType, Tier } from "./internals/tier_type.js";
-export class JumproleSet extends Subcommand<typeof JumproleSet.manual> {
+import { GetTierResultType, Tier } from "../tier/internals/tier_type.js";
+export class JumproleCreate extends Subcommand<typeof JumproleCreate.manual> {
     constructor() {
-        super(JumproleSet.manual, JumproleSet.no_use_no_see, JumproleSet.permissions);
+        super(JumproleCreate.manual, JumproleCreate.no_use_no_see, JumproleCreate.permissions);
     }
 
     static readonly manual = {
-        name: "set",
+        name: "create",
         arguments: [
             {
                 name: "name",
@@ -56,7 +56,7 @@ export class JumproleSet extends Subcommand<typeof JumproleSet.manual> {
             },
         ],
         description: "Creates or updates a Jumprole with the specified properties.",
-        syntax: "<prefix>jumprole set NAME $1 TIER $2 {opt $3}[ KINGDOM $3]{opt $4}[ LOCATION $4]{opt $5}[ JUMP TYPE $5]{opt $6}[ LINK $6] INFO $7",
+        syntax: "<prefix>jumprole create NAME $1 TIER $2 {opt $3}[ KINGDOM $3]{opt $4}[ LOCATION $4]{opt $5}[ JUMP TYPE $5]{opt $6}[ LINK $6] INFO $7",
         compact_syntaxes: true,
     } as const;
 
@@ -65,14 +65,14 @@ export class JumproleSet extends Subcommand<typeof JumproleSet.manual> {
 
     @validate
     async activate(
-        args: ValidatedArguments<typeof JumproleSet.manual>,
+        args: ValidatedArguments<typeof JumproleCreate.manual>,
         message: TextChannelMessage,
         _client: Client,
         queryable: Queryable<UsesClient>,
         prefix: string,
     ): Promise<BotCommandProcessResults> {
         const reply = async function (response: string, use_prefix = true) {
-            await message.channel.send(`${use_prefix ? `${prefix}jumprole set: ` : ""}${response}`);
+            await message.channel.send(`${use_prefix ? `${prefix}jumprole create: ` : ""}${response}`);
         };
 
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };

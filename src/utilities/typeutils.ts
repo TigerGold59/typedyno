@@ -208,3 +208,8 @@ export const in_range = (input: NumberComparable, range: Range): [boolean, boole
     const end_valid = is_NumberComparable(range.end) ? input > range.end || (input == range.end && range.end_inclusive === true) : true;
     return [start_valid, end_valid];
 };
+
+export const null_to_undefined = <T>(arg: T | null): Exclude<T, null> | undefined => {
+    if (arg === null) return undefined;
+    else return arg as Exclude<T, null>;
+};

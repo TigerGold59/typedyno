@@ -10,7 +10,7 @@ import { is_string, is_text_channel, TextChannelMessage } from "../../../utiliti
 // import { ModifyJumproleResult, modify_jumprole } from "./internals/jumprole_postgres.js";
 import { GetJumproleResultType, Jumprole, JumproleModifyOptions, KingdomNameToKingdom, ModifyJumproleResult } from "./internals/jumprole_type.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
-import { GetTierResultType, Tier } from "./internals/tier_type.js";
+import { GetTierResultType, Tier } from "../tier/internals/tier_type.js";
 
 export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
     constructor() {
@@ -115,7 +115,7 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
                     return failed;
                 }
                 case GetTierResultType.NoMatchingEntries: {
-                    await reply(`no tier with name "${values.tier} exists in this server."`);
+                    await reply(`no tier with name "${values.tier}" exists in this server.`);
                     return failed;
                 }
                 case GetTierResultType.QueryFailed: {

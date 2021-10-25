@@ -1,45 +1,41 @@
 import { Client } from "discord.js";
-import { PoolInstance as Pool } from "../../../pg_wrapper.js";
+import { Pool } from "pg";
+import { BotCommand, BotCommandProcessResults, BotCommandProcessResultType } from "../../../functions";
+import { MAINTAINER_TAG } from "../../../main";
+import { automatic_dispatch } from "../../../module_decorators";
+import { DebugLogType, log, LogType } from "../../../utilities/log";
+import { is_valid_Snowflake } from "../../../utilities/permissions";
+import { TextChannelMessage } from "../../../utilities/typeutils";
+import { GET_SERVER_JUMPROLE_CHANNEL } from "../jumprole/jumprole_cmd";
+import { trickjump_guildsQueryResults } from "../table_types";
+import { TierCreate } from "./create";
+import { TierDelete } from "./delete";
+import { TierUpdate } from "./update";
 
-import { BotCommand, BotCommandProcessResults, BotCommandProcessResultType } from "../../../functions.js";
-import { JumproleCreate } from "./create.js";
-import { JumproleUpdate } from "./update.js";
-import { JumproleRemove } from "./remove.js";
-import { automatic_dispatch } from "../../../module_decorators.js";
-import { DebugLogType, log, LogType } from "../../../utilities/log.js";
-import { JumproleChoose } from "./choose.js";
-import { MAINTAINER_TAG } from "../../../main.js";
-import { is_valid_Snowflake } from "../../../utilities/permissions.js";
-import { TextChannelMessage } from "../../../utilities/typeutils.js";
-import { trickjump_guildsQueryResults } from "../table_types.js";
-
-export const GET_SERVER_JUMPROLE_CHANNEL = `SELECT * FROM trickjump_guilds WHERE server=$1`;
-
-// TODO: Implement parent_command to better utilize automatic_dispatch to pass in which subcommand is being called
-
-export class Jumprole extends BotCommand {
+export class Tier extends BotCommand {
     constructor() {
-        super(Jumprole.manual, Jumprole.no_use_no_see, Jumprole.permissions);
+        super(Tier.manual, Tier.no_use_no_see, Tier.permissions);
     }
 
     static readonly manual = {
-        name: "jumprole",
-        subcommands: [JumproleCreate.manual, JumproleUpdate.manual, JumproleRemove.manual, JumproleChoose.manual],
-        description: "Manage Jumproles in the current server.",
+        name: "tier",
+        subcommands: [],
+        description: "Manage Jumprole tiers in the current server.",
     } as const;
 
     static readonly no_use_no_see = false;
 
     static readonly permissions = undefined;
 
-    @automatic_dispatch(new JumproleCreate(), new JumproleUpdate(), new JumproleRemove(), new JumproleChoose())
-    async process(message: TextChannelMessage, _client: Client, pool: Pool, prefix: string): Promise<BotCommandProcessResults> {
+    @automatic_dispatch(new TierCreate(), new TierUpdate(), new TierDelete()) async process(
+        message: TextChannelMessage,
+        _client: Client,
+        pool: Pool,
+        prefix: string,
+    ): Promise<BotCommandProcessResults> {
         const reply = async (response: string) => {
-            await message.channel.send(`${prefix}jumprole: ${response}`);
+            await message.channel.send(`${prefix}tier: ${response}`);
         };
-        if (message.content.toLowerCase().startsWith(`${prefix.toLowerCase()}jumprole choose`)) {
-            return { type: BotCommandProcessResultType.PassThrough };
-        }
         // Do before calling subcommand
         // Check whether this message is in the correct channel
         const authorized_channels = (await pool.query(GET_SERVER_JUMPROLE_CHANNEL, [message.guild.id])) as trickjump_guildsQueryResults;
@@ -49,14 +45,14 @@ export class Jumprole extends BotCommand {
             );
             return { type: BotCommandProcessResultType.DidNotSucceed };
         } else if (authorized_channels.rowCount > 1) {
-            log(`jumprole: server with ID ${message.guild.id} has multiple jumprole commands channels.`, LogType.Error);
+            log(`tier: server with ID ${message.guild.id} has multiple jumprole commands channels.`, LogType.Error);
             await reply(`this server has somehow managed to designate multiple jumprole commands channels. Contact @${MAINTAINER_TAG} for help.`);
             return { type: BotCommandProcessResultType.DidNotSucceed };
         } else if (authorized_channels.rowCount === 1) {
             const channel_id = authorized_channels.rows[0].jumprole_channel;
             if (is_valid_Snowflake(channel_id)) {
                 if (message.channel.id === channel_id) {
-                    log("jumprole: dispatching command call automatically to subcommand.", LogType.Status, DebugLogType.AutomaticDispatchPassThrough);
+                    log("tier: dispatching command call automatically to subcommand.", LogType.Status, DebugLogType.AutomaticDispatchPassThrough);
                     // Return { type: BotCommandProcessResultType.PassThrough to pass through to the subcommand }
                     return { type: BotCommandProcessResultType.PassThrough };
                 } else {
@@ -67,18 +63,16 @@ export class Jumprole extends BotCommand {
                 }
             } else {
                 log(
-                    `jumprole: server with ID ${message.guild.id} returned a non-Snowflake type when queried for the authorized channel ID.`,
+                    `tier: server with ID ${message.guild.id} returned a non-Snowflake type when queried for the authorized channel ID.`,
                     LogType.Error,
                 );
                 await reply(`an internal error occurred (is_valid_Snowflake returned false on channel_id). Contact @${MAINTAINER_TAG} for help.`);
                 return { type: BotCommandProcessResultType.DidNotSucceed };
             }
         } else {
-            log(`jumprole: negative authorized_channels.rowCount. Notifying the user...`, LogType.Error);
+            log(`tier: negative authorized_channels.rowCount. Notifying the user...`, LogType.Error);
             await reply(`an internal error occurred (negative authorized_channels.rowCount). Contact @${MAINTAINER_TAG} for help.`);
             return { type: BotCommandProcessResultType.DidNotSucceed };
         }
     }
 }
-
-export const JumproleCMD = new Jumprole();

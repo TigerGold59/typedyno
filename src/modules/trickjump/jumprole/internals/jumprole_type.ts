@@ -7,7 +7,7 @@ import { is_number, is_string, PositiveIntegerMax, query_failure, safe_serialize
 import { type, validate_constructor } from "../../../../module_decorators.js";
 import { Queryable, UsesClient, use_client, MakesSingleRequest } from "../../../../pg_wrapper.js";
 import { trickjump_jumpsQueryResults } from "../../table_types.js";
-import { GetTierResultType, Tier, TierStructure } from "./tier_type.js";
+import { GetTierResultType, Tier, TierStructure } from "../../tier/internals/tier_type.js";
 
 export const GET_JUMPROLE_BY_ID = "SELECT * FROM trickjump_jumps WHERE id=$1";
 export const GET_JUMPROLE_BY_NAME_AND_SERVER = "SELECT * FROM trickjump_jumps WHERE name=$1 AND server=$2";

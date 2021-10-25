@@ -1,5 +1,5 @@
 import { indent } from "../../command_manual.js";
-import { Tier } from "../../modules/trickjump/jumprole/internals/tier_type.js";
+import { Tier } from "../../modules/trickjump/tier/internals/tier_type.js";
 import { DebugLogType, log, LogType } from "../log.js";
 
 export const enum ParameterTypeCheckResult {
