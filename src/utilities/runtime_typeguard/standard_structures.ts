@@ -114,14 +114,14 @@ export class LengthRestrictableStructure<NormalizedType extends string | Normali
     length(range: Range, broadest_previous_type = "string"): Structure<NormalizedType> {
         return this.validate(<Input extends NormalizedType>(result: Input): TransformResult<Input> => {
             const range_validated = in_range(result.length, range);
-            if (range_validated[0]) {
+            if (range_validated[0] === false) {
                 return error(
                     `input was ${broadest_previous_type} but had length greater than ${range.end_inclusive === true ? "" : "or equal to"} ${
                         range.end === undefined ? "infinity" : range.end.toString()
                     }`,
                     StructureValidationFailedReason.InvalidValue,
                 );
-            } else {
+            } else if (range_validated[1] === false) {
                 return error(
                     `input was ${broadest_previous_type} but had length less than ${range.start_inclusive === true ? "" : "or equal to"} ${
                         range.start === undefined ? "negative infinity" : range.start.toString()
@@ -129,6 +129,7 @@ export class LengthRestrictableStructure<NormalizedType extends string | Normali
                     StructureValidationFailedReason.InvalidValue,
                 );
             }
+            return { succeeded: true, result: result };
         });
     }
 }
@@ -227,7 +228,7 @@ export class RecordStructure<
                             if (validated.succeeded === false) {
                                 add_errors(validated.information, `${value_descriptor(key, name)}: `, errors);
                                 continue;
-                            } else new_result[key] = input[key];
+                            } else new_result[key] = validated.result;
                         }
                     }
                     if (all_correct) {

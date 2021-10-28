@@ -205,7 +205,7 @@ export const in_range = (input: NumberComparable, range: Range): [boolean, boole
     // eslint-disable-next-line eqeqeq
     const start_valid = is_NumberComparable(range.start) ? input > range.start || (input == range.start && range.start_inclusive === true) : true;
     // eslint-disable-next-line eqeqeq
-    const end_valid = is_NumberComparable(range.end) ? input > range.end || (input == range.end && range.end_inclusive === true) : true;
+    const end_valid = is_NumberComparable(range.end) ? input < range.end || (input == range.end && range.end_inclusive === true) : true;
     return [start_valid, end_valid];
 };
 

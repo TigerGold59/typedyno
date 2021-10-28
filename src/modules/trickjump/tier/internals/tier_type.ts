@@ -192,7 +192,7 @@ export class Tier {
             }
             case GetTierResultType.NoMatchingEntries: {
                 const query_string = INSERT_TIER;
-                const query_params = [name_result.normalized, server_result.normalized, ordinal_result.normalized];
+                const query_params = [name_result.normalized, ordinal_result.normalized, server_result.normalized];
 
                 try {
                     await client.query(query_string, query_params);

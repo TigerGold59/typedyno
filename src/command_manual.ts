@@ -55,8 +55,8 @@ export interface SubcommandManual {
     // Name of subcommand, i.e. list in %tj list
     readonly name: string;
     // Syntax string
-    // Example: <prefix>proof set | $1 | $2
-    // Example with optional: <prefix>proof get{opt $2}[ |] $1{opt $2}[ | $2]
+    // Example: ::<prefix>proof set:: | $1 | $2
+    // Example with optional: ::<prefix>proof get::{opt $2}[ |] $1{opt $2}[ | $2]
     // In the example with the optional, the pipelines are only required if argument $2 is present.
     readonly syntax: string;
     readonly arguments: readonly CommandArgument[];
@@ -210,6 +210,8 @@ export const key_off_describe_optional = function (syntax_string: string, argume
     }
 };
 
+// TODO: use syntax string parser defined in utilities/argument_processing/arguments.ts
+
 /**
  * Used for command manual text generation.
  * @param command The SimpleCommandManual which we will be creating a syntax list for
@@ -243,6 +245,10 @@ export const generate_syntaxes = function (command: SimpleCommandManual, syntax_
 
         // Replace the prefix preholder
         state_dependent_syntax = state_dependent_syntax.replace("<prefix>", prefix_substitution);
+        // Replace :: descriptors
+        state_dependent_syntax = state_dependent_syntax.replace(/^::/, "");
+        state_dependent_syntax = state_dependent_syntax.replace(/::/, "");
+        state_dependent_syntax;
         return state_dependent_syntax;
     };
 

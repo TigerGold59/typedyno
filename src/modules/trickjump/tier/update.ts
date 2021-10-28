@@ -36,7 +36,7 @@ export class TierUpdate extends Subcommand<typeof TierUpdate.manual> {
         ],
         description:
             "Updates a tier, changing its name or rank number or both, depending on which are provided. The higher the rank number, the higher the tier.",
-        syntax: "<prefix>tier update NAME $1{opt $2}[ NEW NAME $2]${opt $3}[ RANK $3]",
+        syntax: "::<prefix>tier update:: NAME $1{opt $2}[ NEW NAME $2]${opt $3}[ RANK $3]",
         compact_syntaxes: false,
     } as const;
 

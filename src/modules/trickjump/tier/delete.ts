@@ -23,7 +23,7 @@ export class TierDelete extends Subcommand<typeof TierDelete.manual> {
             },
         ],
         description: "Deletes a tier.",
-        syntax: "<prefix>tier delete NAME $1",
+        syntax: "::<prefix>tier delete:: NAME $1",
         compact_syntaxes: false,
     } as const;
 

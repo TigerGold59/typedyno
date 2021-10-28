@@ -30,7 +30,7 @@ export class TierCreate extends Subcommand<typeof TierCreate.manual> {
             },
         ],
         description: "Creates a tier which may include jumproles. The higher the rank number, the higher the tier.",
-        syntax: "<prefix>tier create NAME $1 RANK $2",
+        syntax: "::<prefix>tier create:: NAME $1 RANK $2",
         compact_syntaxes: false,
     } as const;
 

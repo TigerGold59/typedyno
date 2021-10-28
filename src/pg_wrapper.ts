@@ -66,9 +66,6 @@ export class UsingClient {
     ): void;
 
     query(...args: unknown[]): Promise<QueryResult<QueryResultRow>> | void {
-        // @ts-expect-error dont worry lol! i got it all under control.
-        this.#_query(...args);
-
         if (USING_CLIENT_DEBUG_MODE) {
             if (this.#_setTimeout_handle !== null) {
                 clearTimeout(this.#_setTimeout_handle);
@@ -79,6 +76,9 @@ export class UsingClient {
                 );
             }, NOT_COLLECTED_CLIENT_ERROR_DELAY_MS);
         }
+
+        // @ts-expect-error dont worry lol! i got it all under control.
+        return this.#_query(...args);
     }
 
     handle_release(): void {

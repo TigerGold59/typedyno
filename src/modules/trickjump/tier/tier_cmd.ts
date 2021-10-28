@@ -19,7 +19,7 @@ export class Tier extends BotCommand {
 
     static readonly manual = {
         name: "tier",
-        subcommands: [],
+        subcommands: [TierCreate.manual, TierUpdate.manual, TierDelete.manual],
         description: "Manage Jumprole tiers in the current server.",
     } as const;
 
@@ -76,3 +76,5 @@ export class Tier extends BotCommand {
         }
     }
 }
+
+export const TierCMD = new Tier();

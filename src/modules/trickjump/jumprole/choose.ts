@@ -28,7 +28,7 @@ export class JumproleChoose extends Subcommand<typeof JumproleChoose.manual> {
             },
         ],
         description: "Designates the given channel as the server's channel authorized for all Jumprole commands (except this one).",
-        syntax: "<prefix>jumprole choose CHANNEL $1",
+        syntax: "::<prefix>jumprole choose:: CHANNEL $1",
     } as const;
 
     static readonly no_use_no_see = false;

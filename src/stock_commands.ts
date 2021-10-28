@@ -35,7 +35,7 @@ export class GetCommands extends BotCommand {
         name: "commands",
         arguments: [],
         description: "Links to a paste where you can view all the available bot commands.",
-        syntax: "<prefix>commands",
+        syntax: "::<prefix>commands::",
     } as const;
 
     static readonly no_use_no_see = false;
@@ -76,7 +76,7 @@ export class PrefixGet extends Subcommand<typeof PrefixGet.manual> {
         name: "get",
         arguments: [],
         description: "Tells you the only valid prefix that you can use on this server to activate the bot's commands.",
-        syntax: "<prefix>prefix get",
+        syntax: "::<prefix>prefix get::",
     } as const;
 
     static readonly no_use_no_see = false;

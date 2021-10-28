@@ -1,6 +1,7 @@
 import { Module } from "../../module_loader.js";
 import { InclusionSpecifierType } from "../../utilities/permissions.js";
 import { JumproleCMD } from "./jumprole/jumprole_cmd.js";
+import { TierCMD } from "./tier/tier_cmd.js";
 
 // Main module export object
 const trickjump_module: Module = {
@@ -14,7 +15,7 @@ const trickjump_module: Module = {
             list: ["542766712785862666"],
         },
     },
-    functions: [JumproleCMD],
+    functions: [JumproleCMD, TierCMD],
 };
 
 export default trickjump_module;

@@ -57,7 +57,7 @@ export class JumproleCreate extends Subcommand<typeof JumproleCreate.manual> {
             },
         ],
         description: "Creates or updates a Jumprole with the specified properties.",
-        syntax: "<prefix>jumprole create NAME $1 TIER $2 {opt $3}[ KINGDOM $3]{opt $4}[ LOCATION $4]{opt $5}[ JUMP TYPE $5]{opt $6}[ LINK $6] INFO $7",
+        syntax: "::<prefix>jumprole create:: NAME $1 TIER $2 {opt $3}[ KINGDOM $3]{opt $4}[ LOCATION $4]{opt $5}[ JUMP TYPE $5]{opt $6}[ LINK $6] INFO $7",
         compact_syntaxes: true,
     } as const;
 
