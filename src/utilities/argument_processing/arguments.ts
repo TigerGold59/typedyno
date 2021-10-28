@@ -1,10 +1,8 @@
-import { Message } from "discord.js";
 import { CommandArgument, SimpleCommandManual, SubcommandManual } from "../../command_manual.js";
 import { MAINTAINER_TAG } from "../../main.js";
 import { log, LogType } from "../log.js";
-import { escape_reg_exp, is_string } from "../typeutils.js";
+import { escape_reg_exp, is_string, TextChannelMessage } from "../typeutils.js";
 import {
-    ContainedArgumentsList,
     ContainedSubcommandNames,
     GetArgsResult as ArgumentValues,
     InvalidSyntaxStringReason,
@@ -45,27 +43,62 @@ export const parse_loop_with_initial_state = function (
     let possible_argument_identifier_full_segment = "";
     let just_referred_to_argument = false;
     let current_argument_identifier: number | null = null;
+    let subres: SyntaxStringSegmentContent[] = [];
 
     let top_level_validated = false;
 
     const to_parse = top_level_call ? str.trim() : str;
-    // example syntax string: <prefix>jumprole update NAME $1{opt $2}[ KINGDOM $2]{opt $3}[ LOCATION $3]{opt $4}[ JUMP TYPE $4]{opt $5}[ LINK $5]{opt $6}[ INFO $6]
+    // example syntax string: ::<prefix>jumprole update:: NAME $1{opt $2}[ KINGDOM $2]{opt $3}[ LOCATION $3]{opt $4}[ JUMP TYPE $4]{opt $5}[ LINK $5]{opt $6}[ INFO $6]
     // ingest string character by character
     for (let index = 0; index < to_parse.length; index++) {
         const char = to_parse[index];
         switch (state) {
             case SyntaxStringParserState.None: {
-                if (char !== "<") return [InvalidSyntaxStringReason.DoesNotStartWithPrefixTag, index];
+                if (char !== ":" || to_parse[index + 1] !== ":") return [InvalidSyntaxStringReason.DoesNotStartWithDeterminationTag, index];
+                state = SyntaxStringParserState.DeterminationTagBeginning;
+                current_segment = "";
+                index += 1;
+                break;
+            }
+            case SyntaxStringParserState.DeterminationTagBeginning: {
+                if (char !== "<") return [InvalidSyntaxStringReason.DeterminationTagDoesNotStartWithPrefixTag, index];
                 state = SyntaxStringParserState.PrefixTag;
                 current_segment = "";
+                break;
+            }
+            case SyntaxStringParserState.DeterminationTag: {
+                if (index === to_parse.length - 1) {
+                    return [InvalidSyntaxStringReason.UnmatchedDeterminationTagOpening, index];
+                } else if (top_level_validated === false && top_level_call) {
+                    if (is_alphabetic(char) === false && is_whitespace(char) === false)
+                        return [InvalidSyntaxStringReason.CommandNameDoesNotImmediatelyFollowPrefixTag, index];
+                    else if (is_alphabetic(char)) {
+                        current_segment += char;
+                        top_level_validated = true;
+                    } else if (char === " ") {
+                        current_segment += char;
+                    } else void 0;
+                } else if (char === ":" && to_parse[index + 1] === ":") {
+                    res.push({
+                        content: [...subres, current_segment],
+                        type: SyntaxStringSegmentType.DeterminationTag,
+                        argument_number: null,
+                    });
+                    current_segment = "";
+                    subres = [];
+                    state = SyntaxStringParserState.StaticTopLevel;
+                    index += 1;
+                } else {
+                    current_segment += char;
+                }
                 break;
             }
             case SyntaxStringParserState.PrefixTag: {
                 if (char !== ">") current_segment += char.toLowerCase();
                 else if (current_segment === "prefix") {
-                    state = SyntaxStringParserState.StaticTopLevel;
+                    state = SyntaxStringParserState.DeterminationTag;
                     current_segment = "";
-                    res.push({
+                    subres.push({
                         content: [],
                         type: SyntaxStringSegmentType.PrefixTag,
                         argument_number: null,
@@ -77,29 +110,18 @@ export const parse_loop_with_initial_state = function (
                 break;
             }
             case SyntaxStringParserState.StaticTopLevel: {
-                if (top_level_validated === false && top_level_call) {
-                    if (is_alphabetic(char) === false && is_whitespace(char) === false)
-                        return [InvalidSyntaxStringReason.CommandNameDoesNotImmediatelyFollowPrefixTag, index];
-                    else if (is_alphabetic(char)) {
-                        current_segment += char;
-                        top_level_validated = true;
-                    } else if (char === " ") {
-                        current_segment += char;
-                    } else void 0;
+                if (char === "$") {
+                    state = SyntaxStringParserState.ArgumentIdentifier;
+                    break;
+                } else if (char === "{") {
+                    state = SyntaxStringParserState.KeyOffInCurlyBraces;
+                    just_referred_to_argument = false;
+                } else if (char === "]" && top_level_call === false) {
+                    res.push(current_segment);
+                    return [res, index];
                 } else {
-                    if (char === "$") {
-                        state = SyntaxStringParserState.ArgumentIdentifier;
-                        break;
-                    } else if (char === "{") {
-                        state = SyntaxStringParserState.KeyOffInCurlyBraces;
-                        just_referred_to_argument = false;
-                    } else if (char === "]" && top_level_call === false) {
-                        res.push(current_segment);
-                        return [res, index];
-                    } else {
-                        current_segment += char;
-                        just_referred_to_argument = false;
-                    }
+                    current_segment += char;
+                    just_referred_to_argument = false;
                 }
                 break;
             }
@@ -256,9 +278,15 @@ export const parse_loop_with_initial_state = function (
 
 const syntax_string_compile_cache: {
     [key: string]: {
-        [key: string]: [RegExp, { [key: number]: number }];
+        [key: string]: CompiledSyntaxString;
     };
 } = {};
+
+interface CompiledSyntaxString {
+    regex: RegExp;
+    argument_references: Record<number, number>;
+    determination_tag: RegExp;
+}
 
 /**
  * Transforms syntax strings into a `RegExp` that can be used for processing commands
@@ -271,7 +299,7 @@ export const syntax_string_to_argument_regex = function (
     prefix: string,
     args: readonly CommandArgument[],
     syntax_string: string,
-): [RegExp, { [key: number]: number }] | [InvalidSyntaxStringReason, number] {
+): CompiledSyntaxString | [InvalidSyntaxStringReason, number] {
     if (prefix in syntax_string_compile_cache && syntax_string in syntax_string_compile_cache[prefix]) {
         return syntax_string_compile_cache[prefix][syntax_string];
     }
@@ -283,6 +311,8 @@ export const syntax_string_to_argument_regex = function (
     const parsing_result = result[0];
     if (typeof parsing_result === "number") return [parsing_result, result[1]];
 
+    let determination_tag_regex_str = "";
+
     const argument_keyoff_accumulator: { [key: number]: number } = {};
     const construct_regex_part = (part: SyntaxStringSegmentContent): string => {
         let res = "";
@@ -291,6 +321,13 @@ export const syntax_string_to_argument_regex = function (
             switch (part.type) {
                 case SyntaxStringSegmentType.PrefixTag: {
                     res += escape_reg_exp(prefix);
+                    break;
+                }
+                case SyntaxStringSegmentType.DeterminationTag: {
+                    for (const element of part.content as SyntaxStringSegmentContent[]) {
+                        determination_tag_regex_str += construct_regex_part(element);
+                    }
+                    res += determination_tag_regex_str;
                     break;
                 }
                 case SyntaxStringSegmentType.KeyOffStatement: {
@@ -322,11 +359,49 @@ export const syntax_string_to_argument_regex = function (
     }
     res += "$";
 
-    const return_value: [RegExp, { [key: number]: number }] = [new RegExp(res, "mi"), argument_keyoff_accumulator];
+    let determination_tag_regex = new RegExp(`^${determination_tag_regex_str}`);
+
+    const return_value: CompiledSyntaxString = {
+        regex: new RegExp(res, "mi"),
+        argument_references: argument_keyoff_accumulator,
+        determination_tag: determination_tag_regex,
+    };
 
     if (prefix in syntax_string_compile_cache) syntax_string_compile_cache[prefix][syntax_string] = return_value;
     else syntax_string_compile_cache[prefix] = { syntax_string: return_value };
     return return_value;
+};
+
+export type CallCheckResult =
+    | {
+          succeeded: true;
+          is_call: boolean;
+      }
+    | { succeeded: false; syntax_string_error: [InvalidSyntaxStringReason, number] };
+
+export const is_call_of = (prefix: string, command: SimpleCommandManual, invocation: string): CallCheckResult => {
+    const failed = (syntax_string_error: [InvalidSyntaxStringReason, number]) => {
+        return {
+            succeeded: false,
+            syntax_string_error: syntax_string_error,
+        } as { succeeded: false; syntax_string_error: [InvalidSyntaxStringReason, number] };
+    };
+
+    const result = syntax_string_to_argument_regex(prefix, command.arguments, command.syntax);
+    if (result instanceof Array) {
+        log(
+            `is_call_of: command ${
+                command.name
+            } had a malformed syntax string (syntax string processing failed with error #${result[0].toString()} at index ${result[1].toString()}). Returning {succeeded: false}...`,
+            LogType.Error,
+        );
+        return failed(result);
+    } else {
+        return {
+            succeeded: true,
+            is_call: result.determination_tag.test(invocation),
+        };
+    }
 };
 
 /**
@@ -353,7 +428,7 @@ export const get_args = function (prefix: string, command: SimpleCommandManual, 
     };
 
     // Processing syntax string failed
-    if (typeof result[0] === "number") {
+    if (result instanceof Array) {
         log(
             `get_args: command ${
                 command.name
@@ -361,93 +436,93 @@ export const get_args = function (prefix: string, command: SimpleCommandManual, 
             LogType.Error,
         );
         return failed(false, result as [InvalidSyntaxStringReason, number]);
-    }
+    } else {
+        const argument_key_off_list = result.argument_references;
 
-    const argument_key_off_list = result[1] as { [key: number]: number };
+        const match = result.regex.exec(invocation);
 
-    const match = result[0].exec(invocation);
+        if (match === null) return failed(true, null);
+        const groups = match.groups;
 
-    if (match === null) return failed(false, null);
-    const groups = match.groups;
+        const optional_arguments = [];
+        const required_arguments = [];
+        const required_arg_numbers: number[] = [];
+        command.arguments.forEach((arg, index) => {
+            if (arg.optional) optional_arguments.push(arg);
+            else {
+                required_arguments.push(arg);
+                required_arg_numbers.push(index + 1);
+            }
+        });
 
-    const optional_arguments = [];
-    const required_arguments = [];
-    const required_arg_numbers: number[] = [];
-    command.arguments.forEach((arg, index) => {
-        if (arg.optional) optional_arguments.push(arg);
-        else {
-            required_arguments.push(arg);
-            required_arg_numbers.push(index + 1);
-        }
-    });
-
-    if (groups === undefined && required_arguments.length > 0) {
-        log(
-            `get_args: command ${command.name} had required arguments and an invocation matched its generated regex, but the match object had no groups! Returning {succeeded: false}...`,
-            LogType.Mismatch,
-        );
-        return failed(true, null);
-    } else if (groups === undefined)
-        return {
-            succeeded: true,
-            compiled: true,
-            inconsistent_key_offs: [],
-            values: {},
-            syntax_string_compilation_error: null,
-        };
-
-    const inconsistent_key_offs: [string, number, boolean][] = [];
-
-    for (const argument_number in argument_key_off_list) {
-        const keyed_off_count = argument_key_off_list[argument_number];
-        let all_present = false;
-        for (let i = 1; i <= keyed_off_count; i++) {
-            const group_name = `keyoff_${argument_number}_${i.toString()}`;
-            if (is_string(groups[group_name])) {
-                if (i === 1) all_present = true;
-                else if (all_present === false) inconsistent_key_offs.push([command.arguments[Number(argument_number) - 1].name, i, false]);
-            } else if (all_present === true) inconsistent_key_offs.push([command.arguments[Number(argument_number) - 1].name, i, true]);
-        }
-    }
-
-    if (inconsistent_key_offs.length > 0) {
-        return {
-            succeeded: false,
-            compiled: true,
-            values: null,
-            inconsistent_key_offs: inconsistent_key_offs,
-            syntax_string_compilation_error: null,
-        };
-    }
-
-    for (let i = 0; i < required_arguments.length; i++) {
-        if (is_string(groups[`arg_${required_arg_numbers[i].toString()}`]) === false) {
+        if (groups === undefined && required_arguments.length > 0) {
             log(
-                `get_args: command ${
-                    command.name
-                } had required arguments and an invocation matched its generated regex, but the match object was missing argument #${required_arg_numbers[
-                    i
-                ].toString()}! Returning {succeeded: false}...`,
+                `get_args: command ${command.name} had required arguments and an invocation matched its generated regex, but the match object had no groups! Returning {succeeded: false}...`,
                 LogType.Mismatch,
             );
             return failed(true, null);
+        } else if (groups === undefined)
+            return {
+                succeeded: true,
+                compiled: true,
+                inconsistent_key_offs: [],
+                values: {},
+                syntax_string_compilation_error: null,
+            };
+
+        const inconsistent_key_offs: [string, number, boolean][] = [];
+
+        for (const argument_number in argument_key_off_list) {
+            const keyed_off_count = argument_key_off_list[argument_number];
+            let all_present = false;
+            for (let i = 1; i <= keyed_off_count; i++) {
+                const group_name = `keyoff_${argument_number}_${i.toString()}`;
+                if (is_string(groups[group_name])) {
+                    if (i === 1) all_present = true;
+                    else if (all_present === false) inconsistent_key_offs.push([command.arguments[Number(argument_number) - 1].name, i, false]);
+                } else if (all_present === true) inconsistent_key_offs.push([command.arguments[Number(argument_number) - 1].name, i, true]);
+            }
         }
+
+        if (inconsistent_key_offs.length > 0) {
+            return {
+                succeeded: false,
+                compiled: true,
+                values: null,
+                inconsistent_key_offs: inconsistent_key_offs,
+                syntax_string_compilation_error: null,
+            };
+        }
+
+        for (let i = 0; i < required_arguments.length; i++) {
+            if (is_string(groups[`arg_${required_arg_numbers[i].toString()}`]) === false) {
+                log(
+                    `get_args: command ${
+                        command.name
+                    } had required arguments and an invocation matched its generated regex, but the match object was missing argument #${required_arg_numbers[
+                        i
+                    ].toString()}! Returning {succeeded: false}...`,
+                    LogType.Mismatch,
+                );
+                return failed(true, null);
+            }
+        }
+
+        const renamed_params: { [key: string]: string | null } = {};
+        command.arguments.forEach((arg, index) => {
+            const val = groups[`arg_${(index + 1).toString()}`];
+            if (is_string(val)) renamed_params[arg.id] = val;
+            else renamed_params[arg.id] = null;
+        });
+
+        return {
+            succeeded: true,
+            compiled: true,
+            values: renamed_params as ArgumentValues<typeof command.arguments>["values"],
+            inconsistent_key_offs: [],
+            syntax_string_compilation_error: null,
+        };
     }
-
-    const renamed_params: { [key: string]: string | null } = {};
-    command.arguments.forEach((arg, index) => {
-        const val = groups[`arg_${(index + 1).toString()}`];
-        if (is_string(val)) renamed_params[arg.id] = val;
-        else renamed_params[arg.id] = null;
-    });
-
-    return {
-        succeeded: true,
-        compiled: true,
-        values: renamed_params as ArgumentValues<typeof command.arguments>["values"],
-        inconsistent_key_offs: [],
-        syntax_string_compilation_error: null,
-    };
 };
 
 /**
@@ -461,30 +536,35 @@ export const get_first_matching_subcommand = function <List extends readonly (re
     prefix: string,
     invocation: string,
     args: List,
-): [ContainedSubcommandNames<typeof args>, ArgumentValues<ContainedArgumentsList<typeof args>>] | false {
+): ContainedSubcommandNames<typeof args> | false {
     for (let i = 0; i < args.length; i++) {
         const subcommand_name = args[i][0] as ContainedSubcommandNames<typeof args>;
         const manual = args[i][1];
-        const result = get_args(prefix, manual, invocation);
-        if (result.succeeded) return [subcommand_name, result];
+        const result = is_call_of(prefix, manual, invocation);
+        if (result.succeeded && result.is_call) return subcommand_name;
     }
 
     return false;
 };
 
 export const handle_GetArgsResult = async function <ArgumentList extends readonly CommandArgument[]>(
-    message: Message,
+    message: TextChannelMessage,
+    command_name: string,
     result: ArgumentValues<ArgumentList>,
     prefix: string,
 ): Promise<boolean> {
     if (result.succeeded) return true;
 
+    const reply = async function (response: string, use_prefix = true) {
+        await message.channel.send(`${use_prefix ? `${prefix}${command_name}: ` : ""}${response}`);
+    };
+
     if (result.compiled) {
         if (result.inconsistent_key_offs.length > 0) {
-            await message.channel.send(
-                "Command invocation error: the provided message contained some elements which were inconsistent in determining whether an optional argument was being provided.",
+            await reply(
+                `command invocation error - the provided message contained some elements which were inconsistent in determining whether an optional argument was being provided.`,
             );
-            await message.channel.send(
+            await reply(
                 `Detail: ${result.inconsistent_key_offs
                     .map(tuple => {
                         return `in the case of ${tuple[0]}, the first group that determined whether it was provided ${
@@ -492,20 +572,25 @@ export const handle_GetArgsResult = async function <ArgumentList extends readonl
                         } present, while at least one of the others ${tuple[2] === false ? "was" : "was not"}.`;
                     })
                     .join("\n")}`,
+                false,
             );
             return false;
         } else {
-            await message.channel.send(
-                `Command invocation error: the command was formatted incorrectly. Use '${prefix}commands' to see the correct syntaxes.`,
-            );
+            await reply(`command invocation error - the command was formatted incorrectly. Use '${prefix}commands' to see the correct syntaxes.`);
             return false;
         }
     } else {
-        await message.channel.send(
-            `Developer-level error: the provided syntax string for the command failed to compile (error: ${(
-                result.syntax_string_compilation_error as [InvalidSyntaxStringReason, number]
-            ).join()}). Contact @${MAINTAINER_TAG} for help.`,
-        );
+        if (result.syntax_string_compilation_error === null) {
+            await reply(
+                `an internal error occurred - the provided syntax string for the command failed to compile. Contact @${MAINTAINER_TAG} for help.`,
+            );
+        } else {
+            await reply(
+                `an internal error occurred - the provided syntax string for the command failed to compile (error: ${result.syntax_string_compilation_error.join(
+                    ", location: ",
+                )}). Contact @${MAINTAINER_TAG} for help.`,
+            );
+        }
 
         return false;
     }

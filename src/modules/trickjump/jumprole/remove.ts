@@ -10,10 +10,11 @@ import { Jumprole, DeleteJumproleResult, GetJumproleResultType } from "./interna
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { TextChannelMessage } from "../../../utilities/typeutils.js";
 import { log, LogType } from "../../../utilities/log.js";
+import { Jumprole as JumproleCommand } from "./jumprole_cmd.js";
 
 export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
     constructor() {
-        super(JumproleRemove.manual, JumproleRemove.no_use_no_see, JumproleRemove.permissions);
+        super(JumproleCommand.manual, JumproleRemove.manual, JumproleRemove.no_use_no_see, JumproleRemove.permissions);
     }
 
     static readonly manual = {

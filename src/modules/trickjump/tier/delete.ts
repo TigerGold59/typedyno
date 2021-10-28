@@ -1,15 +1,16 @@
 import { Client } from "discord.js";
-import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions";
-import { MAINTAINER_TAG } from "../../../main";
-import { validate } from "../../../module_decorators";
-import { TextChannelMessage } from "../../../utilities/typeutils";
-import { DeleteTierResultType, GetTierResultType, Tier } from "./internals/tier_type";
-import { Queryable, UsesClient, use_client } from "../../../pg_wrapper";
+import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions.js";
+import { MAINTAINER_TAG } from "../../../main.js";
+import { validate } from "../../../module_decorators.js";
+import { TextChannelMessage } from "../../../utilities/typeutils.js";
+import { DeleteTierResultType, GetTierResultType, Tier } from "./internals/tier_type.js";
+import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
+import { Tier as TierCommand } from "./tier_cmd.js";
 
 export class TierDelete extends Subcommand<typeof TierDelete.manual> {
     constructor() {
-        super(TierDelete.manual, TierDelete.no_use_no_see, TierDelete.permissions);
+        super(TierCommand.manual, TierDelete.manual, TierDelete.no_use_no_see, TierDelete.permissions);
     }
 
     static readonly manual = {

@@ -8,12 +8,13 @@ import { Permissions } from "../../../utilities/permissions.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js";
 import { create_designate_handle, designate_user_status } from "../../../designate.js";
-import { query_failure, TextChannelMessage } from "../../../utilities/typeutils.js";
+import { escape_reg_exp, query_failure, TextChannelMessage } from "../../../utilities/typeutils.js";
+import { Jumprole as JumproleCommand } from "./jumprole_cmd.js";
 
 const UPSERT_GUILD_JUMPROLE_CHANNEL = `INSERT INTO trickjump_guilds VALUES ($1, $2) ON CONFLICT (server) DO UPDATE SET jumprole_channel=$2 WHERE trickjump_guilds.server=$1`;
 export class JumproleChoose extends Subcommand<typeof JumproleChoose.manual> {
     constructor() {
-        super(JumproleChoose.manual, JumproleChoose.no_use_no_see, JumproleChoose.permissions);
+        super(JumproleCommand.manual, JumproleChoose.manual, JumproleChoose.no_use_no_see, JumproleChoose.permissions);
     }
 
     static readonly manual = {
@@ -32,6 +33,10 @@ export class JumproleChoose extends Subcommand<typeof JumproleChoose.manual> {
 
     static readonly no_use_no_see = false;
     static readonly permissions = undefined as Permissions | undefined;
+
+    is_attempted_use(message: TextChannelMessage, _client: Client, prefix: string): boolean {
+        return new RegExp(`^${escape_reg_exp(prefix)}\s*jumprole choose`).test(message.content);
+    }
 
     @validate
     async activate(

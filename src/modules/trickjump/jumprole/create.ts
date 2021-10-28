@@ -11,9 +11,10 @@ import { Jumprole, KingdomNameToKingdom, CreateJumproleResultType } from "./inte
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { TextChannelMessage } from "../../../utilities/typeutils.js";
 import { GetTierResultType, Tier } from "../tier/internals/tier_type.js";
+import { Jumprole as JumproleCommand } from "./jumprole_cmd.js";
 export class JumproleCreate extends Subcommand<typeof JumproleCreate.manual> {
     constructor() {
-        super(JumproleCreate.manual, JumproleCreate.no_use_no_see, JumproleCreate.permissions);
+        super(JumproleCommand.manual, JumproleCreate.manual, JumproleCreate.no_use_no_see, JumproleCreate.permissions);
     }
 
     static readonly manual = {

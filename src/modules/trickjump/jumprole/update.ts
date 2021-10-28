@@ -11,10 +11,11 @@ import { is_string, is_text_channel, TextChannelMessage } from "../../../utiliti
 import { GetJumproleResultType, Jumprole, JumproleModifyOptions, KingdomNameToKingdom, ModifyJumproleResult } from "./internals/jumprole_type.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { GetTierResultType, Tier } from "../tier/internals/tier_type.js";
+import { Jumprole as JumproleCommand } from "./jumprole_cmd.js";
 
 export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
     constructor() {
-        super(JumproleUpdate.manual, JumproleUpdate.no_use_no_see, JumproleUpdate.permissions);
+        super(JumproleCommand.manual, JumproleUpdate.manual, JumproleUpdate.no_use_no_see, JumproleUpdate.permissions);
     }
 
     static readonly manual = {

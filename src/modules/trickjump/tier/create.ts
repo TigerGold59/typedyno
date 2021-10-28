@@ -1,16 +1,17 @@
 import { Client } from "discord.js";
-import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions";
-import { MAINTAINER_TAG } from "../../../main";
-import { validate } from "../../../module_decorators";
-import { TextChannelMessage } from "../../../utilities/typeutils";
-import { CreateTierResultType, Tier } from "./internals/tier_type";
-import * as RT from "../../../utilities/runtime_typeguard/standard_structures";
-import { Queryable, UsesClient, use_client } from "../../../pg_wrapper";
+import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions.js";
+import { MAINTAINER_TAG } from "../../../main.js";
+import { validate } from "../../../module_decorators.js";
+import { TextChannelMessage } from "../../../utilities/typeutils.js";
+import { CreateTierResultType, Tier } from "./internals/tier_type.js";
+import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js";
+import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
+import { Tier as TierCommand } from "./tier_cmd.js";
 
 export class TierCreate extends Subcommand<typeof TierCreate.manual> {
     constructor() {
-        super(TierCreate.manual, TierCreate.no_use_no_see, TierCreate.permissions);
+        super(TierCommand.manual, TierCreate.manual, TierCreate.no_use_no_see, TierCreate.permissions);
     }
 
     static readonly manual = {

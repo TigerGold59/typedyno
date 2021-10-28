@@ -1,16 +1,16 @@
 import { Client } from "discord.js";
 import { Pool } from "pg";
-import { BotCommand, BotCommandProcessResults, BotCommandProcessResultType } from "../../../functions";
-import { MAINTAINER_TAG } from "../../../main";
-import { automatic_dispatch } from "../../../module_decorators";
-import { DebugLogType, log, LogType } from "../../../utilities/log";
-import { is_valid_Snowflake } from "../../../utilities/permissions";
-import { TextChannelMessage } from "../../../utilities/typeutils";
-import { GET_SERVER_JUMPROLE_CHANNEL } from "../jumprole/jumprole_cmd";
-import { trickjump_guildsQueryResults } from "../table_types";
-import { TierCreate } from "./create";
-import { TierDelete } from "./delete";
-import { TierUpdate } from "./update";
+import { BotCommand, BotCommandProcessResults, BotCommandProcessResultType } from "../../../functions.js";
+import { MAINTAINER_TAG } from "../../../main.js";
+import { automatic_dispatch } from "../../../module_decorators.js";
+import { DebugLogType, log, LogType } from "../../../utilities/log.js";
+import { is_valid_Snowflake } from "../../../utilities/permissions.js";
+import { TextChannelMessage } from "../../../utilities/typeutils.js";
+import { GET_SERVER_JUMPROLE_CHANNEL } from "../jumprole/jumprole_cmd.js";
+import { trickjump_guildsQueryResults } from "../table_types.js";
+import { TierCreate } from "./create.js";
+import { TierDelete } from "./delete.js";
+import { TierUpdate } from "./update.js";
 
 export class Tier extends BotCommand {
     constructor() {

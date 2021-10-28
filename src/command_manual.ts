@@ -454,5 +454,9 @@ export const argument_structure_from_manual = <Manual extends SubcommandManual>(
             else record[argument.id] = argument.further_constraint;
         } else record[argument.id] = argument.optional ? Structs.Nullable(Structs.string) : Structs.string;
     }
-    return Structs.object(record as ArgumentRepresentation<Manual>);
+    return Structs.object(record as ArgumentRepresentation<Manual>, `${manual.name} arguments`, key => {
+        let found = manual.arguments.find(val => val.id === key);
+        if (found === undefined) return key;
+        return found.name;
+    });
 };

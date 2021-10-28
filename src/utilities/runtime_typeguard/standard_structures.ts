@@ -182,6 +182,8 @@ export class RecordStructure<
         name = `{ ${Object.keys(structure)
             .map(key => `${key}: ${structure[key].name}`)
             .join(", ")} } `,
+        value_descriptor: (key: string, structure_name: string) => string = (key, structure_name) =>
+            `value from key ${key} on structure ${structure_name}`,
     ) {
         type NewNormalizedType = {
             [P in keyof Representation]: InferNormalizedType<Representation[P]>;
@@ -207,7 +209,7 @@ export class RecordStructure<
                                 } else {
                                     add_errors(
                                         catchall_value_result.information,
-                                        `value from key ${key} on structure ${name} matched catchall key structure but not catchall value structure: `,
+                                        `${value_descriptor(key, name)} matched catchall key structure but not catchall value structure: `,
                                         errors,
                                     );
                                     all_correct = false;
@@ -215,7 +217,7 @@ export class RecordStructure<
                             } else {
                                 add_errors(
                                     catchall_result.information,
-                                    `value from key ${key} on structure ${name} didn't match catchall key structure: `,
+                                    `${value_descriptor(key, name)} didn't match catchall key structure: `,
                                     errors,
                                 );
                                 all_correct = false;
@@ -223,7 +225,7 @@ export class RecordStructure<
                         } else {
                             const validated = structure[key].transform(input[key]);
                             if (validated.succeeded === false) {
-                                add_errors(validated.information, `value from key ${key} on structure ${name}: `, errors);
+                                add_errors(validated.information, `${value_descriptor(key, name)}: `, errors);
                                 continue;
                             } else new_result[key] = input[key];
                         }
@@ -238,22 +240,28 @@ export class RecordStructure<
                 const errors: string[] = [];
                 const keys = Object.keys(result);
                 for (const key of keys) {
-                    const validated = structure[key].validate_transformed(result[key]);
-                    if (validated.succeeded === false) {
+                    if (key in structure === false) {
                         const catchall_result = catchall_key.check(key);
                         if (catchall_result.succeeded) {
                             const catchall_value_result = catchall_value.check(result[key]);
                             if (catchall_value_result.succeeded === false) {
                                 add_errors(
-                                    validated.information,
-                                    `value from key ${key} on structure ${name} did not match catchall value: `,
+                                    catchall_value_result.information,
+                                    `${value_descriptor(key, name)} did not match catchall value: `,
                                     errors,
                                 );
                                 all_correct = false;
                             }
                         } else {
-                            add_errors(catchall_result.information, `key ${key} on structure ${name} did not match catchall key: `, errors);
+                            add_errors(catchall_result.information, `${value_descriptor(key, name)} did not match catchall key: `, errors);
                             all_correct = false;
+                        }
+                    } else {
+                        const validated = structure[key].validate_transformed(result[key]);
+                        if (validated.succeeded === false) {
+                            add_errors(validated.information, `${value_descriptor(key, name)}: `, errors);
+                            all_correct = false;
+                            continue;
                         }
                     }
                 }
@@ -329,11 +337,13 @@ export class RecordStructure<
 
 export const object = <StructureObject extends Record<string, AnyStructure>>(
     structure: StructureObject,
-): RecordStructure<StructureObject, Structure<never>, Structure<undefined>> => {
-    const new_name = `{ ${Object.keys(structure)
+    name = `{ ${Object.keys(structure)
         .map(key => `${key}: ${structure[key].name}`)
-        .join(", ")} } `;
-    return new RecordStructure(structure, Never, Undefined, new_name);
+        .join(", ")} } `,
+    value_descriptor: (key: string, structure_name: string) => string = (key, structure_name) =>
+        `value from key ${key} on structure ${structure_name}`,
+): RecordStructure<StructureObject, Structure<never>, Structure<undefined>> => {
+    return new RecordStructure(structure, Never, Undefined, name, value_descriptor);
 };
 
 /**

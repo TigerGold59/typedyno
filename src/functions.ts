@@ -1,13 +1,21 @@
 import { Message, Client } from "discord.js";
-import { PoolInstance as Pool } from "./pg_wrapper.js";
-import { CommandManual, manual_of, is_no_use_no_see, permissions_of, SubcommandManual, argument_structure_from_manual } from "./command_manual.js";
+import { PoolInstance as Pool, Queryable, UsesClient } from "./pg_wrapper.js";
+import {
+    CommandManual,
+    manual_of,
+    is_no_use_no_see,
+    permissions_of,
+    SubcommandManual,
+    argument_structure_from_manual,
+    MultifacetedCommandManual,
+} from "./command_manual.js";
 import { get_prefix } from "./integrations/server_prefixes.js";
 import { GLOBAL_PREFIX, MODULES } from "./main.js";
 import { performance } from "perf_hooks";
 import { DebugLogType, log, LogType } from "./utilities/log.js";
 import { allowed, Permissions } from "./utilities/permissions.js";
-import { escape_reg_exp, is_string, is_text_channel } from "./utilities/typeutils.js";
-import { get_args, handle_GetArgsResult } from "./utilities/argument_processing/arguments.js";
+import { escape_reg_exp, is_string, is_text_channel, TextChannelMessage } from "./utilities/typeutils.js";
+import { get_args, handle_GetArgsResult, is_call_of } from "./utilities/argument_processing/arguments.js";
 import { GetArgsResult, ValidatedArguments } from "./utilities/argument_processing/arguments_types.js";
 import { log_stack } from "./utilities/runtime_typeguard/runtime_typeguard.js";
 
@@ -59,7 +67,7 @@ export abstract class BotCommand {
     }
 
     // Command should return whether the command succeeded or not
-    abstract process(message: Message, client: Client, pool: Pool, prefix: string): PromiseLike<BotCommandProcessResults>;
+    abstract process(message: Message, client: Client, queryable: Queryable<UsesClient>, prefix: string): PromiseLike<BotCommandProcessResults>;
 }
 
 export type ArgumentValues<Manual extends SubcommandManual> = Exclude<GetArgsResult<Manual["arguments"]>["values"], null>;
@@ -79,18 +87,38 @@ export type ArgumentValues<Manual extends SubcommandManual> = Exclude<GetArgsRes
 }*/
 
 export abstract class Subcommand<Manual extends SubcommandManual> extends BotCommand {
-    constructor(command_manual: Manual, no_use_no_see: boolean, permissions?: Permissions) {
+    readonly parent_manual: MultifacetedCommandManual;
+
+    constructor(parent_manual: MultifacetedCommandManual, command_manual: Manual, no_use_no_see: boolean, permissions?: Permissions) {
         super(command_manual, no_use_no_see, permissions);
+        this.parent_manual = parent_manual;
         Reflect.defineMetadata(BotCommandMetadataKey.Permissions, permissions, this);
         Reflect.defineMetadata(BotCommandMetadataKey.Manual, command_manual, this);
         Reflect.defineMetadata(BotCommandMetadataKey.NoUseNoSee, no_use_no_see, this);
     }
 
+    full_name(): string {
+        return `${this.parent_manual.name} ${manual_of(this).name}`;
+    }
+
+    is_attempted_use(message: TextChannelMessage, _client: Client, prefix: string): boolean {
+        let result = is_call_of(prefix, manual_of(this) as SubcommandManual, message.content);
+        if (result.succeeded) {
+            return result.is_call;
+        } else {
+            log(
+                `is_attempted_use: syntax string parsing failed - error: ${result.syntax_string_error.map(x => x.toString).join(", location: ")}`,
+                LogType.Error,
+            );
+            return false;
+        }
+    }
+
     abstract activate(
         values: ValidatedArguments<Manual>,
-        message: Message,
+        message: TextChannelMessage,
         client: Client,
-        pool: Pool,
+        queryable: Queryable<UsesClient>,
         prefix: string,
     ): PromiseLike<BotCommandProcessResults>;
 
@@ -100,25 +128,25 @@ export abstract class Subcommand<Manual extends SubcommandManual> extends BotCom
 
         const args = get_args(prefix, manual, message.content);
 
-        const result = await handle_GetArgsResult(message, args, prefix);
+        if (is_text_channel(message)) {
+            const result = await handle_GetArgsResult(message, manual_of(this).name, args, prefix);
 
-        if (result === false) {
-            return failed;
-        }
+            if (result === false) {
+                return failed;
+            }
 
-        const spec = argument_structure_from_manual(manual);
-        const values = spec.check(args.values);
+            const spec = argument_structure_from_manual(manual);
+            const values = spec.check(args.values);
 
-        if (values.succeeded === false) {
-            log_stack(values, `${manual.name} command process`);
-            return { type: BotCommandProcessResultType.Invalid };
-        }
+            if (values.succeeded === false) {
+                log_stack(values, `${manual.name} command process`);
+                return { type: BotCommandProcessResultType.Invalid };
+            }
 
-        if (is_text_channel(message) === false) {
+            return await this.activate(values.normalized as ValidatedArguments<Manual>, message as TextChannelMessage, client, pool, prefix);
+        } else {
             return { type: BotCommandProcessResultType.Unauthorized };
         }
-
-        return await this.activate(values.normalized as ValidatedArguments<Manual>, message, client, pool, prefix);
     }
 }
 

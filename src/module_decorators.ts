@@ -1,7 +1,7 @@
 import "reflect-metadata";
 import { PoolInstance as Pool } from "./pg_wrapper.js";
 import { ValidatedArguments } from "./utilities/argument_processing/arguments_types.js";
-import { get_first_matching_subcommand } from "./utilities/argument_processing/arguments.js";
+import { get_args, get_first_matching_subcommand, handle_GetArgsResult } from "./utilities/argument_processing/arguments.js";
 import { BotCommand, BotCommandProcessResultType, BotCommandProcessResults, Subcommand } from "./functions.js";
 import { Client, Message } from "discord.js";
 import {
@@ -11,6 +11,7 @@ import {
     SubcommandManual,
     get_type,
     argument_structure_from_manual,
+    indent,
 } from "./command_manual.js";
 import { DebugLogType, LogType, log } from "./utilities/log.js";
 import { Structure, NormalizedStructure, AnyStructure, log_stack } from "./utilities/runtime_typeguard/runtime_typeguard.js";
@@ -83,7 +84,7 @@ export function automatic_dispatch<DispatchTargets extends Subcommand<Subcommand
                         const match = get_first_matching_subcommand(prefix, message.content, subcommands_and_name);
                         if (match === false) {
                             await message.channel.send(
-                                `${
+                                `${prefix}${
                                     (<MultifacetedCommandManual>manual).name
                                 }: your message had no matching subcommands. Try using '${prefix}commands' to see the syntax for each subcommand.`,
                             );
@@ -91,7 +92,7 @@ export function automatic_dispatch<DispatchTargets extends Subcommand<Subcommand
                         }
                         let subcommand_index = null as number | null;
                         const found = subcommands_and_name.find((tuple, index) => {
-                            const predicate = tuple[0] === match[0];
+                            const predicate = tuple[0] === match;
                             if (predicate) {
                                 subcommand_index = index;
                                 return true;
@@ -100,19 +101,35 @@ export function automatic_dispatch<DispatchTargets extends Subcommand<Subcommand
                         // never
                         if (found === undefined) {
                             await message.channel.send(
-                                `${
+                                `${prefix}${
                                     (<MultifacetedCommandManual>manual).name
                                 }: your message had no matching subcommands. Try using '${prefix}commands' to see the syntax for each subcommand.`,
                             );
                             return value({ type: BotCommandProcessResultType.DidNotSucceed });
                         }
-                        const arg_value_specification = argument_structure_from_manual(found[1]);
-                        const result = arg_value_specification.check(match[1].values);
+                        let found_subcommand_manual = found[1];
+                        const args_result = get_args(prefix, found_subcommand_manual, message.content);
+                        let res = await handle_GetArgsResult(
+                            message,
+                            `${(<MultifacetedCommandManual>manual).name} ${found_subcommand_manual.name}`,
+                            args_result,
+                            prefix,
+                        );
+                        if (res === false) {
+                            return value({ type: BotCommandProcessResultType.DidNotSucceed });
+                        }
+                        const arg_value_specification = argument_structure_from_manual(found_subcommand_manual);
+                        const result = arg_value_specification.check(args_result.values);
                         if (result.succeeded === false) {
                             await message.channel.send(
-                                `${(<MultifacetedCommandManual>manual).name}: your message did not have the proper arguments for subcommand ${
-                                    match[0]
-                                }. Try using ${prefix}commands to see the syntax for each subcommand.`,
+                                `${prefix}${
+                                    (<MultifacetedCommandManual>manual).name
+                                }: your message did not have the proper arguments for subcommand ${
+                                    found[0]
+                                }. Try using '${prefix}commands' to see the syntax for each subcommand.\n${result.information
+                                    .map(indent)
+                                    .map(x => `${x}.`)
+                                    .join("\n")}`,
                             );
                             return value({ type: BotCommandProcessResultType.DidNotSucceed });
                         }

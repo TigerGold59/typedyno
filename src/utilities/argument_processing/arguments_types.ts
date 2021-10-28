@@ -73,6 +73,8 @@ export const is_digit = function (str: string): boolean {
 export const enum SyntaxStringParserState {
     None,
     PrefixTag,
+    DeterminationTagBeginning,
+    DeterminationTag,
     StaticTopLevel,
     ArgumentIdentifier,
     KeyOffInCurlyBraces,
@@ -81,7 +83,9 @@ export const enum SyntaxStringParserState {
 }
 
 export const enum InvalidSyntaxStringReason {
-    DoesNotStartWithPrefixTag = 0,
+    DeterminationTagDoesNotStartWithPrefixTag = 0,
+    DoesNotStartWithDeterminationTag,
+    UnmatchedDeterminationTagOpening,
     InvalidPrefixTagContent,
     PrefixTagStartedButNeverCloses,
     CommandNameDoesNotImmediatelyFollowPrefixTag,
@@ -100,6 +104,7 @@ export const enum InvalidSyntaxStringReason {
 
 export const enum SyntaxStringSegmentType {
     PrefixTag,
+    DeterminationTag,
     ArgumentIdentifier,
     KeyOffStatement,
 }

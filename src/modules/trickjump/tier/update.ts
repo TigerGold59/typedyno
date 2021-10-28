@@ -1,16 +1,17 @@
 import { Client } from "discord.js";
-import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions";
-import { MAINTAINER_TAG } from "../../../main";
-import { validate } from "../../../module_decorators";
-import { null_to_undefined, TextChannelMessage } from "../../../utilities/typeutils";
-import { GetTierResultType, ModifyTierResultType, Tier } from "./internals/tier_type";
-import * as RT from "../../../utilities/runtime_typeguard/standard_structures";
-import { Queryable, UsesClient, use_client } from "../../../pg_wrapper";
+import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions.js";
+import { MAINTAINER_TAG } from "../../../main.js";
+import { validate } from "../../../module_decorators.js";
+import { null_to_undefined, TextChannelMessage } from "../../../utilities/typeutils.js";
+import { GetTierResultType, ModifyTierResultType, Tier } from "./internals/tier_type.js";
+import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js";
+import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
+import { Tier as TierCommand } from "./tier_cmd.js";
 
 export class TierUpdate extends Subcommand<typeof TierUpdate.manual> {
     constructor() {
-        super(TierUpdate.manual, TierUpdate.no_use_no_see, TierUpdate.permissions);
+        super(TierCommand.manual, TierUpdate.manual, TierUpdate.no_use_no_see, TierUpdate.permissions);
     }
 
     static readonly manual = {

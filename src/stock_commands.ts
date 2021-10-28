@@ -69,7 +69,7 @@ export class GetCommands extends BotCommand {
 
 export class PrefixGet extends Subcommand<typeof PrefixGet.manual> {
     constructor() {
-        super(PrefixGet.manual, PrefixGet.no_use_no_see, PrefixGet.permissions);
+        super(Prefix.manual, PrefixGet.manual, PrefixGet.no_use_no_see, PrefixGet.permissions);
     }
 
     static readonly manual = {
@@ -106,7 +106,7 @@ export class PrefixGet extends Subcommand<typeof PrefixGet.manual> {
 
 export class PrefixSet extends Subcommand<typeof PrefixSet.manual> {
     constructor() {
-        super(PrefixSet.manual, PrefixSet.no_use_no_see, PrefixSet.permissions);
+        super(Prefix.manual, PrefixSet.manual, PrefixSet.no_use_no_see, PrefixSet.permissions);
     }
 
     static readonly manual = {
@@ -126,7 +126,7 @@ export class PrefixSet extends Subcommand<typeof PrefixSet.manual> {
         ],
         description:
             "Sets the provided string as the local prefix, overriding the global prefix.\nYou must be a bot admin or have designated privileges to use this command.",
-        syntax: "<prefix>prefix set NEW $1{opt $2}[ SERVER $2]",
+        syntax: "::<prefix>prefix set:: NEW $1{opt $2}[ SERVER $2]",
     } as const;
 
     static readonly no_use_no_see = false;
@@ -216,7 +216,7 @@ export class Info extends BotCommand {
     static readonly manual = {
         name: "info",
         arguments: [],
-        syntax: "<prefix>info",
+        syntax: "::<prefix>info::",
         description: "Provides a description of useful commands and the design of the bot.",
     } as const;
 
@@ -241,7 +241,7 @@ export class Info extends BotCommand {
 
 export class DesignateSet extends Subcommand<typeof DesignateSet.manual> {
     constructor() {
-        super(DesignateSet.manual, DesignateSet.no_use_no_see, DesignateSet.permissions);
+        super(Designate.manual, DesignateSet.manual, DesignateSet.no_use_no_see, DesignateSet.permissions);
     }
 
     static readonly manual = {
@@ -261,7 +261,7 @@ export class DesignateSet extends Subcommand<typeof DesignateSet.manual> {
                 further_constraint: RT.BooleanS,
             },
         ],
-        syntax: "<prefix>designate set USER $1{opt $2}[ FULL $2]",
+        syntax: "::<prefix>designate set:: USER $1{opt $2}[ FULL $2]",
     } as const;
 
     static readonly no_use_no_see = true;
@@ -330,7 +330,7 @@ export class DesignateSet extends Subcommand<typeof DesignateSet.manual> {
 
 export class DesignateRemove extends Subcommand<typeof DesignateRemove.manual> {
     constructor() {
-        super(DesignateRemove.manual, DesignateRemove.no_use_no_see, DesignateRemove.permissions);
+        super(Designate.manual, DesignateRemove.manual, DesignateRemove.no_use_no_see, DesignateRemove.permissions);
     }
 
     static readonly manual = {
@@ -344,7 +344,7 @@ export class DesignateRemove extends Subcommand<typeof DesignateRemove.manual> {
                 further_constraint: RT.Snowflake,
             },
         ],
-        syntax: "<prefix>designate remove USER $1",
+        syntax: "::<prefix>designate remove:: USER $1",
     } as const;
 
     static readonly no_use_no_see = true;
@@ -418,7 +418,7 @@ export class DesignateRemove extends Subcommand<typeof DesignateRemove.manual> {
 
 export class DesignateGet extends Subcommand<typeof DesignateGet.manual> {
     constructor() {
-        super(DesignateGet.manual, DesignateGet.no_use_no_see, DesignateGet.permissions);
+        super(Designate.manual, DesignateGet.manual, DesignateGet.no_use_no_see, DesignateGet.permissions);
     }
 
     static readonly manual = {
@@ -432,7 +432,7 @@ export class DesignateGet extends Subcommand<typeof DesignateGet.manual> {
                 further_constraint: RT.Snowflake,
             },
         ],
-        syntax: "<prefix>designate get{opt $1}[ USER $1]",
+        syntax: "::<prefix>designate get::{opt $1}[ USER $1]",
     } as const;
 
     static readonly no_use_no_see = false;
@@ -464,7 +464,7 @@ export class DesignateGet extends Subcommand<typeof DesignateGet.manual> {
                 return { type: BotCommandProcessResultType.Succeeded };
             }
             case DesignateUserStatus.NoFullAccess: {
-                await reply(`${start_string} currently at the level of partial access (unable to designate others, but otherwise priviledged).`);
+                await reply(`${start_string} currently at the level of partial access (unable to designate others, but otherwise privileged).`);
                 return { type: BotCommandProcessResultType.Succeeded };
             }
             case DesignateUserStatus.UserNotInRegistry: {
