@@ -15,8 +15,6 @@ import { trickjump_guildsQueryResults } from "../table_types.js";
 
 export const GET_SERVER_JUMPROLE_CHANNEL = `SELECT * FROM trickjump_guilds WHERE server=$1`;
 
-// TODO: Implement parent_command to better utilize automatic_dispatch to pass in which subcommand is being called
-
 export class Jumprole extends BotCommand {
     constructor() {
         super(Jumprole.manual, Jumprole.no_use_no_see, Jumprole.permissions);

@@ -221,7 +221,6 @@ export interface ParseMessageResult {
  * @param client Bot client object, may be used in action command requires
  * @returns Whether the message was found to be a valid command, and why not if not
  */
-// TODO: Fix
 // eslint-disable-next-line complexity
 export const process_message_for_commands = async function (
     stock_commands: BotCommand[],

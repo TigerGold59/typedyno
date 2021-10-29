@@ -61,7 +61,6 @@ export interface SubcommandManual {
     readonly syntax: string;
     readonly arguments: readonly CommandArgument[];
     // Display all syntaxes, or compact it down into a readable optional thing
-    // TODO: Implement
     readonly compact_syntaxes?: boolean;
     // A description of the subcommand to be added on in the manual.
     readonly description: string;
