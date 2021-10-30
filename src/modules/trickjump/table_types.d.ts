@@ -29,10 +29,12 @@ interface trickjump_jumpsTableRow {
 export type trickjump_jumpsQueryResults = QueryResult<trickjump_jumpsTableRow>;
 
 interface trickjump_entriesTableRow {
+    id: number;
     jump_id: number;
     jump_hash: string;
     holder: Snowflake;
     link: string;
+    server: Snowflake;
     added_at: number;
     updated_at: number;
 }

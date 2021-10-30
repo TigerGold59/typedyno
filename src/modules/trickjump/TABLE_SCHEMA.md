@@ -35,10 +35,12 @@ UNIQUE (name, server)
 
 **Columns**: `jump_id`, `jump_hash`, `holder`, `link`, `added_at`, `updated_at`
 
+`id`: serial UNIQUE (Int)
 `jump_id`: Int NOT NULL REFERENCES trickjump_jumps (id) ON DELETE CASCADE,
 `jump_hash`: varchar(43) NOT NULL,
 `holder`: BigInt NOT NULL,
 `link`: varchar(150),
+`server`: BigInt NOT NULL REFERENCES trickjump_guilds (server) ON DELETE CASCADE,
 `added_at`: Int NOT NULL ,
 `updated_at`: Int NOT NULL,
 UNIQUE(jump_id, holder)

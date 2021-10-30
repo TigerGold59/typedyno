@@ -10,7 +10,7 @@ import { trickjump_jumpsQueryResults } from "../../table_types.js";
 import { GetTierResultType, Tier, TierStructure } from "../../tier/internals/tier_type.js";
 
 export const GET_JUMPROLE_BY_ID = "SELECT * FROM trickjump_jumps WHERE id=$1";
-export const GET_JUMPROLE_BY_NAME_AND_SERVER = "SELECT * FROM trickjump_jumps WHERE name=$1 AND server=$2";
+export const GET_JUMPROLE_BY_NAME_AND_SERVER = "SELECT * FROM trickjump_jumps WHERE display_name=$1 AND server=$2";
 export const DELETE_JUMPROLE_BY_ID = "DELETE FROM trickjump_jumps WHERE id=$1";
 export const INSERT_JUMPROLE =
     "INSERT INTO trickjump_jumps (name, display_name, description, kingdom, location, jump_type, link, added_by, updated_at, server, hash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)";
@@ -120,12 +120,18 @@ export type CreateJumproleResult =
     | { type: CreateJumproleFailureType; jumprole?: undefined };
 
 export const JumproleRT = {
+    id: RT.UnsignedIntegerLike.validate(
+        RT.RangeValidator(PositiveIntegerMax(2147483647), range_validated => {
+            if (range_validated[0] === false) return `input was like an unsigned integer but it was less than 0, making it an invalid UInt4`;
+            else return `input was like an unsigned integer but it was greater than or equal to 2147483647, making it an invalid UInt4`;
+        }),
+    ),
     name: RT.string.length(PositiveIntegerMax(100)),
-    description: RT.string,
+    description: RT.string.length(PositiveIntegerMax(1500)),
     kingdom: RT.Nullable(RT.KingdomIndexN),
-    location: RT.Nullable(RT.string),
-    jump_type: RT.Nullable(RT.string),
-    link: RT.Nullable(RT.string),
+    location: RT.Nullable(RT.string.length(PositiveIntegerMax(200))),
+    jump_type: RT.Nullable(RT.string.length(PositiveIntegerMax(100))),
+    link: RT.Nullable(RT.string.length(PositiveIntegerMax(150))),
     added_by: RT.Snowflake,
     updated_at: RT.UInt4N,
     server: RT.Snowflake,
@@ -217,7 +223,7 @@ export class Jumprole {
     }
 
     constructor(
-        id: number,
+        @type(JumproleRT.id) id: number,
         @type(JumproleRT.name) name: string,
         @type(JumproleRT.description) description: string,
         @type(JumproleRT.kingdom) kingdom: Kingdom | null,
@@ -247,6 +253,60 @@ export class Jumprole {
         }
     }
 
+    static readonly WithID = async (
+        id: number,
+        queryable: Queryable<UsesClient>,
+    ): Promise<Exclude<GetJumproleResult, GetJumproleResultType.InvalidName | GetJumproleResultType.InvalidServerSnowflake>> => {
+        const client = await use_client(queryable);
+        try {
+            const result = (await client.query(GET_JUMPROLE_BY_ID, [id])) as trickjump_jumpsQueryResults;
+            const row_result = result.rowCount;
+            if (row_result > 1) {
+                // Somehow multiple jumps with the same name and server, even though they are guaranteed by PostgreSQL to be unique as a pair
+                log(
+                    `Jumprole.get: received ${result.rows.length.toString()} rows when getting jumprole using id ${id}! Returning an error...`,
+                    LogType.Error,
+                );
+                client.handle_release();
+                return { type: GetJumproleResultType.QueryFailed };
+            } else if (row_result === 1) {
+                const row = result.rows[0];
+                const tier_result = await Tier.WithID(row.tier_id, client);
+                client.handle_release();
+                if (tier_result.result === GetTierResultType.Success) {
+                    // Expected case 1
+                    return {
+                        type: GetJumproleResultType.Success,
+                        jumprole: new Jumprole(
+                            row.id,
+                            row.display_name,
+                            row.description,
+                            row.kingdom,
+                            row.location,
+                            row.jump_type,
+                            row.link,
+                            row.added_by,
+                            row.updated_at,
+                            row.server,
+                            tier_result.tier,
+                            row.hash,
+                        ),
+                    };
+                } else return { type: GetJumproleResultType.GetTierWithIDFailed };
+            } else {
+                // Expected case 2
+                // No jumps with ID
+                client.handle_release();
+                return { type: GetJumproleResultType.NoneMatched };
+            }
+        } catch (error) {
+            client.handle_release();
+            log(`Jumprole.get: unexpected error when getting jumprole using id ${id}! Returning an error.`, LogType.Error);
+            log(error, LogType.Error);
+            return { type: GetJumproleResultType.QueryFailed };
+        }
+    };
+
     static readonly Get = async (name: string, server: Snowflake, queryable: Queryable<UsesClient>): Promise<GetJumproleResult> => {
         if (is_string(name) === false) return { type: GetJumproleResultType.InvalidName };
         else if (is_valid_Snowflake(server) === false) return { type: GetJumproleResultType.InvalidServerSnowflake };
@@ -257,7 +317,7 @@ export class Jumprole {
             if (row_result > 1) {
                 // Somehow multiple jumps with the same name and server, even though they are guaranteed by PostgreSQL to be unique as a pair
                 log(
-                    `Jumprole.get: received ${result.rows.length.toString()} rows when getting jumprole using name ${name.toLowerCase()} and server ${server}! Returning null...`,
+                    `Jumprole.get: received ${result.rows.length.toString()} rows when getting jumprole using name ${name.toLowerCase()} and server ${server}! Returning an error...`,
                     LogType.Error,
                 );
                 client.handle_release();
@@ -288,14 +348,14 @@ export class Jumprole {
                 } else return { type: GetJumproleResultType.GetTierWithIDFailed };
             } else {
                 // Expected case 2
-                // No jumps with ID
+                // No jumps with name
                 client.handle_release();
                 return { type: GetJumproleResultType.NoneMatched };
             }
         } catch (error) {
             client.handle_release();
             log(
-                `Jumprole.get: unexpected error when getting jumprole using name ${name.toLowerCase()} and server ${server}! Returning null.`,
+                `Jumprole.get: unexpected error when getting jumprole using name ${name.toLowerCase()} and server ${server}! Returning an error.`,
                 LogType.Error,
             );
             log(error, LogType.Error);
