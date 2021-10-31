@@ -785,3 +785,16 @@ export const Base64Hash = string.validate(<Input extends string>(input: Input): 
     if (BYTES_32_BASE64_REGEX.test(input)) return { succeeded: true, result: input };
     else return error("input was string but didn't match 32 byte base64 string regex", StructureValidationFailedReason.InvalidValue);
 });
+
+export const TwitterLink = string.validate(<Input extends string>(result: Input): TransformResult<Input> => {
+    if (/^https:\/\/twitter\.com\/[a-zA-Z0-9_]{1,16}\/status\/[0-9]{3,35}\/?/i.test(result.trim())) {
+        return { succeeded: true, result: result };
+    } else
+        return {
+            succeeded: false,
+            error: StructureValidationFailedReason.InvalidValue,
+            information: [
+                `link to Twitter video was a string but it didn't fit the following format: 'https://twitter.com/<username>/status/<tweet snowflake>'`,
+            ],
+        };
+});

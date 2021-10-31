@@ -92,6 +92,10 @@ export class TierCreate extends Subcommand<typeof TierCreate.manual> {
                 );
                 return failed;
             }
+            case CreateTierResultType.OrdinalAlreadyInUse: {
+                await reply(`a tier already exists with that rank number. View tiers and their rank numbers using '${prefix}tj all'.`);
+                return failed;
+            }
             default: {
                 return failed;
             }

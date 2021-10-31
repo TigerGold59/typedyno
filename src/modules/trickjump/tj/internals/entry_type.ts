@@ -1,12 +1,12 @@
 import { Snowflake } from "discord.js";
-import { type, validate_constructor } from "../../../../module_decorators";
-import { MakesSingleRequest, Queryable, UsesClient, use_client } from "../../../../pg_wrapper";
-import { log, LogType } from "../../../../utilities/log";
-import { InferNormalizedType, log_stack } from "../../../../utilities/runtime_typeguard/runtime_typeguard";
-import * as RT from "../../../../utilities/runtime_typeguard/standard_structures";
-import { PositiveIntegerMax, query_failure } from "../../../../utilities/typeutils";
-import { trickjump_entriesTableRow } from "../../table_types";
-import { GetJumproleResultType, Jumprole } from "./jumprole_type";
+import { type, validate_constructor } from "../../../../module_decorators.js";
+import { MakesSingleRequest, Queryable, UsesClient, use_client } from "../../../../pg_wrapper.js";
+import { log, LogType } from "../../../../utilities/log.js";
+import { InferNormalizedType, log_stack } from "../../../../utilities/runtime_typeguard/runtime_typeguard.js";
+import * as RT from "../../../../utilities/runtime_typeguard/standard_structures.js";
+import { PositiveIntegerMax, query_failure } from "../../../../utilities/typeutils.js";
+import { trickjump_entriesTableRow } from "../../table_types.js";
+import { GetJumproleFailureType, GetJumproleResultType, Jumprole, JumproleStructure } from "../../jumprole/internals/jumprole_type.js";
 
 const CHANGE_JUMP_HASH_BY_ID = "UPDATE trickjump_entries SET jump_hash=$1, updated_at=$2 WHERE id=$3";
 const CHANGE_LINK_BY_ID = "UPDATE trickjump_entries SET link=$1, updated_at=$2 WHERE id=$3";
@@ -14,6 +14,7 @@ const GET_ENTRIES_BY_HOLDER_AND_SERVER = "SELECT * FROM trickjump_entries WHERE 
 const CREATE_ENTRY =
     "INSERT INTO trickjump_entries (jump_id, jump_hash, holder, link, server, added_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7)";
 const GET_ENTRY_BY_JUMP_ID_AND_HOLDER = "SELECT * FROM trickjump_entries WHERE jump_id=$1 and holder=$2";
+const DELETE_ENTRY_BY_ID = "DELETE FROM trickjump_entries WHERE id=$1";
 
 export const EntryRT = {
     id: RT.UnsignedIntegerLike.validate(
@@ -22,7 +23,7 @@ export const EntryRT = {
             else return `input was like an unsigned integer but it was greater than or equal to 2147483647, making it an invalid UInt4`;
         }),
     ),
-    jump_id: RT.UInt4Like,
+    jumprole: JumproleStructure,
     jump_hash: RT.Base64Hash,
     holder: RT.Snowflake,
     link: RT.Nullable(RT.string.length(PositiveIntegerMax(150))),
@@ -35,35 +36,35 @@ export type EntryTypes = { [P in keyof typeof EntryRT]: InferNormalizedType<type
 
 export const enum ConfirmJumproleEntryResult {
     Confirmed = "Confirmed",
-    NoMatchingJumps = "NoMatchingJumps",
-    GetJumproleFailed = "GetJumproleFailed",
     QueryFailed = "QueryFailed",
 }
 
 export const enum SetJumproleEntryLinkResult {
     InvalidLink = "InvalidLink",
-    Succeeded = "Succeeded",
+    Success = "Success",
     QueryFailed = "QueryFailed",
 }
 
 export const enum GetJumproleEntriesWithHolderResultType {
-    Succeeded = "Succeeded",
+    Success = "Success",
     InvalidHolderSnowflake = "InvalidHolderSnowflake",
     InvalidServerSnowflake = "InvalidServerSnowflake",
     QueryFailed = "QueryFailed",
+    GetJumproleFailed = "GetJumproleFailed",
 }
 
 export type GetJumproleEntriesWithHolderResultFailureType = Exclude<
     GetJumproleEntriesWithHolderResultType,
-    GetJumproleEntriesWithHolderResultType.Succeeded
+    GetJumproleEntriesWithHolderResultType.Success | GetJumproleEntriesWithHolderResultType.GetJumproleFailed
 >;
 
 export type GetJumproleEntriesWithHolderResult =
-    | { type: GetJumproleEntriesWithHolderResultType.Succeeded; values: JumproleEntry[] }
-    | { type: GetJumproleEntriesWithHolderResultFailureType };
+    | { type: GetJumproleEntriesWithHolderResultType.Success; values: JumproleEntry[] }
+    | { type: GetJumproleEntriesWithHolderResultFailureType }
+    | { type: GetJumproleEntriesWithHolderResultType.GetJumproleFailed; error: GetJumproleFailureType; jump_id: number };
 
 export const enum RegisterJumproleEntryResultType {
-    Succeeded = "Succeeded",
+    Success = "Success",
     JumproleEntryAlreadyExists = "JumproleEntryAlreadyExists",
     InvalidHolderSnowflake = "InvalidHolderSnowflake",
     InvalidJumprole = "InvalidJumprole",
@@ -71,14 +72,14 @@ export const enum RegisterJumproleEntryResultType {
     QueryFailed = "QueryFailed",
 }
 
-export type RegisterJumproleEntryResultFailureType = Exclude<RegisterJumproleEntryResultType, RegisterJumproleEntryResultType.Succeeded>;
+export type RegisterJumproleEntryResultFailureType = Exclude<RegisterJumproleEntryResultType, RegisterJumproleEntryResultType.Success>;
 
 export type RegisterJumproleEntryResult =
-    | { type: RegisterJumproleEntryResultType.Succeeded; entry: JumproleEntry }
+    | { type: RegisterJumproleEntryResultType.Success; entry: JumproleEntry }
     | { type: RegisterJumproleEntryResultFailureType };
 
 export const enum GetJumproleEntryByJumproleAndHolderResultType {
-    Succeeded = "Succeeded",
+    Success = "Success",
     InvalidHolderSnowflake = "InvalidHolderSnowflake",
     InvalidJumprole = "InvalidJumprole",
     NoneMatched = "NoneMatched",
@@ -87,11 +88,11 @@ export const enum GetJumproleEntryByJumproleAndHolderResultType {
 
 export type GetJumproleEntryByJumproleAndHolderFailureType = Exclude<
     GetJumproleEntryByJumproleAndHolderResultType,
-    GetJumproleEntryByJumproleAndHolderResultType.Succeeded
+    GetJumproleEntryByJumproleAndHolderResultType.Success
 >;
 
 export type GetJumproleEntryByJumproleAndHolderResult =
-    | { type: GetJumproleEntryByJumproleAndHolderResultType.Succeeded; entry: JumproleEntry }
+    | { type: GetJumproleEntryByJumproleAndHolderResultType.Success; entry: JumproleEntry }
     | { type: GetJumproleEntryByJumproleAndHolderFailureType };
 
 export const enum JumproleEntryUpToDateResultType {
@@ -108,10 +109,30 @@ export type JumproleEntryUpToDateResult =
     | { type: JumproleEntryUpToDateResultType.Outdated; last_updated: Date }
     | { type: JumproleEntryUpToDateNoActionType };
 
+export type GetJumproleEntryFromRowResult = { type: GetJumproleResultType.Success; entry: JumproleEntry } | { type: GetJumproleFailureType };
+
+export const enum FromQueryResultType {
+    Success = "Success",
+    QueryFailed = "QueryFailed",
+    GetJumproleFailed = "GetJumproleFailed",
+}
+
+export type FromQueryFailureType = Exclude<FromQueryResultType, FromQueryResultType.Success | FromQueryResultType.GetJumproleFailed>;
+
+export type FromQueryResult =
+    | { type: FromQueryResultType.Success; values: JumproleEntry[] }
+    | { type: FromQueryFailureType }
+    | { type: FromQueryResultType.GetJumproleFailed; error: GetJumproleFailureType; jump_id: number };
+
+export const enum DeleteJumproleEntryResult {
+    Success,
+    QueryFailed,
+}
+
 @validate_constructor
 export class JumproleEntry {
     readonly id: EntryTypes["id"];
-    readonly jump_id: EntryTypes["jump_id"];
+    readonly jumprole: EntryTypes["jumprole"];
     #_jump_hash: EntryTypes["jump_hash"];
 
     get jump_hash() {
@@ -137,7 +158,7 @@ export class JumproleEntry {
 
     constructor(
         @type(EntryRT.id) id: EntryTypes["id"],
-        @type(EntryRT.jump_id) jump_id: EntryTypes["jump_id"],
+        @type(EntryRT.jumprole) jumprole: EntryTypes["jumprole"],
         @type(EntryRT.jump_hash) jump_hash: EntryTypes["jump_hash"],
         @type(EntryRT.holder) holder: EntryTypes["holder"],
         @type(EntryRT.link) link: EntryTypes["link"],
@@ -146,7 +167,7 @@ export class JumproleEntry {
         @type(EntryRT.added_at) added_at: EntryTypes["added_at"],
     ) {
         this.id = id;
-        this.jump_id = jump_id;
+        this.jumprole = jumprole;
         this.#_jump_hash = jump_hash;
         this.holder = holder;
         this.#_link = link;
@@ -158,7 +179,7 @@ export class JumproleEntry {
     static readonly Get = async (
         holder: Snowflake,
         jumprole: Jumprole,
-        queryable: Queryable<MakesSingleRequest>,
+        queryable: Queryable<UsesClient>,
     ): Promise<GetJumproleEntryByJumproleAndHolderResult> => {
         let holder_result = EntryRT.holder.check(holder);
         if (holder_result.succeeded === false) {
@@ -171,16 +192,22 @@ export class JumproleEntry {
             return { type: GetJumproleEntryByJumproleAndHolderResultType.InvalidJumprole };
         }
 
+        const client = await use_client(queryable, "JumproleEntry.Get");
+
         const query_string = GET_ENTRY_BY_JUMP_ID_AND_HOLDER;
         const query_params = [jumprole.id, holder];
 
         try {
-            const result = await queryable.query<trickjump_entriesTableRow>(query_string, query_params);
+            const result = await client.query<trickjump_entriesTableRow>(query_string, query_params);
 
             if (result.rows.length < 1) {
                 return { type: GetJumproleEntryByJumproleAndHolderResultType.NoneMatched };
             } else {
-                return { type: GetJumproleEntryByJumproleAndHolderResultType.Succeeded, entry: JumproleEntry.FromRow(result.rows[0]) };
+                let row = result.rows[0];
+                return {
+                    type: GetJumproleEntryByJumproleAndHolderResultType.Success,
+                    entry: new JumproleEntry(row.id, jumprole, row.jump_hash, row.holder, row.link, row.server, row.updated_at, row.added_at),
+                };
             }
         } catch (err) {
             query_failure(`JumproleEntry.Get`, query_string, query_params, err);
@@ -214,7 +241,7 @@ export class JumproleEntry {
             case GetJumproleEntryByJumproleAndHolderResultType.QueryFailed: {
                 return { type: RegisterJumproleEntryResultType.QueryFailed };
             }
-            case GetJumproleEntryByJumproleAndHolderResultType.Succeeded: {
+            case GetJumproleEntryByJumproleAndHolderResultType.Success: {
                 return { type: RegisterJumproleEntryResultType.JumproleEntryAlreadyExists };
             }
             case GetJumproleEntryByJumproleAndHolderResultType.NoneMatched: {
@@ -237,8 +264,8 @@ export class JumproleEntry {
                         case GetJumproleEntryByJumproleAndHolderResultType.QueryFailed: {
                             return { type: RegisterJumproleEntryResultType.QueryFailed };
                         }
-                        case GetJumproleEntryByJumproleAndHolderResultType.Succeeded: {
-                            return { type: RegisterJumproleEntryResultType.Succeeded, entry: new_jumprole_entry.entry };
+                        case GetJumproleEntryByJumproleAndHolderResultType.Success: {
+                            return { type: RegisterJumproleEntryResultType.Success, entry: new_jumprole_entry.entry };
                         }
                         case GetJumproleEntryByJumproleAndHolderResultType.NoneMatched: {
                             log(
@@ -256,14 +283,90 @@ export class JumproleEntry {
         }
     };
 
-    static readonly FromRow = (row: trickjump_entriesTableRow): JumproleEntry => {
-        return new JumproleEntry(row.id, row.jump_id, row.jump_hash, row.holder, row.link, row.server, row.updated_at, row.added_at);
+    static readonly FromQuery = async (query_string: string, query_params: unknown[], queryable: Queryable<UsesClient>): Promise<FromQueryResult> => {
+        let client = await use_client(queryable, "JumproleEntry.FromQuery");
+        try {
+            let result = await client.query<trickjump_entriesTableRow>(query_string, query_params);
+
+            let collected: JumproleEntry[] = [];
+
+            for (const row of result.rows) {
+                let entry = await JumproleEntry.FromRow(row, client);
+
+                switch (entry.type) {
+                    case GetJumproleResultType.Success: {
+                        collected.push(entry.entry);
+                        break;
+                    }
+                    default: {
+                        return {
+                            type: FromQueryResultType.GetJumproleFailed,
+                            error: entry.type as GetJumproleFailureType,
+                            jump_id: row.jump_id,
+                        };
+                    }
+                }
+            }
+
+            return { type: FromQueryResultType.Success, values: collected };
+        } catch (err) {
+            query_failure(`JumproleEntry.WithHolderInServer`, query_string, query_params, err);
+            return { type: FromQueryResultType.QueryFailed };
+        }
+    };
+
+    static readonly FromRow = async (row: trickjump_entriesTableRow, queryable: Queryable<UsesClient>): Promise<GetJumproleEntryFromRowResult> => {
+        let client = await use_client(queryable, "JumproleEntry.FromRow");
+
+        const jumprole_result = await Jumprole.WithID(row.jump_id, client);
+
+        const failed = { type: jumprole_result.type as GetJumproleFailureType };
+
+        switch (jumprole_result.type) {
+            case GetJumproleResultType.GetTierWithIDFailed: {
+                log("JumproleEntry.FromRow Jumprole.WithID returned GetTierWithIDFailed. Returning.", LogType.Error);
+                client.handle_release();
+                return failed;
+            }
+            case GetJumproleResultType.NoneMatched: {
+                log(
+                    "JumproleEntry.FromRow: Jumprole.WithID returned NoneMatched even though we are getting it with its ID. A possible error has occurred. Returning.",
+                    LogType.Error,
+                );
+                client.handle_release();
+                return { type: jumprole_result.type };
+            }
+            case GetJumproleResultType.QueryFailed: {
+                client.handle_release();
+                return failed;
+            }
+            case GetJumproleResultType.Success: {
+                return {
+                    type: GetJumproleResultType.Success,
+                    entry: new JumproleEntry(
+                        row.id,
+                        jumprole_result.jumprole,
+                        row.jump_hash,
+                        row.holder,
+                        row.link,
+                        row.server,
+                        row.updated_at,
+                        row.added_at,
+                    ),
+                };
+            }
+            default: {
+                log(`JumproleEntry.confirm: reached default case with GetJumproleResultType.${jumprole_result.type}. Returning.`, LogType.Error);
+                client.handle_release();
+                return failed;
+            }
+        }
     };
 
     static readonly WithHolderInServer = async (
         holder: Snowflake,
         server: Snowflake,
-        queryable: Queryable<MakesSingleRequest>,
+        queryable: Queryable<UsesClient>,
     ): Promise<GetJumproleEntriesWithHolderResult> => {
         let holder_result = EntryRT.holder.check(holder);
         if (holder_result.succeeded === false) {
@@ -281,102 +384,79 @@ export class JumproleEntry {
 
         const query_string = GET_ENTRIES_BY_HOLDER_AND_SERVER;
         const query_params = [holder, server];
+        const client = await use_client(queryable, "JumproleEntry.WithHolderInServer");
 
         try {
-            let result = await queryable.query<trickjump_entriesTableRow>(query_string, query_params);
+            let result = await client.query<trickjump_entriesTableRow>(query_string, query_params);
 
-            return { type: GetJumproleEntriesWithHolderResultType.Succeeded, values: result.rows.map(JumproleEntry.FromRow) };
+            let collected: JumproleEntry[] = [];
+
+            for (const row of result.rows) {
+                let entry = await JumproleEntry.FromRow(row, client);
+
+                switch (entry.type) {
+                    case GetJumproleResultType.Success: {
+                        collected.push(entry.entry);
+                        break;
+                    }
+                    default: {
+                        return {
+                            type: GetJumproleEntriesWithHolderResultType.GetJumproleFailed,
+                            error: entry.type as GetJumproleFailureType,
+                            jump_id: row.jump_id,
+                        };
+                    }
+                }
+            }
+
+            return { type: GetJumproleEntriesWithHolderResultType.Success, values: collected };
         } catch (err) {
             query_failure(`JumproleEntry.WithHolderInServer`, query_string, query_params, err);
             return { type: GetJumproleEntriesWithHolderResultType.QueryFailed };
         }
     };
 
-    async up_to_date(queryable: Queryable<UsesClient>): Promise<JumproleEntryUpToDateResult> {
-        const client = await use_client(queryable, "JumproleEntry.up_to_date");
-        const jumprole_result = await Jumprole.WithID(this.jump_id, client);
-
-        switch (jumprole_result.type) {
-            case GetJumproleResultType.GetTierWithIDFailed: {
-                log("JumproleEntry.up_to_date Jumprole.WithID returned GetTierWithIDFailed. Returning.", LogType.Error);
-                client.handle_release();
-                return { type: JumproleEntryUpToDateResultType.GetJumproleFailed };
-            }
-            case GetJumproleResultType.NoneMatched: {
-                log(
-                    "JumproleEntry.up_to_date: Jumprole.WithID returned NoneMatched even though we are getting it with its ID. A possible error has occurred. Returning.",
-                    LogType.Error,
-                );
-                client.handle_release();
-                return { type: JumproleEntryUpToDateResultType.GetJumproleFailed };
-            }
-            case GetJumproleResultType.QueryFailed: {
-                client.handle_release();
-                return { type: JumproleEntryUpToDateResultType.QueryFailed };
-            }
-            case GetJumproleResultType.Success: {
-                let jumprole = jumprole_result.jumprole;
-
-                if (jumprole.hash !== this.#_jump_hash) {
-                    return { type: JumproleEntryUpToDateResultType.Outdated, last_updated: new Date(jumprole.updated_at * 1000) };
-                } else {
-                    return { type: JumproleEntryUpToDateResultType.UpToDate };
-                }
-            }
-            default: {
-                log(`JumproleEntry.up_to_date: reached default case with GetJumproleResultType.${jumprole_result.type}. Returning.`, LogType.Error);
-                client.handle_release();
-                return { type: JumproleEntryUpToDateResultType.GetJumproleFailed };
-            }
+    async delete(queryable: Queryable<MakesSingleRequest>): Promise<DeleteJumproleEntryResult> {
+        const query_string = DELETE_ENTRY_BY_ID;
+        const query_params = [this.id];
+        try {
+            await queryable.query(query_string, query_params);
+            return DeleteJumproleEntryResult.Success;
+        } catch (err) {
+            query_failure("JumproleEntry.delete", query_string, query_params, err);
+            return DeleteJumproleEntryResult.QueryFailed;
         }
     }
 
-    async confirm(queryable: Queryable<UsesClient>): Promise<ConfirmJumproleEntryResult> {
-        const client = await use_client(queryable, "JumproleEntry.confirm");
-        const jumprole_result = await Jumprole.WithID(this.jump_id, client);
+    async up_to_date(): Promise<JumproleEntryUpToDateResult> {
+        let jumprole = this.jumprole;
 
-        switch (jumprole_result.type) {
-            case GetJumproleResultType.GetTierWithIDFailed: {
-                log("JumproleEntry.confirm: Jumprole.WithID returned GetTierWithIDFailed. Returning.", LogType.Error);
-                client.handle_release();
-                return ConfirmJumproleEntryResult.GetJumproleFailed;
-            }
-            case GetJumproleResultType.NoneMatched: {
-                log(
-                    "JumproleEntry.confirm: Jumprole.WithID returned NoneMatched even though we are getting it with its ID. A possible error has occurred. Returning.",
-                    LogType.Error,
-                );
-                client.handle_release();
-                return ConfirmJumproleEntryResult.NoMatchingJumps;
-            }
-            case GetJumproleResultType.QueryFailed: {
-                client.handle_release();
-                return ConfirmJumproleEntryResult.QueryFailed;
-            }
-            case GetJumproleResultType.Success: {
-                let jumprole = jumprole_result.jumprole;
-
-                let new_updated_at = Math.round(Date.now() / 1000);
-
-                const query_string = CHANGE_JUMP_HASH_BY_ID;
-                const query_params = [jumprole.hash, new_updated_at, this.id];
-
-                try {
-                    await client.query(query_string, query_params);
-                } catch (err) {
-                    query_failure("JumproleEntry.confirm", query_string, query_params, err);
-                    return ConfirmJumproleEntryResult.QueryFailed;
-                }
-                this.#_jump_hash = jumprole.hash;
-                this.#_updated_at = new_updated_at;
-                return ConfirmJumproleEntryResult.Confirmed;
-            }
-            default: {
-                log(`JumproleEntry.confirm: reached default case with GetJumproleResultType.${jumprole_result.type}. Returning.`, LogType.Error);
-                client.handle_release();
-                return ConfirmJumproleEntryResult.GetJumproleFailed;
-            }
+        if (jumprole.hash !== this.#_jump_hash) {
+            return { type: JumproleEntryUpToDateResultType.Outdated, last_updated: new Date(jumprole.updated_at * 1000) };
+        } else {
+            return { type: JumproleEntryUpToDateResultType.UpToDate };
         }
+    }
+
+    async confirm(queryable: Queryable<MakesSingleRequest>): Promise<ConfirmJumproleEntryResult> {
+        let client = await use_client(queryable, "JumproleEntry.confirm");
+
+        let jumprole = this.jumprole;
+
+        let new_updated_at = Math.round(Date.now() / 1000);
+
+        const query_string = CHANGE_JUMP_HASH_BY_ID;
+        const query_params = [jumprole.hash, new_updated_at, this.id];
+
+        try {
+            await client.query(query_string, query_params);
+        } catch (err) {
+            query_failure("JumproleEntry.confirm", query_string, query_params, err);
+            return ConfirmJumproleEntryResult.QueryFailed;
+        }
+        this.#_jump_hash = jumprole.hash;
+        this.#_updated_at = new_updated_at;
+        return ConfirmJumproleEntryResult.Confirmed;
     }
 
     async set_link(link: EntryTypes["link"], queryable: Queryable<MakesSingleRequest>): Promise<SetJumproleEntryLinkResult> {
@@ -395,7 +475,7 @@ export class JumproleEntry {
             }
             this.#_link = check_result.normalized;
             this.#_updated_at = new_updated_at;
-            return SetJumproleEntryLinkResult.Succeeded;
+            return SetJumproleEntryLinkResult.Success;
         } else {
             return SetJumproleEntryLinkResult.InvalidLink;
         }

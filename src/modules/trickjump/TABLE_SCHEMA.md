@@ -5,7 +5,7 @@
 **Columns**: `id`, `server`, `ordinal`, `name`, `display_name`
 
 `id`: serial UNIQUE (Int),
-`server`: BigInt UNIQUE NOT NULL REFERENCES trickjump_guilds (server) ON DELETE CASCADE,
+`server`: BigInt NOT NULL REFERENCES trickjump_guilds (server) ON DELETE CASCADE,
 `ordinal`: smallint NOT NULL,
 `name`: varchar(100),
 `display_name`: varchar(100) NOT NULL,

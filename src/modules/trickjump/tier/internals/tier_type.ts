@@ -4,7 +4,7 @@ import { log, LogType } from "../../../../utilities/log.js";
 import { Snowflake } from "../../../../utilities/permissions.js";
 import { InferNormalizedType, log_stack } from "../../../../utilities/runtime_typeguard/runtime_typeguard.js";
 import * as RT from "../../../../utilities/runtime_typeguard/standard_structures.js";
-import { InclusiveRange, is_string, query_failure } from "../../../../utilities/typeutils.js";
+import { InclusiveRange, is_record, is_string, query_failure, to_num_and_lower } from "../../../../utilities/typeutils.js";
 import { trickjump_tiersTableRow } from "../../table_types.js";
 
 const GET_TIER_BY_NAME_AND_SERVER = "SELECT * FROM trickjump_tiers WHERE name=$1 AND server=$2";
@@ -27,13 +27,15 @@ export type GetTierByNameAndServerResult =
 export type GetTierByIDResult =
     | { result: GetTierResultType.Success; tier: Tier }
     | { result: Exclude<GetTierResultType, GetTierResultType.Success | GetTierResultType.InvalidName | GetTierResultType.InvalidServer> };
-export type GetTierResult = { result: GetTierResultType.Success; tier: Tier } | { result: Exclude<GetTierResultType, GetTierResultType.Success> };
+export type GetTierFailureType = Exclude<GetTierResultType, GetTierResultType.Success>;
+export type GetTierResult = { result: GetTierResultType.Success; tier: Tier } | { result: GetTierFailureType };
 
 export const enum CreateTierResultType {
     InvalidName = "InvalidName",
     InvalidServer = "InvalidServer",
     InvalidOrdinal = "InvalidOrdinal",
     TierAlreadyExists = "TierAlreadyExists",
+    OrdinalAlreadyInUse = "OrdinalAlreadyInUse",
     GetTierFailed = "GetTierFailed",
     QueryFailed = "QueryFailed",
     Success = "Success",
@@ -107,7 +109,7 @@ export class Tier {
             return { result: GetTierResultType.InvalidServer };
         }
         const query_string = GET_TIER_BY_NAME_AND_SERVER;
-        const query_params = [name_result.normalized.toLowerCase(), server_result.normalized];
+        const query_params = [to_num_and_lower(name_result.normalized), server_result.normalized];
         try {
             const query_result = await queryable.query<trickjump_tiersTableRow>(query_string, query_params);
 
@@ -118,7 +120,10 @@ export class Tier {
                 return { result: GetTierResultType.QueryFailed };
             } else {
                 const tier_data = query_result.rows[0];
-                return { result: GetTierResultType.Success, tier: new Tier(tier_data.id, tier_data.server, tier_data.ordinal, tier_data.name) };
+                return {
+                    result: GetTierResultType.Success,
+                    tier: new Tier(tier_data.id, tier_data.server, tier_data.ordinal, tier_data.display_name),
+                };
             }
         } catch (err) {
             query_failure("Tier.Get", query_string, query_params, err);
@@ -144,7 +149,10 @@ export class Tier {
                 return { result: GetTierResultType.QueryFailed };
             } else {
                 const tier_data = query_result.rows[0];
-                return { result: GetTierResultType.Success, tier: new Tier(tier_data.id, tier_data.server, tier_data.ordinal, tier_data.name) };
+                return {
+                    result: GetTierResultType.Success,
+                    tier: new Tier(tier_data.id, tier_data.server, tier_data.ordinal, tier_data.display_name),
+                };
             }
         } catch (err) {
             query_failure("Tier.WithID", query_string, query_params, err);
@@ -194,7 +202,7 @@ export class Tier {
                 const query_string = INSERT_TIER;
                 const query_params = [
                     name_result.normalized,
-                    name_result.normalized.toLowerCase(),
+                    to_num_and_lower(name_result.normalized),
                     ordinal_result.normalized,
                     server_result.normalized,
                 ];
@@ -202,6 +210,15 @@ export class Tier {
                 try {
                     await client.query(query_string, query_params);
                 } catch (err) {
+                    if (is_record(err)) {
+                        if ("code" in err && err["code"] === "23505") {
+                            switch (err["constraint"]) {
+                                case "trickjump_tiers_server_ordinal_key": {
+                                    return { result: CreateTierResultType.OrdinalAlreadyInUse };
+                                }
+                            }
+                        }
+                    }
                     query_failure("Tier.Create", query_string, query_params, err);
                     client.handle_release();
                     return { result: CreateTierResultType.QueryFailed };
@@ -263,6 +280,9 @@ export class Tier {
         if (ordinal_assigned) {
             assignments.push(["ordinal", (assignments.length + 1).toString()]);
             query_params.push(new_merger.ordinal as number);
+        }
+        if (assignments.length === 0) {
+            return ModifyTierResultType.Success;
         }
         const assignment_string = assignments.map(val => `${val[0]}=${val[1]}`).join(", ");
         const query_string = `UPDATE trickjump_tiers SET ${assignment_string} WHERE id=${(assignments.length + 1).toString()}`;

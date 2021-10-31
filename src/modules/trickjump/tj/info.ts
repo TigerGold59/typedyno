@@ -1,24 +1,24 @@
-import { Client } from "discord.js";
+import { Client, MessageEmbed } from "discord.js";
 import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
 
-import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 import { validate } from "../../../module_decorators.js";
 import { Permissions } from "../../../utilities/permissions.js";
-import { Jumprole, DeleteJumproleResult, GetJumproleResultType } from "./internals/jumprole_type.js";
+import { GetJumproleResultType, Jumprole, KINGDOM_NAMES } from "../jumprole/internals/jumprole_type.js";
 //import { DeleteJumproleResult, delete_jumprole } from "./internals/jumprole_postgres.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
-import { TextChannelMessage } from "../../../utilities/typeutils.js";
+import { is_number, is_string, TextChannelMessage } from "../../../utilities/typeutils.js";
 import { log, LogType } from "../../../utilities/log.js";
-import { Jumprole as JumproleCommand } from "./jumprole_cmd.js";
+import { TJ } from "./tj_cmd.js";
 
-export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
+export class TJInfo extends Subcommand<typeof TJInfo.manual> {
     constructor() {
-        super(JumproleCommand.manual, JumproleRemove.manual, JumproleRemove.no_use_no_see, JumproleRemove.permissions);
+        super(TJ.manual, TJInfo.manual, TJInfo.no_use_no_see, TJInfo.permissions);
     }
 
     static readonly manual = {
-        name: "remove",
+        name: "info",
         arguments: [
             {
                 name: "name",
@@ -26,8 +26,8 @@ export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
                 optional: false,
             },
         ],
-        description: "Removes the given Jumprole and clears it from all users' Jumprole lists.",
-        syntax: "::<prefix>jumprole remove:: NAME $1",
+        description: "Retrieves comprehensive info in the given trickjump.",
+        syntax: "::<prefix>tj info:: $1",
         compact_syntaxes: true,
     } as const;
 
@@ -36,19 +36,19 @@ export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
 
     @validate
     async activate(
-        values: ValidatedArguments<typeof JumproleRemove.manual>,
+        values: ValidatedArguments<typeof TJInfo.manual>,
         message: TextChannelMessage,
-        _client: Client,
+        discord_client: Client,
         queryable: Queryable<UsesClient>,
         prefix: string,
     ): Promise<BotCommandProcessResults> {
         const reply = async function (response: string, use_prefix = true) {
-            await message.channel.send(`${use_prefix ? `${prefix}jumprole remove: ` : ""}${response}`);
+            await message.channel.send(`${use_prefix ? `${prefix}tj info: ` : ""}${response}`);
         };
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
         const name = values.name;
 
-        const client = await use_client(queryable, "JumproleRemove.activate");
+        const client = await use_client(queryable, "TJInfo.activate");
 
         const instance = await Jumprole.Get(name, message.guild.id, client);
         switch (instance.type) {
@@ -59,7 +59,7 @@ export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
             }
             case GetJumproleResultType.InvalidServerSnowflake: {
                 log(
-                    `jumprole remove: Jumprole.Get with arguments [${name}, ${message.guild.id}] failed with error GetJumproleResultType.InvalidServerSnowflake.`,
+                    `tj info: Jumprole.Get with arguments [${name}, ${message.guild.id}] failed with error GetJumproleResultType.InvalidServerSnowflake.`,
                     LogType.Error,
                 );
                 await reply(
@@ -73,7 +73,7 @@ export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
                     "an unknown error caused Jumprole.Get to fail with error GetJumproleResultType.GetTierWithIDFailed. It is possible that its tier was deleted.",
                 );
                 log(
-                    `jumprole remove: Jumprole.Get with arguments [${name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.GetTierWithIDFailed.`,
+                    `tj info: Jumprole.Get with arguments [${name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.GetTierWithIDFailed.`,
                     LogType.Error,
                 );
                 client.handle_release();
@@ -91,26 +91,44 @@ export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
             }
             case GetJumproleResultType.Unknown: {
                 log(
-                    `jumprole remove: Jumprole.Get with arguments [${name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.Unknown.`,
+                    `tj info: Jumprole.Get with arguments [${name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.Unknown.`,
                 );
                 await reply(`an unknown error occurred after Jumprole.Get. Contact @${MAINTAINER_TAG} for help.`);
                 client.handle_release();
                 return failed;
             }
             case GetJumproleResultType.Success: {
-                const result = await instance.jumprole.delete(client);
-                client.handle_release();
-
-                switch (result) {
-                    case DeleteJumproleResult.Success: {
-                        await GiveCheck(message);
-                        return { type: BotCommandProcessResultType.Succeeded };
-                    }
-                    case DeleteJumproleResult.QueryFailed: {
-                        await reply(`an unknown internal error caused the database query to fail. Contact @${MAINTAINER_TAG} for help.`);
-                        return failed;
-                    }
+                let embed = new MessageEmbed();
+                let jump = instance.jumprole;
+                embed.setColor("#5441e0");
+                embed.setTitle(jump.name);
+                embed.addField("Tier", jump.tier.name, true);
+                if (is_number(jump.kingdom)) {
+                    embed.addField("Kingdom", KINGDOM_NAMES[jump.kingdom], true);
                 }
+                let user = await discord_client.users.fetch(jump.added_by);
+                if (is_string(user.tag)) {
+                    embed.setAuthor(
+                        user.tag,
+                        user.avatar === null
+                            ? user.defaultAvatarURL
+                            : `https://cdn.discordapp.com/avatars/${message.author.id}/${message.author.avatar}.jpeg`,
+                    );
+                }
+                embed.setTimestamp(new Date(jump.updated_at * 1000));
+                if (is_string(jump.jump_type)) {
+                    embed.addField("Type", jump.jump_type, true);
+                }
+                if (is_string(jump.location)) {
+                    embed.addField("Location", jump.location, true);
+                }
+                embed.setDescription("");
+                if (is_string(jump.link)) {
+                    embed.setDescription(`Link: ${jump.link}\n\n`);
+                }
+                embed.setDescription(`${embed.description}Description: \n${jump.description}\n\n`);
+                message.channel.send(embed);
+                return { type: BotCommandProcessResultType.Succeeded };
             }
         }
     }

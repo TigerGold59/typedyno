@@ -4,36 +4,30 @@ import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
 import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions.js";
 import { validate } from "../../../module_decorators.js";
 import { log, LogType } from "../../../utilities/log.js";
-import { TJ } from "./tj_cmd.js";
+import { Proof } from "./proof_cmd.js";
+import { MAINTAINER_TAG } from "../../../main.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { TextChannelMessage } from "../../../utilities/typeutils.js";
-import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js";
-import { GetJumproleResultType, Jumprole } from "../jumprole/internals/jumprole_type.js";
-import { MAINTAINER_TAG } from "../../../main.js";
-import { JumproleEntry, RegisterJumproleEntryResultType } from "./internals/entry_type.js";
+import { GetJumproleResultType } from "../jumprole/internals/jumprole_type.js";
+import { Jumprole } from "../jumprole/internals/jumprole_type.js";
+import { GetJumproleEntryByJumproleAndHolderResultType, JumproleEntry, SetJumproleEntryLinkResult } from "../tj/internals/entry_type.js";
 
-export class TJGive extends Subcommand<typeof TJGive.manual> {
+export class ProofRemove extends Subcommand<typeof ProofRemove.manual> {
     constructor() {
-        super(TJ.manual, TJGive.manual, TJGive.no_use_no_see, TJGive.permissions);
+        super(Proof.manual, ProofRemove.manual, ProofRemove.no_use_no_see, ProofRemove.permissions);
     }
 
     static readonly manual = {
-        name: "give",
+        name: "remove",
         arguments: [
             {
                 name: "jump name",
                 id: "jumprole_name",
                 optional: false,
             },
-            {
-                name: "link to Twitter video",
-                id: "proof_link",
-                optional: true,
-                further_contraint: RT.TwitterLink,
-            },
         ],
-        syntax: "::<prefix>tj give:: NAME $1{opt $2}[ PROOF $2]",
-        description: "Give yourself a Jumprole in the current server.",
+        syntax: "::<prefix>proof remove:: NAME $1",
+        description: "Remove the proof for a jumprole you have.",
     } as const;
 
     static readonly no_use_no_see = false;
@@ -42,17 +36,17 @@ export class TJGive extends Subcommand<typeof TJGive.manual> {
     @validate
     // eslint-disable-next-line complexity
     async activate(
-        values: ValidatedArguments<typeof TJGive.manual>,
+        values: ValidatedArguments<typeof ProofRemove.manual>,
         message: TextChannelMessage,
         _client: Client,
         queryable: Queryable<UsesClient>,
         prefix: string,
     ): Promise<BotCommandProcessResults> {
         const reply = async function (response: string) {
-            await message.channel.send(`${prefix}tj give: ${response}`);
+            await message.channel.send(`${prefix}proof remove: ${response}`);
         };
 
-        const client = await use_client(queryable, "TJGive.activate");
+        const client = await use_client(queryable, "ProofRemove.activate");
 
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
@@ -66,7 +60,7 @@ export class TJGive extends Subcommand<typeof TJGive.manual> {
             }
             case GetJumproleResultType.InvalidServerSnowflake: {
                 log(
-                    `tj give: Jumprole.Get with arguments [${values.jumprole_name}, ${message.guild.id}] failed with error GetJumproleResultType.InvalidServerSnowflake.`,
+                    `proof remove: Jumprole.Get with arguments [${values.jumprole_name}, ${message.guild.id}] failed with error GetJumproleResultType.InvalidServerSnowflake.`,
                     LogType.Error,
                 );
                 await reply(
@@ -80,7 +74,7 @@ export class TJGive extends Subcommand<typeof TJGive.manual> {
                     "an unknown error caused Jumprole.Get to fail with error GetJumproleResultType.GetTierWithIDFailed. It is possible that its tier was deleted.",
                 );
                 log(
-                    `tj give: Jumprole.Get with arguments [${values.jumprole_name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.GetTierWithIDFailed.`,
+                    `proof remove: Jumprole.Get with arguments [${values.jumprole_name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.GetTierWithIDFailed.`,
                     LogType.Error,
                 );
                 client.handle_release();
@@ -92,13 +86,13 @@ export class TJGive extends Subcommand<typeof TJGive.manual> {
                 return failed;
             }
             case GetJumproleResultType.QueryFailed: {
-                await reply(`${prefix}tj give: an unknown error occurred (query failure). Contact @${MAINTAINER_TAG} for help.`);
+                await reply(`an unknown error occurred (query failure). Contact @${MAINTAINER_TAG} for help.`);
                 client.handle_release();
                 return failed;
             }
             case GetJumproleResultType.Unknown: {
                 log(
-                    `tj give: Jumprole.Get with arguments [${values.jumprole_name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.Unknown.`,
+                    `proof remove: Jumprole.Get with arguments [${values.jumprole_name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.Unknown.`,
                 );
                 await reply(`an unknown error occurred after Jumprole.Get. Contact @${MAINTAINER_TAG} for help.`);
                 client.handle_release();
@@ -106,29 +100,29 @@ export class TJGive extends Subcommand<typeof TJGive.manual> {
             }
             case GetJumproleResultType.Success: {
                 let jumprole = jumprole_result.jumprole;
-                let result = await JumproleEntry.Register(message.author.id, jumprole, values.proof_link, client);
+                let result = await JumproleEntry.Get(message.author.id, jumprole_result.jumprole, client);
 
                 switch (result.type) {
-                    case RegisterJumproleEntryResultType.JumproleEntryAlreadyExists: {
-                        await reply(`you already have that role on this server.`);
+                    case GetJumproleEntryByJumproleAndHolderResultType.NoneMatched: {
+                        await reply(`you don't have that role on this server.`);
                         return failed;
                     }
-                    case RegisterJumproleEntryResultType.QueryFailed: {
-                        log(`tj give: JumproleEntry.Register returned a query failure. Notifying the user...`, LogType.Error);
+                    case GetJumproleEntryByJumproleAndHolderResultType.QueryFailed: {
+                        log(`proof remove: JumproleEntry.Get returned a query failure. Notifying the user...`, LogType.Error);
                         await reply(`an unknown internal error occurred (query failure). Contact @${MAINTAINER_TAG} for help.`);
                         return failed;
                     }
-                    case RegisterJumproleEntryResultType.InvalidHolderSnowflake: {
+                    case GetJumproleEntryByJumproleAndHolderResultType.InvalidHolderSnowflake: {
                         log(
-                            `tj give: JumproleEntry.Register did not accept holder snowflake '${message.author.id}'. Returning status to indicate failure...'`,
+                            `proof remove: JumproleEntry.Get did not accept holder snowflake '${message.author.id}'. Returning status to indicate failure...'`,
                             LogType.Error,
                         );
                         await reply(`an unknown internal error occurred (did not accept holder snowflake). Contact @${MAINTAINER_TAG} for help.`);
                         return failed;
                     }
-                    case RegisterJumproleEntryResultType.InvalidJumprole: {
+                    case GetJumproleEntryByJumproleAndHolderResultType.InvalidJumprole: {
                         log(
-                            `tj give: JumproleEntry.Register did not accept Jumprole object (instance: ${
+                            `proof remove: JumproleEntry.Get did not accept Jumprole object (instance: ${
                                 jumprole instanceof Jumprole
                             }). Returning status to indicate failure...'`,
                             LogType.Error,
@@ -136,15 +130,25 @@ export class TJGive extends Subcommand<typeof TJGive.manual> {
                         await reply(`an unknown internal error occurred (did not accept Jumprole object). Contact @${MAINTAINER_TAG} for help.`);
                         return failed;
                     }
-                    case RegisterJumproleEntryResultType.InvalidLink: {
-                        await reply(
-                            `invalid link. A jumprole entry's proof link must be between 1 and 150 characters, and be in the Twitter link format.`,
-                        );
+                    case GetJumproleEntryByJumproleAndHolderResultType.Success: {
+                        let set_link_result = await result.entry.set_link(null, client);
+                        switch (set_link_result) {
+                            case SetJumproleEntryLinkResult.Success: {
+                                await GiveCheck(message);
+                                return { type: BotCommandProcessResultType.Succeeded };
+                            }
+                            case SetJumproleEntryLinkResult.QueryFailed: {
+                                await reply(`an unknown error occurred (query failure). Contact @${MAINTAINER_TAG} for help.`);
+                                client.handle_release();
+                                return failed;
+                            }
+                            case SetJumproleEntryLinkResult.InvalidLink: {
+                                await reply(
+                                    `an internal error occurred (JumproleEntry.set_link returned SetJumproleEntryLinkResult.InvalidLink even though link was null). Contact @${MAINTAINER_TAG} for help.`,
+                                );
+                            }
+                        }
                         return failed;
-                    }
-                    case RegisterJumproleEntryResultType.Success: {
-                        await GiveCheck(message);
-                        return { type: BotCommandProcessResultType.Succeeded };
                     }
                 }
             }

@@ -25,7 +25,7 @@ export const CONFIG: Config = {
         automatic_dispatch_pass_through: true,
         require_properties_function_debug: true,
         module_imports: true,
-        compute_jumprole_hash_values: true,
+        compute_jumprole_hash_values: false,
         structure_check_result: true,
     },
 } as const;

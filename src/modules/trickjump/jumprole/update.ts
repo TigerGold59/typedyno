@@ -8,10 +8,20 @@ import { log, LogType } from "../../../utilities/log.js";
 import { Permissions } from "../../../utilities/permissions.js";
 import { is_string, is_text_channel, TextChannelMessage } from "../../../utilities/typeutils.js";
 // import { ModifyJumproleResult, modify_jumprole } from "./internals/jumprole_postgres.js";
-import { GetJumproleResultType, Jumprole, JumproleModifyOptions, KingdomNameToKingdom, ModifyJumproleResult } from "./internals/jumprole_type.js";
+import {
+    GetJumproleResultType,
+    Jumprole,
+    JumproleModifyOptions,
+    KingdomNameToKingdom,
+    KINGDOM_NAMES,
+    KINGDOM_NAMES_LOWERCASE,
+    ModifyJumproleResult,
+} from "./internals/jumprole_type.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { GetTierResultType, Tier } from "../tier/internals/tier_type.js";
 import { Jumprole as JumproleCommand } from "./jumprole_cmd.js";
+import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js";
+import { StructureValidationFailedReason, TransformResult } from "../../../utilities/runtime_typeguard/runtime_typeguard.js";
 
 export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
     constructor() {
@@ -40,6 +50,17 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
                 name: "kingdom",
                 id: "kingdom",
                 optional: true,
+                further_constraint: RT.string.validate(<Input extends string>(result: Input): TransformResult<Input> => {
+                    if (KINGDOM_NAMES_LOWERCASE.includes(result.toLowerCase() as typeof KINGDOM_NAMES_LOWERCASE[number])) {
+                        return { succeeded: true, result: result };
+                    } else {
+                        return {
+                            succeeded: false,
+                            error: StructureValidationFailedReason.InvalidValue,
+                            information: [`input was a string but it wasn't a kingdom name. Valid kingdom names are: ${KINGDOM_NAMES.join()}.`],
+                        };
+                    }
+                }),
             },
             {
                 name: "location",
@@ -135,7 +156,7 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
 
         const jumprole_object: Partial<JumproleModifyOptions> = {
             name: name_change_intention,
-            kingdom: is_string(change_intention(values.kingdom))
+            kingdom: is_string(values.kingdom)
                 ? KingdomNameToKingdom(change_intention(values.kingdom) as string)
                 : (change_intention(values.kingdom) as null | undefined),
             location: change_intention(values.location),

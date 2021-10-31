@@ -1,5 +1,6 @@
 import { DMChannel, Guild, Message, TextChannel } from "discord.js";
 import { readFile } from "fs";
+import { is_alphabetic, is_whitespace } from "./argument_processing/arguments_types.js";
 import { LogType, log } from "./log.js";
 
 export const is_string = function (thing: unknown): thing is string {
@@ -29,6 +30,15 @@ export const is_number = function (thing: unknown): thing is number {
     } else {
         return false;
     }
+};
+
+export const to_num_and_lower = (str: string): string => {
+    return str
+        .replace(/-|_/, " ")
+        .split("")
+        .filter(val => is_alphabetic(val) || /^0-9$/.test(val) || is_whitespace(val))
+        .join("")
+        .toLowerCase();
 };
 
 export const is_bigint = function (thing: unknown): thing is bigint {

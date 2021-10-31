@@ -1,19 +1,26 @@
 import { BinaryLike, createHash } from "node:crypto";
 import { DebugLogType, log, LogType } from "../../../../utilities/log.js";
-import { InferNormalizedType, log_stack } from "../../../../utilities/runtime_typeguard/runtime_typeguard.js";
+import {
+    InferNormalizedType,
+    log_stack,
+    Structure,
+    StructureValidationFailedReason,
+    TransformResult,
+} from "../../../../utilities/runtime_typeguard/runtime_typeguard.js";
 import * as RT from "../../../../utilities/runtime_typeguard/standard_structures.js";
 import { is_valid_Snowflake, Snowflake } from "../../../../utilities/permissions.js";
-import { is_number, is_string, PositiveIntegerMax, query_failure, safe_serialize } from "../../../../utilities/typeutils.js";
+import { is_number, is_string, PositiveIntegerMax, query_failure, safe_serialize, to_num_and_lower } from "../../../../utilities/typeutils.js";
 import { type, validate_constructor } from "../../../../module_decorators.js";
 import { Queryable, UsesClient, use_client, MakesSingleRequest } from "../../../../pg_wrapper.js";
-import { trickjump_jumpsQueryResults } from "../../table_types.js";
-import { GetTierResultType, Tier, TierStructure } from "../../tier/internals/tier_type.js";
+import { trickjump_jumpsQueryResults, trickjump_jumpsTableRow } from "../../table_types.js";
+import { GetTierFailureType, GetTierResultType, Tier, TierStructure } from "../../tier/internals/tier_type.js";
 
 export const GET_JUMPROLE_BY_ID = "SELECT * FROM trickjump_jumps WHERE id=$1";
 export const GET_JUMPROLE_BY_NAME_AND_SERVER = "SELECT * FROM trickjump_jumps WHERE name=$1 AND server=$2";
 export const DELETE_JUMPROLE_BY_ID = "DELETE FROM trickjump_jumps WHERE id=$1";
 export const INSERT_JUMPROLE =
     "INSERT INTO trickjump_jumps (tier_id, name, display_name, description, kingdom, location, jump_type, link, added_by, updated_at, server, hash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)";
+export const GET_JUMPROLES_BY_SERVER = "SELECT * FROM trickjump_jumps WHERE server=$1";
 
 export const enum Kingdom {
     Cap = 0,
@@ -91,7 +98,7 @@ export const enum GetJumproleResultType {
     Success = "Success",
 }
 
-type GetJumproleFailureType = Exclude<GetJumproleResultType, GetJumproleResultType.Success>;
+export type GetJumproleFailureType = Exclude<GetJumproleResultType, GetJumproleResultType.Success>;
 
 export type GetJumproleResult = { type: GetJumproleResultType.Success; jumprole: Jumprole } | { type: GetJumproleFailureType; jumprole?: undefined };
 
@@ -167,6 +174,25 @@ export const enum DeleteJumproleResult {
     Success,
     QueryFailed,
 }
+
+export type FromRowResult = { type: GetTierResultType.Success; jumprole: Jumprole } | { type: GetTierFailureType; tier_id: number };
+
+export const enum FromJumproleQueryResultType {
+    Success = "Success",
+    QueryFailed = "QueryFailed",
+    FromRowFailed = "FromRowFailed",
+    NoJumproles = "NoJumproles",
+}
+
+export type FromJumproleQueryFailureType = Exclude<
+    FromJumproleQueryResultType,
+    FromJumproleQueryResultType.Success | FromJumproleQueryResultType.FromRowFailed
+>;
+
+export type FromJumproleQueryResult =
+    | { type: FromJumproleQueryResultType.Success; values: Jumprole[] }
+    | { type: FromJumproleQueryFailureType }
+    | { type: FromJumproleQueryResultType.FromRowFailed; tier_id: number; error: GetTierFailureType };
 
 @validate_constructor
 export class Jumprole {
@@ -253,6 +279,110 @@ export class Jumprole {
         }
     }
 
+    static readonly FromRow = async (row: trickjump_jumpsTableRow, queryable: Queryable<MakesSingleRequest>): Promise<FromRowResult> => {
+        // TODO: handle error cases
+        const tier_result = await Tier.WithID(row.tier_id, queryable);
+
+        switch (tier_result.result) {
+            case GetTierResultType.Success: {
+                return {
+                    type: GetTierResultType.Success,
+                    jumprole: new Jumprole(
+                        row.id,
+                        row.display_name,
+                        row.description,
+                        row.kingdom,
+                        row.location,
+                        row.jump_type,
+                        row.link,
+                        row.added_by,
+                        row.updated_at,
+                        row.server,
+                        tier_result.tier,
+                        row.hash,
+                    ),
+                };
+            }
+            default: {
+                return { type: tier_result.result, tier_id: row.tier_id };
+            }
+        }
+    };
+
+    static readonly InServer = async (id: Snowflake, queryable: Queryable<UsesClient>): Promise<FromJumproleQueryResult> => {
+        const query_string = GET_JUMPROLES_BY_SERVER;
+        const query_params = [id];
+        const client = await use_client(queryable, "Jumprole.InServer");
+
+        try {
+            const rows_result = await client.query<trickjump_jumpsTableRow>(query_string, query_params);
+
+            if (rows_result.rows.length < 1) return { type: FromJumproleQueryResultType.NoJumproles };
+
+            let res = [];
+
+            for (const row of rows_result.rows) {
+                let row_result = await Jumprole.FromRow(row, client);
+
+                switch (row_result.type) {
+                    case GetTierResultType.Success: {
+                        res.push(row_result.jumprole);
+                        break;
+                    }
+                    default: {
+                        return {
+                            type: FromJumproleQueryResultType.FromRowFailed,
+                            tier_id: row.tier_id,
+                            error: row_result.type as GetTierFailureType,
+                        };
+                    }
+                }
+            }
+
+            return { type: FromJumproleQueryResultType.Success, values: res };
+        } catch (err) {
+            return { type: FromJumproleQueryResultType.QueryFailed };
+        }
+    };
+
+    static readonly FromQuery = async (
+        query_string: string,
+        query_params: unknown[],
+        queryable: Queryable<UsesClient>,
+    ): Promise<FromJumproleQueryResult> => {
+        const client = await use_client(queryable, "Jumprole.FromQuery");
+
+        try {
+            const rows_result = await client.query<trickjump_jumpsTableRow>(query_string, query_params);
+
+            if (rows_result.rows.length < 1) return { type: FromJumproleQueryResultType.NoJumproles };
+
+            let res = [];
+
+            for (const row of rows_result.rows) {
+                let row_result = await Jumprole.FromRow(row, client);
+
+                switch (row_result.type) {
+                    case GetTierResultType.Success: {
+                        res.push(row_result.jumprole);
+                        break;
+                    }
+                    default: {
+                        return {
+                            type: FromJumproleQueryResultType.FromRowFailed,
+                            tier_id: row.tier_id,
+                            error: row_result.type as GetTierFailureType,
+                        };
+                    }
+                }
+            }
+
+            return { type: FromJumproleQueryResultType.Success, values: res };
+        } catch (err) {
+            return { type: FromJumproleQueryResultType.QueryFailed };
+        }
+    };
+
     static readonly WithID = async (
         id: number,
         queryable: Queryable<UsesClient>,
@@ -312,12 +442,14 @@ export class Jumprole {
         else if (is_valid_Snowflake(server) === false) return { type: GetJumproleResultType.InvalidServerSnowflake };
         const client = await use_client(queryable, "Jumprole.Get");
         try {
-            const result = (await client.query(GET_JUMPROLE_BY_NAME_AND_SERVER, [name.toLowerCase(), server])) as trickjump_jumpsQueryResults;
+            const result = (await client.query(GET_JUMPROLE_BY_NAME_AND_SERVER, [to_num_and_lower(name), server])) as trickjump_jumpsQueryResults;
             const row_result = result.rowCount;
             if (row_result > 1) {
                 // Somehow multiple jumps with the same name and server, even though they are guaranteed by PostgreSQL to be unique as a pair
                 log(
-                    `Jumprole.get: received ${result.rows.length.toString()} rows when getting jumprole using name ${name.toLowerCase()} and server ${server}! Returning an error...`,
+                    `Jumprole.get: received ${result.rows.length.toString()} rows when getting jumprole using name ${to_num_and_lower(
+                        name,
+                    )} and server ${server}! Returning an error...`,
                     LogType.Error,
                 );
                 client.handle_release();
@@ -355,7 +487,7 @@ export class Jumprole {
         } catch (error) {
             client.handle_release();
             log(
-                `Jumprole.get: unexpected error when getting jumprole using name ${name.toLowerCase()} and server ${server}! Returning an error.`,
+                `Jumprole.get: unexpected error when getting jumprole using name ${to_num_and_lower(name)} and server ${server}! Returning an error.`,
                 LogType.Error,
             );
             log(error, LogType.Error);
@@ -393,64 +525,77 @@ export class Jumprole {
                 log('Jumprole.Create: object had an invalid value for property "server". Returning.', LogType.Error);
                 return { type: CreateJumproleResultType.InvalidServer };
             }
-        }
+            case GetJumproleResultType.Success: {
+                return { type: CreateJumproleResultType.JumproleAlreadyExists };
+            }
+            case GetJumproleResultType.NoneMatched: {
+                const hash = compute_jumprole_hash(validated_jumprole_options);
 
-        const hash = compute_jumprole_hash(validated_jumprole_options);
+                const query_string = INSERT_JUMPROLE;
+                const query_params = [
+                    validated_jumprole_options.tier.id,
+                    to_num_and_lower(validated_jumprole_options.name),
+                    validated_jumprole_options.name,
+                    validated_jumprole_options.description,
+                    validated_jumprole_options.kingdom,
+                    validated_jumprole_options.location,
+                    validated_jumprole_options.jump_type,
+                    validated_jumprole_options.link,
+                    validated_jumprole_options.added_by,
+                    Math.round(Date.now() / 1000),
+                    validated_jumprole_options.server,
+                    hash,
+                ];
 
-        const query_string = INSERT_JUMPROLE;
-        const query_params = [
-            validated_jumprole_options.tier.id,
-            validated_jumprole_options.name.toLowerCase(),
-            validated_jumprole_options.name,
-            validated_jumprole_options.description,
-            validated_jumprole_options.kingdom,
-            validated_jumprole_options.location,
-            validated_jumprole_options.jump_type,
-            validated_jumprole_options.link,
-            validated_jumprole_options.added_by,
-            Math.round(Date.now() / 1000),
-            validated_jumprole_options.server,
-            hash,
-        ];
+                const client = await use_client(queryable, "Jumprole.Create");
 
-        const client = await use_client(queryable, "Jumprole.Create");
-
-        try {
-            await client.query(INSERT_JUMPROLE, query_params);
-            const get_result = await Jumprole.Get(validated_jumprole_options.name, validated_jumprole_options.server, client);
-            client.handle_release();
-            switch (get_result.type) {
-                case GetJumproleResultType.NoneMatched: {
-                    log("Jumprole.Create: Jumprole.Get returned NoneMatched after inserting jumprole. Returning.", LogType.Error);
+                try {
+                    await client.query(INSERT_JUMPROLE, query_params);
+                    const get_result = await Jumprole.Get(validated_jumprole_options.name, validated_jumprole_options.server, client);
+                    client.handle_release();
+                    switch (get_result.type) {
+                        case GetJumproleResultType.NoneMatched: {
+                            log("Jumprole.Create: Jumprole.Get returned NoneMatched after inserting jumprole. Returning.", LogType.Error);
+                            return { type: CreateJumproleResultType.QueryFailed };
+                        }
+                        case GetJumproleResultType.QueryFailed: {
+                            return { type: CreateJumproleResultType.QueryFailed };
+                        }
+                        case GetJumproleResultType.Unknown: {
+                            log("Jumprole.Create: Jumprole.Get returned Unknown. Returning.", LogType.Error);
+                            return { type: CreateJumproleResultType.Unknown };
+                        }
+                        case GetJumproleResultType.InvalidName: {
+                            log('Jumprole.Create: after insertion, object had an invalid value for property "name". Returning.', LogType.Error);
+                            return { type: CreateJumproleResultType.InvalidName };
+                        }
+                        case GetJumproleResultType.InvalidServerSnowflake: {
+                            log('Jumprole.Create: after insertion, object had an invalid value for property "server". Returning.', LogType.Error);
+                            return { type: CreateJumproleResultType.InvalidServer };
+                        }
+                        case GetJumproleResultType.GetTierWithIDFailed: {
+                            log(`Jumprole.Create: after insertion, object had an invalid value for property "tier_id". Returning.`, LogType.Error);
+                            return { type: CreateJumproleResultType.IncorrectTierIDInDatabase };
+                        }
+                        case GetJumproleResultType.Success: {
+                            return { type: CreateJumproleResultType.Success, jumprole: get_result.jumprole };
+                        }
+                    }
+                } catch (err) {
+                    client.handle_release();
+                    query_failure("Jumprole.Create", query_string, query_params, err);
                     return { type: CreateJumproleResultType.QueryFailed };
-                }
-                case GetJumproleResultType.QueryFailed: {
-                    return { type: CreateJumproleResultType.QueryFailed };
-                }
-                case GetJumproleResultType.Unknown: {
-                    log("Jumprole.Create: Jumprole.Get returned Unknown. Returning.", LogType.Error);
-                    return { type: CreateJumproleResultType.Unknown };
-                }
-                case GetJumproleResultType.InvalidName: {
-                    log('Jumprole.Create: after insertion, object had an invalid value for property "name". Returning.', LogType.Error);
-                    return { type: CreateJumproleResultType.InvalidName };
-                }
-                case GetJumproleResultType.InvalidServerSnowflake: {
-                    log('Jumprole.Create: after insertion, object had an invalid value for property "server". Returning.', LogType.Error);
-                    return { type: CreateJumproleResultType.InvalidServer };
-                }
-                case GetJumproleResultType.GetTierWithIDFailed: {
-                    log(`Jumprole.Create: after insertion, object had an invalid value for property "tier_id". Returning.`, LogType.Error);
-                    return { type: CreateJumproleResultType.IncorrectTierIDInDatabase };
-                }
-                case GetJumproleResultType.Success: {
-                    return { type: CreateJumproleResultType.Success, jumprole: get_result.jumprole };
                 }
             }
-        } catch (err) {
-            client.handle_release();
-            query_failure("Jumprole.Create", query_string, query_params, err);
-            return { type: CreateJumproleResultType.QueryFailed };
+            case GetJumproleResultType.GetTierWithIDFailed: {
+                return { type: CreateJumproleResultType.IncorrectTierIDInDatabase };
+            }
+            case GetJumproleResultType.QueryFailed: {
+                return { type: CreateJumproleResultType.QueryFailed };
+            }
+            case GetJumproleResultType.Unknown: {
+                return { type: CreateJumproleResultType.Unknown };
+            }
         }
     };
 
@@ -480,10 +625,8 @@ export class Jumprole {
 
         // Useful for generating the substitution signatures, i.e. $2, in the
         // database query string
-        const property_count = change_keys.length;
 
         const request_head = "UPDATE trickjump_jumps SET ";
-        const request_tail = ` WHERE id=$${property_count + 4}`;
         const query_tail: unknown[] = [this.id];
 
         // Used to represent a property assignment that will be
@@ -508,7 +651,7 @@ export class Jumprole {
                 // in the merger object have the correct length
                 case "name": {
                     const name = validated_merger_result["name"] as string;
-                    query_assignments.push(["name", name.toLowerCase()]);
+                    query_assignments.push(["name", to_num_and_lower(name)]);
                     query_assignments.push(["display_name", name]);
                     break;
                 }
@@ -520,6 +663,11 @@ export class Jumprole {
                 case "location": {
                     const location = validated_merger_result["location"];
                     query_assignments.push(["location", location]);
+                    break;
+                }
+                case "kingdom": {
+                    const kingdom = validated_merger_result["kingdom"];
+                    query_assignments.push(["kingdom", kingdom]);
                     break;
                 }
                 case "jump_type": {
@@ -537,6 +685,10 @@ export class Jumprole {
                     query_assignments.push(["tier", tier]);
                 }
             }
+        }
+
+        if (query_assignments.length === 0) {
+            return ModifyJumproleResult.Success;
         }
 
         // Assign the merger object to the old object, merging it and creating the new one
@@ -577,6 +729,7 @@ export class Jumprole {
         const request_mid = query_assignments.map((assignment, index) => stringify_assignment(assignment, index)).join(", ");
         const query_start = query_assignments.map(assignment => assignment[1]);
 
+        const request_tail = ` WHERE id=$${query_assignments.length + 1}`;
         const full_request = request_head + request_mid + request_tail;
         const full_query_params = query_start.concat(query_tail);
         try {
@@ -641,6 +794,18 @@ export class Jumprole {
         }
     }
 }
+
+export const JumproleStructure = new Structure<Jumprole>(
+    "Structure",
+    (input: unknown) => {
+        if (input instanceof Jumprole) return { succeeded: true, result: input as Jumprole };
+        else return { succeeded: false, error: StructureValidationFailedReason.IncorrectType, information: ["expected instanceof Jumprole"] };
+    },
+    <Input extends Jumprole>(result: Input): TransformResult<Input> => {
+        if (result instanceof Jumprole) return { succeeded: true, result: result };
+        else return { succeeded: false, error: StructureValidationFailedReason.IncorrectType, information: ["expected instanceof Jumprole"] };
+    },
+);
 
 export type JumproleHandle = number | [string, Snowflake];
 
