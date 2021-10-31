@@ -1,30 +1,33 @@
-import { log, LogType } from "../utilities/log";
+import { log, LogType } from "../utilities/log.js";
 
-interface Paste {
-  id: string;
+export interface Paste {
+    id: string;
 }
 
-export const PASTE_API_TOKEN = process.env.PASTE_API_TOKEN;
+export interface CreatePasteResult {
+    paste?: Paste;
+    error?: string;
+}
+
+export const PASTE_API_TOKEN = process.env.PASTE_API_TOKEN as string;
 
 export const url = function (paste: Paste): string {
-  return "https://paste.ee/r/" + paste.id;
-}
+    return "https://paste.ee/r/" + paste.id;
+};
 
-export const create_paste = async function (
-    text: string
-  ): Promise<Paste | null> {
-    let paste = require("paste.ee") as (
-      data: string,
-      token: string
-    ) => Promise<{ id: string }>;
+import Paste from "paste.ee";
+
+export const create_paste = async function (text: string): Promise<CreatePasteResult> {
     try {
-      const posted = await paste(text, PASTE_API_TOKEN);
-      return posted;
+        const posted = await Paste(text, PASTE_API_TOKEN);
+        return {
+            paste: posted,
+        };
+    } catch (err) {
+        log("Unexpected error while creating paste:", LogType.Error);
+        log(err, LogType.Error);
+        return {
+            error: String(err),
+        };
     }
-    catch (err) {
-      log("Unexpected error while creating paste:", LogType.Error);
-      log(err, LogType.Error)
-      return null;
-    }
-  };
-  
+};

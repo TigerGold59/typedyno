@@ -1,0 +1,157 @@
+import { Client } from "discord.js";
+import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
+
+import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions.js";
+import { validate } from "../../../module_decorators.js";
+import { log, LogType } from "../../../utilities/log.js";
+import { Proof } from "./proof_cmd.js";
+import { MAINTAINER_TAG } from "../../../main.js";
+import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
+import { TextChannelMessage } from "../../../utilities/typeutils.js";
+import { GetJumproleResultType } from "../jumprole/internals/jumprole_type.js";
+import { Jumprole } from "../jumprole/internals/jumprole_type.js";
+import { GetJumproleEntryByJumproleAndHolderResultType, JumproleEntry, SetJumproleEntryLinkResult } from "../tj/internals/entry_type.js";
+
+export class ProofRemove extends Subcommand<typeof ProofRemove.manual> {
+    constructor() {
+        super(Proof.manual, ProofRemove.manual, ProofRemove.no_use_no_see, ProofRemove.permissions);
+    }
+
+    static readonly manual = {
+        name: "remove",
+        arguments: [
+            {
+                name: "jump name",
+                id: "jumprole_name",
+                optional: false,
+            },
+        ],
+        syntax: "::<prefix>proof remove:: NAME $1",
+        description: "Remove the proof for a jumprole you have.",
+    } as const;
+
+    static readonly no_use_no_see = false;
+    static readonly permissions = undefined;
+
+    @validate
+    // eslint-disable-next-line complexity
+    async activate(
+        values: ValidatedArguments<typeof ProofRemove.manual>,
+        message: TextChannelMessage,
+        _client: Client,
+        queryable: Queryable<UsesClient>,
+        prefix: string,
+    ): Promise<BotCommandProcessResults> {
+        const reply = async function (response: string) {
+            await message.channel.send(`${prefix}proof remove: ${response}`);
+        };
+
+        const client = await use_client(queryable, "ProofRemove.activate");
+
+        const failed = { type: BotCommandProcessResultType.DidNotSucceed };
+
+        let jumprole_result = await Jumprole.Get(values.jumprole_name, message.guild.id, client);
+
+        switch (jumprole_result.type) {
+            case GetJumproleResultType.InvalidName: {
+                await reply(`invalid jump name. Contact @${MAINTAINER_TAG} for help as this should have been caught earlier.`);
+                client.handle_release();
+                return { type: BotCommandProcessResultType.Invalid };
+            }
+            case GetJumproleResultType.InvalidServerSnowflake: {
+                log(
+                    `proof remove: Jumprole.Get with arguments [${values.jumprole_name}, ${message.guild.id}] failed with error GetJumproleResultType.InvalidServerSnowflake.`,
+                    LogType.Error,
+                );
+                await reply(
+                    `an unknown error caused Jumprole.Get to return GetJumproleResultType.InvalidServerSnowflake. Contact @${MAINTAINER_TAG} for help.`,
+                );
+                client.handle_release();
+                return failed;
+            }
+            case GetJumproleResultType.GetTierWithIDFailed: {
+                await reply(
+                    "an unknown error caused Jumprole.Get to fail with error GetJumproleResultType.GetTierWithIDFailed. It is possible that its tier was deleted.",
+                );
+                log(
+                    `proof remove: Jumprole.Get with arguments [${values.jumprole_name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.GetTierWithIDFailed.`,
+                    LogType.Error,
+                );
+                client.handle_release();
+                return failed;
+            }
+            case GetJumproleResultType.NoneMatched: {
+                await reply(`a jump with that name doesn't exist in this server. You can list all roles with \`${prefix}tj list\`.`);
+                client.handle_release();
+                return failed;
+            }
+            case GetJumproleResultType.QueryFailed: {
+                await reply(`an unknown error occurred (query failure). Contact @${MAINTAINER_TAG} for help.`);
+                client.handle_release();
+                return failed;
+            }
+            case GetJumproleResultType.Unknown: {
+                log(
+                    `proof remove: Jumprole.Get with arguments [${values.jumprole_name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.Unknown.`,
+                );
+                await reply(`an unknown error occurred after Jumprole.Get. Contact @${MAINTAINER_TAG} for help.`);
+                client.handle_release();
+                return failed;
+            }
+            case GetJumproleResultType.Success: {
+                let jumprole = jumprole_result.jumprole;
+                let result = await JumproleEntry.Get(message.author.id, jumprole_result.jumprole, client);
+
+                switch (result.type) {
+                    case GetJumproleEntryByJumproleAndHolderResultType.NoneMatched: {
+                        await reply(`you don't have that role on this server.`);
+                        return failed;
+                    }
+                    case GetJumproleEntryByJumproleAndHolderResultType.QueryFailed: {
+                        log(`proof remove: JumproleEntry.Get returned a query failure. Notifying the user...`, LogType.Error);
+                        await reply(`an unknown internal error occurred (query failure). Contact @${MAINTAINER_TAG} for help.`);
+                        return failed;
+                    }
+                    case GetJumproleEntryByJumproleAndHolderResultType.InvalidHolderSnowflake: {
+                        log(
+                            `proof remove: JumproleEntry.Get did not accept holder snowflake '${message.author.id}'. Returning status to indicate failure...'`,
+                            LogType.Error,
+                        );
+                        await reply(`an unknown internal error occurred (did not accept holder snowflake). Contact @${MAINTAINER_TAG} for help.`);
+                        return failed;
+                    }
+                    case GetJumproleEntryByJumproleAndHolderResultType.InvalidJumprole: {
+                        log(
+                            `proof remove: JumproleEntry.Get did not accept Jumprole object (instance: ${
+                                jumprole instanceof Jumprole
+                            }). Returning status to indicate failure...'`,
+                            LogType.Error,
+                        );
+                        await reply(`an unknown internal error occurred (did not accept Jumprole object). Contact @${MAINTAINER_TAG} for help.`);
+                        return failed;
+                    }
+                    case GetJumproleEntryByJumproleAndHolderResultType.Success: {
+                        let set_link_result = await result.entry.set_link(null, client);
+                        switch (set_link_result) {
+                            case SetJumproleEntryLinkResult.Success: {
+                                await GiveCheck(message);
+                                return { type: BotCommandProcessResultType.Succeeded };
+                            }
+                            case SetJumproleEntryLinkResult.QueryFailed: {
+                                await reply(`an unknown error occurred (query failure). Contact @${MAINTAINER_TAG} for help.`);
+                                client.handle_release();
+                                return failed;
+                            }
+                            case SetJumproleEntryLinkResult.InvalidLink: {
+                                await reply(
+                                    `an internal error occurred (JumproleEntry.set_link returned SetJumproleEntryLinkResult.InvalidLink even though link was null). Contact @${MAINTAINER_TAG} for help.`,
+                                );
+                            }
+                        }
+                        return failed;
+                    }
+                }
+            }
+        }
+    }
+}
