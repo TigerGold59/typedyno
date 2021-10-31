@@ -90,7 +90,7 @@ export const designate_set_user = async (
             }
         }
         default: {
-            const query_params = [allow_full_access, handle.user, handle.server];
+            const query_params = [handle.user.toLocaleString, allow_full_access, handle.server];
             try {
                 await client.query(DESIGNATE_CHANGE_USER_STATUS, query_params);
                 return await designate_user_status(handle, client);

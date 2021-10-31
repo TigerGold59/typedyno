@@ -8,7 +8,7 @@
         "discord"
     ],
     "scripts": {
-        "start": "node --inspect out/main.js",
+        "start": "node out/main.js",
         "ts-build": "tsc && node path_modify.js",
         "heroku-postbuild": "tsc"
     },
