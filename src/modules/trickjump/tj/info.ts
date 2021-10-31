@@ -80,7 +80,7 @@ export class TJInfo extends Subcommand<typeof TJInfo.manual> {
                 return failed;
             }
             case GetJumproleResultType.NoneMatched: {
-                await reply(`a jump with that name doesn't exist in this server. You can list all roles with \`${prefix}tj list\`.`);
+                await reply(`a jump with that name doesn't exist in this server. You can list all roles with \`${prefix}tj all\`.`);
                 client.handle_release();
                 return failed;
             }
@@ -110,9 +110,7 @@ export class TJInfo extends Subcommand<typeof TJInfo.manual> {
                 if (is_string(user.tag)) {
                     embed.setAuthor(
                         user.tag,
-                        user.avatar === null
-                            ? user.defaultAvatarURL
-                            : `https://cdn.discordapp.com/avatars/${message.author.id}/${message.author.avatar}.jpeg`,
+                        user.avatar === null ? user.defaultAvatarURL : `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.jpeg`,
                     );
                 }
                 embed.setTimestamp(new Date(jump.updated_at * 1000));

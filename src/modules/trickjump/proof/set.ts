@@ -88,7 +88,7 @@ export class ProofSet extends Subcommand<typeof ProofSet.manual> {
                 return failed;
             }
             case GetJumproleResultType.NoneMatched: {
-                await reply(`a jump with that name doesn't exist in this server. You can list all roles with \`${prefix}tj list\`.`);
+                await reply(`a jump with that name doesn't exist in this server. You can list all roles with \`${prefix}tj all\`.`);
                 client.handle_release();
                 return failed;
             }
