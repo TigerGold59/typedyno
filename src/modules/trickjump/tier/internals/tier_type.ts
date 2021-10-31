@@ -9,7 +9,7 @@ import { trickjump_tiersTableRow } from "../../table_types.js";
 
 const GET_TIER_BY_NAME_AND_SERVER = "SELECT * FROM trickjump_tiers WHERE name=$1 AND server=$2";
 const GET_TIER_BY_ID = "SELECT * FROM trickjump_tiers WHERE id=$1";
-const INSERT_TIER = "INSERT INTO trickjump_tiers (name, ordinal, server) VALUES ($1, $2, $3);";
+const INSERT_TIER = "INSERT INTO trickjump_tiers (display_name, name, ordinal, server) VALUES ($1, $2, $3, $4);";
 const DELETE_TIER = "DELETE FROM trickjump_tiers WHERE id=$1";
 
 export const enum GetTierResultType {
@@ -107,7 +107,7 @@ export class Tier {
             return { result: GetTierResultType.InvalidServer };
         }
         const query_string = GET_TIER_BY_NAME_AND_SERVER;
-        const query_params = [name_result.normalized, server_result.normalized];
+        const query_params = [name_result.normalized.toLowerCase(), server_result.normalized];
         try {
             const query_result = await queryable.query<trickjump_tiersTableRow>(query_string, query_params);
 
@@ -174,7 +174,7 @@ export class Tier {
             return { result: CreateTierResultType.InvalidOrdinal };
         }
 
-        const client = await use_client(queryable);
+        const client = await use_client(queryable, "Tier.Create");
 
         const before = await Tier.Get(name_result.normalized, server_result.normalized, client);
 
@@ -192,7 +192,12 @@ export class Tier {
             }
             case GetTierResultType.NoMatchingEntries: {
                 const query_string = INSERT_TIER;
-                const query_params = [name_result.normalized, ordinal_result.normalized, server_result.normalized];
+                const query_params = [
+                    name_result.normalized,
+                    name_result.normalized.toLowerCase(),
+                    ordinal_result.normalized,
+                    server_result.normalized,
+                ];
 
                 try {
                     await client.query(query_string, query_params);

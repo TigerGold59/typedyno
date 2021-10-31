@@ -48,12 +48,13 @@ export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
         const name = values.name;
 
-        const client = await use_client(queryable);
+        const client = await use_client(queryable, "JumproleRemove.activate");
 
         const instance = await Jumprole.Get(name, message.guild.id, client);
         switch (instance.type) {
             case GetJumproleResultType.InvalidName: {
                 await reply(`invalid jump name. Contact @${MAINTAINER_TAG} for help as this should have been caught earlier.`);
+                client.handle_release();
                 return { type: BotCommandProcessResultType.Invalid };
             }
             case GetJumproleResultType.InvalidServerSnowflake: {
@@ -64,6 +65,7 @@ export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
                 await reply(
                     `an unknown error caused Jumprole.Get to return GetJumproleResultType.InvalidServerSnowflake. Contact @${MAINTAINER_TAG} for help.`,
                 );
+                client.handle_release();
                 return failed;
             }
             case GetJumproleResultType.GetTierWithIDFailed: {
@@ -74,14 +76,17 @@ export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
                     `jumprole remove: Jumprole.Get with arguments [${name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.GetTierWithIDFailed.`,
                     LogType.Error,
                 );
+                client.handle_release();
                 return failed;
             }
             case GetJumproleResultType.NoneMatched: {
                 await reply(`a jump with that name doesn't exist in this server. You can list all roles with \`${prefix}tj list\`.`);
+                client.handle_release();
                 return failed;
             }
             case GetJumproleResultType.QueryFailed: {
                 await reply(`${prefix}jumprole remove: an unknown error occurred (query failure). Contact @${MAINTAINER_TAG} for help.`);
+                client.handle_release();
                 return failed;
             }
             case GetJumproleResultType.Unknown: {
@@ -89,10 +94,12 @@ export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
                     `jumprole remove: Jumprole.Get with arguments [${name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.Unknown.`,
                 );
                 await reply(`an unknown error occurred after Jumprole.Get. Contact @${MAINTAINER_TAG} for help.`);
+                client.handle_release();
                 return failed;
             }
             case GetJumproleResultType.Success: {
                 const result = await instance.jumprole.delete(client);
+                client.handle_release();
 
                 switch (result) {
                     case DeleteJumproleResult.Success: {

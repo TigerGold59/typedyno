@@ -83,7 +83,7 @@ const is_valid_SimpleCommandManual = function (thing: unknown): thing is SimpleC
     const result = SimpleCommandManualStructure.check(thing);
     if (result.succeeded) return true;
     else {
-        log_stack(result, `is_valid_SimpleCommandManual`, DebugLogType.ManualValidationFailedReason);
+        log_stack(result, `is_valid_SimpleCommandManual`, DebugLogType.ManualValidationFailedReason, false);
         return false;
     }
 };

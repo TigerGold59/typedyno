@@ -68,7 +68,7 @@ export const designate_set_user = async (
     if (CONFIG.admins.includes(handle.user)) return DesignateUserStatus.UserIsAdmin;
 
     if (is_boolean(allow_full_access) === false) return DesignateUserStatus.InvalidHandle;
-    const client = await use_client(queryable);
+    const client = await use_client(queryable, "designate_set_user");
 
     const status = await designate_user_status(handle, client);
 
@@ -116,7 +116,7 @@ export const enum DesignateRemoveUserResult {
 export const designate_remove_user = async (handle: DesignateHandle, queryable: Queryable<UsesClient>): Promise<DesignateRemoveUserResult> => {
     if (CONFIG.admins.includes(handle.user)) return DesignateRemoveUserResult.UserIsAdmin;
 
-    const client = await use_client(queryable);
+    const client = await use_client(queryable, "designate_remove_user");
     const status = await designate_user_status(handle, client);
 
     switch (status) {

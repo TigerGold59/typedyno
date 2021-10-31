@@ -105,7 +105,7 @@ export const set_prefix = async function (server: Guild, prefix: string, queryab
         };
     }
 
-    const client = await use_client(queryable);
+    const client = await use_client(queryable, "set_prefix");
 
     const local_prefix_entry = await get_prefix_entry(server, client);
 

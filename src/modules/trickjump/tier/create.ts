@@ -53,9 +53,11 @@ export class TierCreate extends Subcommand<typeof TierCreate.manual> {
 
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
-        const using_client = await use_client(queryable);
+        const using_client = await use_client(queryable, "TierCreate.activate");
 
         const exists = await Tier.Create(message.guild.id, values.ordinal, values.name, using_client);
+
+        using_client.handle_release();
 
         switch (exists.result) {
             case CreateTierResultType.TierAlreadyExists: {

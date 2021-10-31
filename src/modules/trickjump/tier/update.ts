@@ -36,7 +36,7 @@ export class TierUpdate extends Subcommand<typeof TierUpdate.manual> {
         ],
         description:
             "Updates a tier, changing its name or rank number or both, depending on which are provided. The higher the rank number, the higher the tier.",
-        syntax: "::<prefix>tier update:: NAME $1{opt $2}[ NEW NAME $2]${opt $3}[ RANK $3]",
+        syntax: "::<prefix>tier update:: NAME $1{opt $2}[ NEW NAME $2]{opt $3}[ RANK $3]",
         compact_syntaxes: false,
     } as const;
 
@@ -59,25 +59,29 @@ export class TierUpdate extends Subcommand<typeof TierUpdate.manual> {
 
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
-        const using_client = await use_client(queryable);
+        const using_client = await use_client(queryable, "TierUpdate.activate");
 
-        const existing = await Tier.Get(message.guild.id, values.name, using_client);
+        const existing = await Tier.Get(values.name, message.guild.id, using_client);
 
         switch (existing.result) {
             case GetTierResultType.NoMatchingEntries: {
                 await reply(`no tier with this name exists. Please use '${prefix}tier create' to create a new tier.`);
+                using_client.handle_release();
                 return failed;
             }
             case GetTierResultType.InvalidName: {
                 await reply(`the given current name is not a valid tier name. A tier's name must be between length 1 and 100.`);
+                using_client.handle_release();
                 return failed;
             }
             case GetTierResultType.InvalidServer: {
                 await reply(`an internal error occurred (Tier.Get returned GetTierResultType.InvalidServer). Contact @${MAINTAINER_TAG} for help.`);
+                using_client.handle_release();
                 return failed;
             }
             case GetTierResultType.QueryFailed: {
                 await reply(`an unknown internal error caused the database query to fail. Contact @${MAINTAINER_TAG} for help.`);
+                using_client.handle_release();
                 return failed;
             }
             case GetTierResultType.Success: {
@@ -86,6 +90,7 @@ export class TierUpdate extends Subcommand<typeof TierUpdate.manual> {
                     { name: null_to_undefined(values.new_name), ordinal: null_to_undefined(values.ordinal) },
                     using_client,
                 );
+                using_client.handle_release();
                 switch (update_result) {
                     case ModifyTierResultType.Success: {
                         await GiveCheck(message);
@@ -104,6 +109,7 @@ export class TierUpdate extends Subcommand<typeof TierUpdate.manual> {
                 }
             }
             default: {
+                using_client.handle_release();
                 return failed;
             }
         }

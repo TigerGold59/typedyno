@@ -278,7 +278,7 @@ export class DesignateSet extends Subcommand<typeof DesignateSet.manual> {
             await message.channel.send(response);
         };
 
-        const client = await use_client(queryable);
+        const client = await use_client(queryable, "DesignateSet.activate");
 
         const target_handle = create_designate_handle(args.user_snowflake, message);
         const asker_handle = create_designate_handle(message.author.id, message);
@@ -361,7 +361,7 @@ export class DesignateRemove extends Subcommand<typeof DesignateRemove.manual> {
             await message.channel.send(response);
         };
 
-        const client = await use_client(queryable);
+        const client = await use_client(queryable, "DesignateRemove.activate");
 
         const target_handle = create_designate_handle(args.user_snowflake, message);
         const asker_handle = create_designate_handle(message.author.id, message);

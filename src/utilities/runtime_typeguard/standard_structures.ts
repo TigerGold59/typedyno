@@ -110,6 +110,16 @@ export const IsEnumeratedKeyCatchallDescriminator = <Representation extends { [k
     };
 };
 
+export const Unknown = new Structure<unknown>(
+    "unknown",
+    (input: unknown) => {
+        return { succeeded: true, result: input };
+    },
+    <Input extends unknown>(result: Input) => {
+        return { succeeded: true, result: result };
+    },
+);
+
 export class LengthRestrictableStructure<NormalizedType extends string | NormalizedStructure[]> extends Structure<NormalizedType> {
     length(range: Range, broadest_previous_type = "string"): Structure<NormalizedType> {
         return this.validate(<Input extends NormalizedType>(result: Input): TransformResult<Input> => {
@@ -529,6 +539,13 @@ export const Intersection = <NormalizedTypeOne extends NormalizedStructure, Norm
     return new Structure(
         new_name,
         (input: unknown): TransformResult<NormalizedTypeOne & NormalizedTypeTwo> => {
+            // TODO: somehow handle record structure intersection better than this
+            if (precedent_structure instanceof RecordStructure) {
+                precedent_structure = precedent_structure.unknown_keys(string, Unknown) as Structure<NormalizedTypeOne>;
+            }
+            if (secondary_structure instanceof RecordStructure) {
+                secondary_structure = secondary_structure.unknown_keys(string, Unknown) as Structure<NormalizedTypeTwo>;
+            }
             const result_one = precedent_structure.transform(input);
             const result_two = secondary_structure.transform(input);
             if (result_one.succeeded && result_two.succeeded) {

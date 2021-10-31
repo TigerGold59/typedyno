@@ -98,7 +98,7 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
 
         const name_change_intention = values.new_name === null ? values.name : values.new_name;
 
-        const client = await use_client(queryable);
+        const client = await use_client(queryable, "JumproleUpdate.activate");
 
         let tier_intention = undefined;
 
@@ -108,19 +108,23 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
             switch (get_tier.result) {
                 case GetTierResultType.InvalidName: {
                     await reply(`invalid tier name.`);
+                    client.handle_release();
                     return failed;
                 }
                 case GetTierResultType.InvalidServer: {
                     await reply(`an unknown internal error caused message.guild.id to be an invalid Snowflake. Contact @${MAINTAINER_TAG} for help.`);
                     log(`jumprole set: Tier.get - an unknown internal error caused message.guild.id to be an invalid Snowflake.`, LogType.Error);
+                    client.handle_release();
                     return failed;
                 }
                 case GetTierResultType.NoMatchingEntries: {
                     await reply(`no tier with name "${values.tier}" exists in this server.`);
+                    client.handle_release();
                     return failed;
                 }
                 case GetTierResultType.QueryFailed: {
                     await reply(`an unknown internal error caused the database query to fail. Contact @${MAINTAINER_TAG} for help.`);
+                    client.handle_release();
                     return failed;
                 }
                 case GetTierResultType.Success: {
@@ -146,6 +150,7 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
         switch (get_result.type) {
             case GetJumproleResultType.InvalidName: {
                 await reply(`invalid jump name. Contact @${MAINTAINER_TAG} for help as this should have been caught earlier.`);
+                client.handle_release();
                 return { type: BotCommandProcessResultType.Invalid };
             }
             case GetJumproleResultType.InvalidServerSnowflake: {
@@ -156,14 +161,17 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
                 await reply(
                     `an unknown error caused Jumprole.Get to return GetJumproleResultType.InvalidServerSnowflake. Contact @${MAINTAINER_TAG} for help.`,
                 );
+                client.handle_release();
                 return failed;
             }
             case GetJumproleResultType.NoneMatched: {
                 await reply(`a jump with that name doesn't exist in this server. You can list all roles with \`${prefix}tj list\`.`);
+                client.handle_release();
                 return failed;
             }
             case GetJumproleResultType.QueryFailed: {
                 await reply(`an unknown error occurred (query failure). Contact @${MAINTAINER_TAG} for help.`);
+                client.handle_release();
                 return failed;
             }
             case GetJumproleResultType.GetTierWithIDFailed: {
@@ -174,6 +182,7 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
                     `jumprole update: Jumprole.Get with arguments [${values.name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.GetTierWithIDFailed.`,
                     LogType.Error,
                 );
+                client.handle_release();
                 return failed;
             }
             case GetJumproleResultType.Unknown: {
@@ -181,11 +190,12 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
                     `jumprole update: Jumprole.Get with arguments [${values.name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.Unknown.`,
                 );
                 await reply(`an unknown error occurred after Jumprole.Get. Contact @${MAINTAINER_TAG} for help.`);
+                client.handle_release();
                 return failed;
             }
             case GetJumproleResultType.Success: {
                 const result = await get_result.jumprole.update(jumprole_object, client);
-
+                client.handle_release();
                 switch (result) {
                     case ModifyJumproleResult.Success: {
                         await GiveCheck(message);

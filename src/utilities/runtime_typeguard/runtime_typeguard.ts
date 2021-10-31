@@ -161,9 +161,10 @@ export const log_stack = (
     result: { succeeded: false; error: StructureValidationFailedReason; information: readonly string[] },
     function_name = "Structure.check",
     debug_log_type = DebugLogType.StructureCheckResult,
+    error = true,
 ): void => {
-    log(`${function_name}: ${result.error}`, LogType.Error, debug_log_type);
+    log(`${function_name}: ${result.error}`, error ? LogType.Error : LogType.None, debug_log_type);
     for (const str of result.information) {
-        log(`${function_name}: ${indent(str)}`, LogType.Error, debug_log_type);
+        log(`${function_name}: ${indent(str)}`, error ? LogType.Error : LogType.None, debug_log_type);
     }
 };

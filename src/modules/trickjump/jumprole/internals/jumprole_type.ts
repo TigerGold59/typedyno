@@ -10,10 +10,10 @@ import { trickjump_jumpsQueryResults } from "../../table_types.js";
 import { GetTierResultType, Tier, TierStructure } from "../../tier/internals/tier_type.js";
 
 export const GET_JUMPROLE_BY_ID = "SELECT * FROM trickjump_jumps WHERE id=$1";
-export const GET_JUMPROLE_BY_NAME_AND_SERVER = "SELECT * FROM trickjump_jumps WHERE display_name=$1 AND server=$2";
+export const GET_JUMPROLE_BY_NAME_AND_SERVER = "SELECT * FROM trickjump_jumps WHERE name=$1 AND server=$2";
 export const DELETE_JUMPROLE_BY_ID = "DELETE FROM trickjump_jumps WHERE id=$1";
 export const INSERT_JUMPROLE =
-    "INSERT INTO trickjump_jumps (name, display_name, description, kingdom, location, jump_type, link, added_by, updated_at, server, hash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)";
+    "INSERT INTO trickjump_jumps (tier_id, name, display_name, description, kingdom, location, jump_type, link, added_by, updated_at, server, hash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)";
 
 export const enum Kingdom {
     Cap = 0,
@@ -126,12 +126,12 @@ export const JumproleRT = {
             else return `input was like an unsigned integer but it was greater than or equal to 2147483647, making it an invalid UInt4`;
         }),
     ),
-    name: RT.string.length(PositiveIntegerMax(100)),
-    description: RT.string.length(PositiveIntegerMax(1500)),
+    name: RT.string,
+    description: RT.string,
     kingdom: RT.Nullable(RT.KingdomIndexN),
-    location: RT.Nullable(RT.string.length(PositiveIntegerMax(200))),
-    jump_type: RT.Nullable(RT.string.length(PositiveIntegerMax(100))),
-    link: RT.Nullable(RT.string.length(PositiveIntegerMax(150))),
+    location: RT.Nullable(RT.string),
+    jump_type: RT.Nullable(RT.string),
+    link: RT.Nullable(RT.string),
     added_by: RT.Snowflake,
     updated_at: RT.UInt4N,
     server: RT.Snowflake,
@@ -257,7 +257,7 @@ export class Jumprole {
         id: number,
         queryable: Queryable<UsesClient>,
     ): Promise<Exclude<GetJumproleResult, GetJumproleResultType.InvalidName | GetJumproleResultType.InvalidServerSnowflake>> => {
-        const client = await use_client(queryable);
+        const client = await use_client(queryable, "Jumprole.WithID");
         try {
             const result = (await client.query(GET_JUMPROLE_BY_ID, [id])) as trickjump_jumpsQueryResults;
             const row_result = result.rowCount;
@@ -310,7 +310,7 @@ export class Jumprole {
     static readonly Get = async (name: string, server: Snowflake, queryable: Queryable<UsesClient>): Promise<GetJumproleResult> => {
         if (is_string(name) === false) return { type: GetJumproleResultType.InvalidName };
         else if (is_valid_Snowflake(server) === false) return { type: GetJumproleResultType.InvalidServerSnowflake };
-        const client = await use_client(queryable);
+        const client = await use_client(queryable, "Jumprole.Get");
         try {
             const result = (await client.query(GET_JUMPROLE_BY_NAME_AND_SERVER, [name.toLowerCase(), server])) as trickjump_jumpsQueryResults;
             const row_result = result.rowCount;
@@ -399,6 +399,7 @@ export class Jumprole {
 
         const query_string = INSERT_JUMPROLE;
         const query_params = [
+            validated_jumprole_options.tier.id,
             validated_jumprole_options.name.toLowerCase(),
             validated_jumprole_options.name,
             validated_jumprole_options.description,
@@ -412,11 +413,11 @@ export class Jumprole {
             hash,
         ];
 
-        const client = await use_client(queryable);
+        const client = await use_client(queryable, "Jumprole.Create");
 
         try {
             await client.query(INSERT_JUMPROLE, query_params);
-            const get_result = await Jumprole.Get(validated_jumprole_options.name, validated_jumprole_options.server, queryable);
+            const get_result = await Jumprole.Get(validated_jumprole_options.name, validated_jumprole_options.server, client);
             client.handle_release();
             switch (get_result.type) {
                 case GetJumproleResultType.NoneMatched: {
@@ -482,8 +483,8 @@ export class Jumprole {
         const property_count = change_keys.length;
 
         const request_head = "UPDATE trickjump_jumps SET ";
-        const request_tail = ` WHERE id=$${property_count + 2}`;
-        const query_tail: unknown[] = [];
+        const request_tail = ` WHERE id=$${property_count + 4}`;
+        const query_tail: unknown[] = [this.id];
 
         // Used to represent a property assignment that will be
         // filled out in the DB query string
@@ -541,7 +542,7 @@ export class Jumprole {
         // Assign the merger object to the old object, merging it and creating the new one
         const filtered_merger_result = ((): Partial<JumproleModifyOptions> => {
             const res = {};
-            for (const prop_name in merger_result) {
+            for (const prop_name in merger_result.normalized) {
                 // @ts-expect-error prop_name is a key of validated_merger_result!
                 if (validated_merger_result[prop_name] !== undefined)
                     // @ts-expect-error same problem
@@ -550,7 +551,7 @@ export class Jumprole {
             return res;
         })();
 
-        const target_obj: JumproleOptions = {
+        let target_obj: JumproleOptions = {
             name: this.name,
             description: this.description,
             jump_type: this.jump_type,
@@ -566,8 +567,11 @@ export class Jumprole {
 
         const hash = compute_jumprole_hash(target_obj);
 
+        let new_date = Math.round(Date.now() / 1000);
+
         // Add the correct hash to the query assignments
         query_assignments.push(["hash", hash]);
+        query_assignments.push(["updated_at", new_date]);
 
         // Create the part of the query string where we set the properties
         const request_mid = query_assignments.map((assignment, index) => stringify_assignment(assignment, index)).join(", ");
@@ -579,12 +583,51 @@ export class Jumprole {
             await queryable.query(full_request, full_query_params);
             for (const key in filtered_merger_result) {
                 // @ts-expect-error TS doesn't like dynamically changing a property of a class.
-                this[key] = filtered_merger_result[key as keyof JumproleModifyOptions];
+                this.change(key, filtered_merger_result[key as keyof JumproleModifyOptions]);
             }
+            this.#_updated_at = new_date;
             return ModifyJumproleResult.Success;
         } catch (err) {
             query_failure("Jumprole.update", full_request, full_query_params, err);
             return ModifyJumproleResult.InvalidQuery;
+        }
+    }
+
+    private change<Key extends keyof JumproleModifyOptions>(key: keyof JumproleModifyOptions, value: JumproleModifyOptions[Key]) {
+        let result = JumproleRT[key].check(value);
+        if (result.succeeded === false) {
+            log(`Jumprole.change: value failed structure test (key: ${key})`);
+            log_stack(result, "Jumprole.change", DebugLogType.StructureCheckResult, false);
+            return;
+        }
+        switch (key) {
+            case "name": {
+                this.#_name = result.normalized as string;
+                break;
+            }
+            case "tier": {
+                this.tier = result.normalized as Tier;
+                break;
+            }
+            case "description": {
+                this.#_description = result.normalized as string;
+                break;
+            }
+            case "kingdom": {
+                this.#_kingdom = result.normalized as Kingdom | null;
+                break;
+            }
+            case "location": {
+                this.#_location = result.normalized as string;
+                break;
+            }
+            case "link": {
+                this.#_link = result.normalized as string;
+                break;
+            }
+            case "jump_type": {
+                this.#_jump_type = result.normalized as string;
+            }
         }
     }
 

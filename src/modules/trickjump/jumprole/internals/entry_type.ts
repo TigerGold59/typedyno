@@ -94,6 +94,20 @@ export type GetJumproleEntryByJumproleAndHolderResult =
     | { type: GetJumproleEntryByJumproleAndHolderResultType.Succeeded; entry: JumproleEntry }
     | { type: GetJumproleEntryByJumproleAndHolderFailureType };
 
+export const enum JumproleEntryUpToDateResultType {
+    UpToDate = "UpToDate",
+    Outdated = "Outdated",
+    QueryFailed = "QueryFailed",
+    NoMatchingJumps = "NoMatchingJumps",
+    GetJumproleFailed = "GetJumproleFailed",
+}
+
+export type JumproleEntryUpToDateNoActionType = Exclude<JumproleEntryUpToDateResultType, JumproleEntryUpToDateResultType.Outdated>;
+
+export type JumproleEntryUpToDateResult =
+    | { type: JumproleEntryUpToDateResultType.Outdated; last_updated: Date }
+    | { type: JumproleEntryUpToDateNoActionType };
+
 @validate_constructor
 export class JumproleEntry {
     readonly id: EntryTypes["id"];
@@ -186,7 +200,7 @@ export class JumproleEntry {
             return { type: RegisterJumproleEntryResultType.InvalidLink };
         }
 
-        const client = await use_client(queryable);
+        const client = await use_client(queryable, "JumproleEntry.Register");
 
         let existing_result = await JumproleEntry.Get(holder, jumprole, client);
 
@@ -278,8 +292,47 @@ export class JumproleEntry {
         }
     };
 
+    async up_to_date(queryable: Queryable<UsesClient>): Promise<JumproleEntryUpToDateResult> {
+        const client = await use_client(queryable, "JumproleEntry.up_to_date");
+        const jumprole_result = await Jumprole.WithID(this.jump_id, client);
+
+        switch (jumprole_result.type) {
+            case GetJumproleResultType.GetTierWithIDFailed: {
+                log("JumproleEntry.up_to_date Jumprole.WithID returned GetTierWithIDFailed. Returning.", LogType.Error);
+                client.handle_release();
+                return { type: JumproleEntryUpToDateResultType.GetJumproleFailed };
+            }
+            case GetJumproleResultType.NoneMatched: {
+                log(
+                    "JumproleEntry.up_to_date: Jumprole.WithID returned NoneMatched even though we are getting it with its ID. A possible error has occurred. Returning.",
+                    LogType.Error,
+                );
+                client.handle_release();
+                return { type: JumproleEntryUpToDateResultType.GetJumproleFailed };
+            }
+            case GetJumproleResultType.QueryFailed: {
+                client.handle_release();
+                return { type: JumproleEntryUpToDateResultType.QueryFailed };
+            }
+            case GetJumproleResultType.Success: {
+                let jumprole = jumprole_result.jumprole;
+
+                if (jumprole.hash !== this.#_jump_hash) {
+                    return { type: JumproleEntryUpToDateResultType.Outdated, last_updated: new Date(jumprole.updated_at * 1000) };
+                } else {
+                    return { type: JumproleEntryUpToDateResultType.UpToDate };
+                }
+            }
+            default: {
+                log(`JumproleEntry.up_to_date: reached default case with GetJumproleResultType.${jumprole_result.type}. Returning.`, LogType.Error);
+                client.handle_release();
+                return { type: JumproleEntryUpToDateResultType.GetJumproleFailed };
+            }
+        }
+    }
+
     async confirm(queryable: Queryable<UsesClient>): Promise<ConfirmJumproleEntryResult> {
-        const client = await use_client(queryable);
+        const client = await use_client(queryable, "JumproleEntry.confirm");
         const jumprole_result = await Jumprole.WithID(this.jump_id, client);
 
         switch (jumprole_result.type) {

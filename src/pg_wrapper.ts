@@ -27,19 +27,22 @@ export type Queryable<Use extends QueryableUseType> = Use extends UsesClient
     : PoolInstance | PoolClient | UsingClient;
 //export type Once = PoolInstance | PoolClient | UsingClient;
 
-const USING_CLIENT_DEBUG_MODE = true;
-const NOT_COLLECTED_CLIENT_ERROR_DELAY_MS = 500;
+const USING_CLIENT_DEBUG_MODE = false;
+const NOT_COLLECTED_CLIENT_ERROR_DELAY_MS = 2000;
 export class UsingClient {
     readonly client: NodePostgres.PoolClient;
     readonly responsible_for_release: boolean;
     //readonly query: NodePostgres.PoolClient["query"];
     #_setTimeout_handle = null as NodeJS.Timeout | null;
     readonly #_query: PoolClient["query"];
+    readonly #_name: string;
 
-    constructor(client: NodePostgres.PoolClient | UsingClient, responsible_for_release: boolean) {
+    constructor(client: NodePostgres.PoolClient | UsingClient, responsible_for_release: boolean, name: string) {
+        this.#_name = name;
         if (client instanceof UsingClient) {
             this.client = client.client;
             this.responsible_for_release = false;
+            this.#_name = name;
         } else {
             this.client = client;
             this.responsible_for_release = responsible_for_release;
@@ -72,7 +75,9 @@ export class UsingClient {
             }
             this.#_setTimeout_handle = setTimeout(() => {
                 throw new Error(
-                    `UsingClient: object release not handled after ${NOT_COLLECTED_CLIENT_ERROR_DELAY_MS.toString()}ms (possible PoolClient leak). Exiting process.`,
+                    `UsingClient: object release not handled after ${NOT_COLLECTED_CLIENT_ERROR_DELAY_MS.toString()}ms (possible PoolClient leak). Responsible function: ${
+                        this.#_name
+                    }. Exiting process.`,
                 );
             }, NOT_COLLECTED_CLIENT_ERROR_DELAY_MS);
         }
@@ -98,8 +103,8 @@ export class UsingClient {
     }
 }
 
-export const use_client = async (queryable: Queryable<UsesClient>, _name?: string): Promise<UsingClient> => {
+export const use_client = async (queryable: Queryable<UsesClient>, name: string): Promise<UsingClient> => {
     if (queryable instanceof Pool) {
-        return new UsingClient(await queryable.connect(), true);
-    } else return new UsingClient(queryable as PoolClient | UsingClient, false);
+        return new UsingClient(await queryable.connect(), true, name);
+    } else return new UsingClient(queryable as PoolClient | UsingClient, false, name);
 };
