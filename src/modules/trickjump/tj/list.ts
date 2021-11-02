@@ -1,7 +1,7 @@
 import { Client } from "discord.js";
 import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
 
-import { BotCommandProcessResults, BotCommandProcessResultType, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, Replier, Subcommand } from "../../../functions.js";
 import { validate } from "../../../module_decorators.js";
 import { log, LogType } from "../../../utilities/log.js";
 import { TJ } from "./tj_cmd.js";
@@ -47,11 +47,8 @@ export class TJList extends Subcommand<typeof TJList.manual> {
         _client: Client,
         queryable: Queryable<UsesClient>,
         prefix: string,
+        reply: Replier,
     ): Promise<BotCommandProcessResults> {
-        const reply = async function (response: string) {
-            await message.channel.send(`${prefix}tj list: ${response}`);
-        };
-
         const client = await use_client(queryable, "TJList.activate");
 
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
@@ -60,6 +57,8 @@ export class TJList extends Subcommand<typeof TJList.manual> {
         let proof_intention = values.proof === null ? false : values.proof;
 
         let entry_results = await JumproleEntry.WithHolderInServer(user_intention, message.guild.id, client);
+
+        client.handle_release();
 
         switch (entry_results.type) {
             case GetJumproleEntriesWithHolderResultType.Success: {
@@ -97,7 +96,7 @@ export class TJList extends Subcommand<typeof TJList.manual> {
                     let tier = list[0].jumprole.tier;
                     tail += `\n${tier.name}\n${"-".repeat(tier.name.length)}\n`;
                     for (const entry of list) {
-                        let out_of_date = (await entry.up_to_date()).type === JumproleEntryUpToDateResultType.Outdated;
+                        let out_of_date = entry.up_to_date().type === JumproleEntryUpToDateResultType.Outdated;
                         let date = new Date(entry.added_at * 1000);
                         tail += `${entry.jumprole.name} - given ${date.toDateString()}${
                             proof_intention ? ` - ${entry.link === null ? "no proof" : `link: ${entry.link}`}` : ""

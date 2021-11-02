@@ -1,7 +1,7 @@
 import { Client } from "discord.js";
 import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
 
-import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
 import { validate } from "../../../module_decorators.js";
 import { log, LogType } from "../../../utilities/log.js";
 import { TJ } from "./tj_cmd.js";
@@ -41,11 +41,8 @@ export class TJRemove extends Subcommand<typeof TJRemove.manual> {
         _client: Client,
         queryable: Queryable<UsesClient>,
         prefix: string,
+        reply: Replier,
     ): Promise<BotCommandProcessResults> {
-        const reply = async function (response: string) {
-            await message.channel.send(`${prefix}tj remove: ${response}`);
-        };
-
         const client = await use_client(queryable, "TJRemove.activate");
 
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };

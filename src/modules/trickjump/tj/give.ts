@@ -1,7 +1,7 @@
 import { Client } from "discord.js";
 import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
 
-import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
 import { validate } from "../../../module_decorators.js";
 import { log, LogType } from "../../../utilities/log.js";
 import { TJ } from "./tj_cmd.js";
@@ -47,11 +47,8 @@ export class TJGive extends Subcommand<typeof TJGive.manual> {
         _client: Client,
         queryable: Queryable<UsesClient>,
         prefix: string,
+        reply: Replier,
     ): Promise<BotCommandProcessResults> {
-        const reply = async function (response: string) {
-            await message.channel.send(`${prefix}tj give: ${response}`);
-        };
-
         const client = await use_client(queryable, "TJGive.activate");
 
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
@@ -107,6 +104,8 @@ export class TJGive extends Subcommand<typeof TJGive.manual> {
             case GetJumproleResultType.Success: {
                 let jumprole = jumprole_result.jumprole;
                 let result = await JumproleEntry.Register(message.author.id, jumprole, values.proof_link, client);
+
+                client.handle_release();
 
                 switch (result.type) {
                     case RegisterJumproleEntryResultType.JumproleEntryAlreadyExists: {

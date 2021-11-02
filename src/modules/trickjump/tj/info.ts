@@ -1,7 +1,7 @@
 import { Client, MessageEmbed } from "discord.js";
 import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
 
-import { BotCommandProcessResults, BotCommandProcessResultType, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, Replier, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 import { validate } from "../../../module_decorators.js";
 import { Permissions } from "../../../utilities/permissions.js";
@@ -41,20 +41,20 @@ export class TJInfo extends Subcommand<typeof TJInfo.manual> {
         discord_client: Client,
         queryable: Queryable<UsesClient>,
         prefix: string,
+        reply: Replier,
     ): Promise<BotCommandProcessResults> {
-        const reply = async function (response: string, use_prefix = true) {
-            await message.channel.send(`${use_prefix ? `${prefix}tj info: ` : ""}${response}`);
-        };
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
         const name = values.name;
 
         const client = await use_client(queryable, "TJInfo.activate");
 
         const instance = await Jumprole.Get(name, message.guild.id, client);
+
+        client.handle_release();
+
         switch (instance.type) {
             case GetJumproleResultType.InvalidName: {
                 await reply(`invalid jump name. Contact @${MAINTAINER_TAG} for help as this should have been caught earlier.`);
-                client.handle_release();
                 return { type: BotCommandProcessResultType.Invalid };
             }
             case GetJumproleResultType.InvalidServerSnowflake: {
@@ -65,7 +65,6 @@ export class TJInfo extends Subcommand<typeof TJInfo.manual> {
                 await reply(
                     `an unknown error caused Jumprole.Get to return GetJumproleResultType.InvalidServerSnowflake. Contact @${MAINTAINER_TAG} for help.`,
                 );
-                client.handle_release();
                 return failed;
             }
             case GetJumproleResultType.GetTierWithIDFailed: {
@@ -76,17 +75,14 @@ export class TJInfo extends Subcommand<typeof TJInfo.manual> {
                     `tj info: Jumprole.Get with arguments [${name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.GetTierWithIDFailed.`,
                     LogType.Error,
                 );
-                client.handle_release();
                 return failed;
             }
             case GetJumproleResultType.NoneMatched: {
                 await reply(`a jump with that name doesn't exist in this server. You can list all roles with \`${prefix}tj all\`.`);
-                client.handle_release();
                 return failed;
             }
             case GetJumproleResultType.QueryFailed: {
                 await reply(`an unknown error occurred (query failure). Contact @${MAINTAINER_TAG} for help.`);
-                client.handle_release();
                 return failed;
             }
             case GetJumproleResultType.Unknown: {
@@ -94,7 +90,6 @@ export class TJInfo extends Subcommand<typeof TJInfo.manual> {
                     `tj info: Jumprole.Get with arguments [${name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.Unknown.`,
                 );
                 await reply(`an unknown error occurred after Jumprole.Get. Contact @${MAINTAINER_TAG} for help.`);
-                client.handle_release();
                 return failed;
             }
             case GetJumproleResultType.Success: {
@@ -126,6 +121,7 @@ export class TJInfo extends Subcommand<typeof TJInfo.manual> {
                 }
                 embed.setDescription(`${embed.description}Description: \n${jump.description}\n\n`);
                 message.channel.send(embed);
+
                 return { type: BotCommandProcessResultType.Succeeded };
             }
         }

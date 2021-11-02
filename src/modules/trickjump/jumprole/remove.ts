@@ -1,7 +1,7 @@
 import { Client } from "discord.js";
 import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
 
-import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 import { validate } from "../../../module_decorators.js";
 import { Permissions } from "../../../utilities/permissions.js";
@@ -41,10 +41,8 @@ export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
         _client: Client,
         queryable: Queryable<UsesClient>,
         prefix: string,
+        reply: Replier,
     ): Promise<BotCommandProcessResults> {
-        const reply = async function (response: string, use_prefix = true) {
-            await message.channel.send(`${use_prefix ? `${prefix}jumprole remove: ` : ""}${response}`);
-        };
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
         const name = values.name;
 

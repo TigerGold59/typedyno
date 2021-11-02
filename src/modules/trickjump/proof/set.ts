@@ -1,7 +1,7 @@
 import { Client } from "discord.js";
 import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
 
-import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
 import { validate } from "../../../module_decorators.js";
 import { log, LogType } from "../../../utilities/log.js";
 import { Proof } from "./proof_cmd.js";
@@ -48,11 +48,8 @@ export class ProofSet extends Subcommand<typeof ProofSet.manual> {
         _client: Client,
         queryable: Queryable<UsesClient>,
         prefix: string,
+        reply: Replier,
     ): Promise<BotCommandProcessResults> {
-        const reply = async function (response: string) {
-            await message.channel.send(`${prefix}proof set: ${response}`);
-        };
-
         const client = await use_client(queryable, "ProofSet.activate");
 
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };

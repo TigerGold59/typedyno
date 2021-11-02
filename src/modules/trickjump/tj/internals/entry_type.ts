@@ -341,6 +341,7 @@ export class JumproleEntry {
                 return failed;
             }
             case GetJumproleResultType.Success: {
+                client.handle_release();
                 return {
                     type: GetJumproleResultType.Success,
                     entry: new JumproleEntry(
@@ -400,6 +401,7 @@ export class JumproleEntry {
                         break;
                     }
                     default: {
+                        client.handle_release();
                         return {
                             type: GetJumproleEntriesWithHolderResultType.GetJumproleFailed,
                             error: entry.type as GetJumproleFailureType,
@@ -409,9 +411,11 @@ export class JumproleEntry {
                 }
             }
 
+            client.handle_release();
             return { type: GetJumproleEntriesWithHolderResultType.Success, values: collected };
         } catch (err) {
             query_failure(`JumproleEntry.WithHolderInServer`, query_string, query_params, err);
+            client.handle_release();
             return { type: GetJumproleEntriesWithHolderResultType.QueryFailed };
         }
     };
@@ -428,7 +432,7 @@ export class JumproleEntry {
         }
     }
 
-    async up_to_date(): Promise<JumproleEntryUpToDateResult> {
+    up_to_date(): JumproleEntryUpToDateResult {
         let jumprole = this.jumprole;
 
         if (jumprole.hash !== this.#_jump_hash) {

@@ -377,8 +377,12 @@ export class Jumprole {
                 }
             }
 
+            client.handle_release();
+
             return { type: FromJumproleQueryResultType.Success, values: res };
         } catch (err) {
+            client.handle_release();
+
             return { type: FromJumproleQueryResultType.QueryFailed };
         }
     };

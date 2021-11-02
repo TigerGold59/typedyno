@@ -1,7 +1,7 @@
 import { Client } from "discord.js";
 import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
 
-import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
 import { validate } from "../../../module_decorators.js";
 import { TJ } from "./tj_cmd.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
@@ -38,12 +38,9 @@ export class TJSet extends Subcommand<typeof TJSet.manual> {
         message: TextChannelMessage,
         _client: Client,
         queryable: Queryable<UsesClient>,
-        prefix: string,
+        _prefix: string,
+        reply: Replier,
     ): Promise<BotCommandProcessResults> {
-        const reply = async function (response: string) {
-            await message.channel.send(`${prefix}tj set: ${response}`);
-        };
-
         const client = await use_client(queryable, "TJSet.activate");
 
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };

@@ -27,25 +27,29 @@ export type Queryable<Use extends QueryableUseType> = Use extends UsesClient
     : PoolInstance | PoolClient | UsingClient;
 //export type Once = PoolInstance | PoolClient | UsingClient;
 
-const USING_CLIENT_DEBUG_MODE = false;
+const USING_CLIENT_DEBUG_MODE = true;
 const NOT_COLLECTED_CLIENT_ERROR_DELAY_MS = 2000;
 export class UsingClient {
     readonly client: NodePostgres.PoolClient;
     readonly responsible_for_release: boolean;
     //readonly query: NodePostgres.PoolClient["query"];
-    #_setTimeout_handle = null as NodeJS.Timeout | null;
+    #_setTimeout_handle = { handle: null as NodeJS.Timeout | null };
     readonly #_query: PoolClient["query"];
     readonly #_name: string;
+    readonly #_names: string[];
 
     constructor(client: NodePostgres.PoolClient | UsingClient, responsible_for_release: boolean, name: string) {
         this.#_name = name;
         if (client instanceof UsingClient) {
+            this.#_name = client.#_name;
             this.client = client.client;
+            this.#_setTimeout_handle = client.#_setTimeout_handle;
             this.responsible_for_release = false;
-            this.#_name = name;
+            this.#_names = client.#_names.concat(name);
         } else {
             this.client = client;
             this.responsible_for_release = responsible_for_release;
+            this.#_names = [name];
         }
         this.#_query = this.client.query.bind(this.client);
     }
@@ -71,13 +75,13 @@ export class UsingClient {
     query(...args: unknown[]): Promise<QueryResult<QueryResultRow>> | void {
         if (USING_CLIENT_DEBUG_MODE) {
             if (this.#_setTimeout_handle !== null) {
-                clearTimeout(this.#_setTimeout_handle);
+                clearTimeout(this.#_setTimeout_handle.handle as NodeJS.Timeout);
             }
-            this.#_setTimeout_handle = setTimeout(() => {
+            this.#_setTimeout_handle.handle = setTimeout(() => {
                 throw new Error(
                     `UsingClient: object release not handled after ${NOT_COLLECTED_CLIENT_ERROR_DELAY_MS.toString()}ms (possible PoolClient leak). Responsible function: ${
                         this.#_name
-                    }. Exiting process.`,
+                    }. Hierarchy: ${this.#_names.join(", ")}. Exiting process.`,
                 );
             }, NOT_COLLECTED_CLIENT_ERROR_DELAY_MS);
         }
@@ -89,9 +93,9 @@ export class UsingClient {
     handle_release(): void {
         if (this.responsible_for_release) {
             if (USING_CLIENT_DEBUG_MODE) {
-                if (this.#_setTimeout_handle !== null) {
-                    clearTimeout(this.#_setTimeout_handle);
-                    this.#_setTimeout_handle = null;
+                if (this.#_setTimeout_handle.handle !== null) {
+                    clearTimeout(this.#_setTimeout_handle.handle as NodeJS.Timeout);
+                    this.#_setTimeout_handle.handle = null;
                 }
             }
             this.client.release();

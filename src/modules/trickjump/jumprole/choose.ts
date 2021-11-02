@@ -1,7 +1,7 @@
 import { Client } from "discord.js";
-import { PoolInstance as Pool } from "../../../pg_wrapper.js";
+import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
 
-import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 import { validate } from "../../../module_decorators.js";
 import { Permissions } from "../../../utilities/permissions.js";
@@ -43,20 +43,18 @@ export class JumproleChoose extends Subcommand<typeof JumproleChoose.manual> {
         values: ValidatedArguments<typeof JumproleChoose.manual>,
         message: TextChannelMessage,
         _client: Client,
-        pool: Pool,
+        queryable: Queryable<UsesClient>,
         prefix: string,
+        reply: Replier,
     ): Promise<BotCommandProcessResults> {
-        const reply = async function (response: string) {
-            await message.channel.send(response);
-        };
-
         const user_handle = create_designate_handle(message.author.id, message);
-        const status = await designate_user_status(user_handle, pool);
+        const client = await use_client(queryable, "JumproleChoose.activate");
+        const status = await designate_user_status(user_handle, client);
 
         if (status >= 2) {
             const query_params = [message.guild.id, values.channel_snowflake];
             try {
-                await pool.query(UPSERT_GUILD_JUMPROLE_CHANNEL, query_params);
+                await client.query(UPSERT_GUILD_JUMPROLE_CHANNEL, query_params);
                 await GiveCheck(message);
                 return { type: BotCommandProcessResultType.Succeeded };
             } catch (err) {

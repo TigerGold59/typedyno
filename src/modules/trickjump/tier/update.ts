@@ -1,5 +1,5 @@
 import { Client } from "discord.js";
-import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 import { validate } from "../../../module_decorators.js";
 import { null_to_undefined, TextChannelMessage } from "../../../utilities/typeutils.js";
@@ -52,11 +52,8 @@ export class TierUpdate extends Subcommand<typeof TierUpdate.manual> {
         _client: Client,
         queryable: Queryable<UsesClient>,
         prefix: string,
+        reply: Replier,
     ): Promise<BotCommandProcessResults> {
-        const reply = async function (response: string) {
-            await message.channel.send(`${prefix}tier update: ${response}`);
-        };
-
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
         const using_client = await use_client(queryable, "TierUpdate.activate");

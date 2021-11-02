@@ -14,7 +14,7 @@ import { GLOBAL_PREFIX, MODULES } from "./main.js";
 import { performance } from "perf_hooks";
 import { DebugLogType, log, LogType } from "./utilities/log.js";
 import { allowed, Permissions } from "./utilities/permissions.js";
-import { escape_reg_exp, is_string, is_text_channel, TextChannelMessage } from "./utilities/typeutils.js";
+import { escape_reg_exp, is_boolean, is_string, is_text_channel, TextChannelMessage } from "./utilities/typeutils.js";
 import { get_args, handle_GetArgsResult, is_call_of } from "./utilities/argument_processing/arguments.js";
 import { GetArgsResult, ValidatedArguments } from "./utilities/argument_processing/arguments_types.js";
 import { log_stack } from "./utilities/runtime_typeguard/runtime_typeguard.js";
@@ -86,6 +86,15 @@ export type ArgumentValues<Manual extends SubcommandManual> = Exclude<GetArgsRes
     }
 }*/
 
+export type Replier = (response: string, use_prefix?: boolean) => Promise<void>;
+
+export const MakeReplier = (message: TextChannelMessage, prefix: string, full_name: string) => {
+    return async (response: string, use_prefix?: boolean) => {
+        let use_prefix_intention = is_boolean(use_prefix) ? use_prefix : true;
+        await message.channel.send(`${use_prefix_intention ? `${prefix}${full_name}: ` : ""}${response}`);
+    };
+};
+
 export abstract class Subcommand<Manual extends SubcommandManual> extends BotCommand {
     readonly parent_manual: MultifacetedCommandManual;
 
@@ -120,6 +129,7 @@ export abstract class Subcommand<Manual extends SubcommandManual> extends BotCom
         client: Client,
         queryable: Queryable<UsesClient>,
         prefix: string,
+        reply: Replier,
     ): PromiseLike<BotCommandProcessResults>;
 
     async process(message: Message, client: Client, pool: Pool, prefix: string): Promise<BotCommandProcessResults> {
@@ -143,7 +153,14 @@ export abstract class Subcommand<Manual extends SubcommandManual> extends BotCom
                 return { type: BotCommandProcessResultType.Invalid };
             }
 
-            return await this.activate(values.normalized as ValidatedArguments<Manual>, message as TextChannelMessage, client, pool, prefix);
+            return await this.activate(
+                values.normalized as ValidatedArguments<Manual>,
+                message as TextChannelMessage,
+                client,
+                pool,
+                prefix,
+                MakeReplier(message, prefix, this.full_name()),
+            );
         } else {
             return { type: BotCommandProcessResultType.Unauthorized };
         }

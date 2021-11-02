@@ -1,8 +1,8 @@
 import "reflect-metadata";
-import { PoolInstance as Pool } from "./pg_wrapper.js";
+import { PoolInstance as Pool, Queryable, UsesClient } from "./pg_wrapper.js";
 import { ValidatedArguments } from "./utilities/argument_processing/arguments_types.js";
 import { get_args, get_first_matching_subcommand, handle_GetArgsResult } from "./utilities/argument_processing/arguments.js";
-import { BotCommand, BotCommandProcessResultType, BotCommandProcessResults, Subcommand } from "./functions.js";
+import { BotCommand, BotCommandProcessResultType, BotCommandProcessResults, Subcommand, Replier, MakeReplier } from "./functions.js";
 import { Client, Message } from "discord.js";
 import {
     CommandManualType,
@@ -142,6 +142,7 @@ export function automatic_dispatch<DispatchTargets extends Subcommand<Subcommand
                                     client,
                                     pool,
                                     prefix,
+                                    MakeReplier(message, prefix, args[subcommand_index as number].full_name()),
                                 ]);
                             }
                             default: {
@@ -174,8 +175,9 @@ type ActivateMethodType<Manual extends SubcommandManual> = (
     args: ValidatedArguments<Manual>,
     message: TextChannelMessage,
     client: Client,
-    pool: Pool,
+    queryable: Queryable<UsesClient>,
     prefix: string,
+    reply: Replier,
 ) => Promise<BotCommandProcessResults>;
 
 export function validate<Manual extends SubcommandManual>(
@@ -211,8 +213,9 @@ export function validate<Manual extends SubcommandManual>(
         args: ValidatedArguments<Manual>,
         message: Message,
         client: Client,
-        pool: Pool,
+        queryable: Queryable<UsesClient>,
         prefix: string,
+        _reply: Replier,
     ): Promise<BotCommandProcessResults> {
         const manual = manual_of(target);
         log(`manual is ${typeof manual}`, LogType.Status, DebugLogType.Decorators);
@@ -241,7 +244,14 @@ export function validate<Manual extends SubcommandManual>(
                 if (values.succeeded === false) return { type: BotCommandProcessResultType.Invalid };
 
                 if (is_text_channel(message)) {
-                    return await method_body.apply(this, [args, message, client, pool, prefix]);
+                    return await method_body.apply(this, [
+                        args,
+                        message,
+                        client,
+                        queryable,
+                        prefix,
+                        MakeReplier(message, prefix, target.full_name()),
+                    ]);
                 } else {
                     return {
                         type: BotCommandProcessResultType.Unauthorized,
@@ -250,13 +260,7 @@ export function validate<Manual extends SubcommandManual>(
                 }
             }
         }
-    } as (
-        args: ValidatedArguments<Manual>,
-        message: Message,
-        client: Client,
-        pool: Pool,
-        prefix: string | undefined,
-    ) => Promise<BotCommandProcessResults>;
+    } as ActivateMethodType<Manual>;
 
     return descriptor;
 }

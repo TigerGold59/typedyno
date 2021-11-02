@@ -1,5 +1,5 @@
 import { Client } from "discord.js";
-import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 import { validate } from "../../../module_decorators.js";
 import { TextChannelMessage } from "../../../utilities/typeutils.js";
@@ -46,11 +46,8 @@ export class TierCreate extends Subcommand<typeof TierCreate.manual> {
         _client: Client,
         queryable: Queryable<UsesClient>,
         prefix: string,
+        reply: Replier,
     ): Promise<BotCommandProcessResults> {
-        const reply = async function (response: string) {
-            await message.channel.send(`${prefix}tier create: ${response}`);
-        };
-
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
         const using_client = await use_client(queryable, "TierCreate.activate");
