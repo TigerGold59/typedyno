@@ -1,11 +1,11 @@
 import { Client } from "discord.js";
 import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
-import { validate } from "../../../module_decorators.js";
+
 import { TextChannelMessage } from "../../../utilities/typeutils.js";
 import { CreateTierResultType, Tier } from "./internals/tier_type.js";
 import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js";
-import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
+import { UsingClient } from "../../../pg_wrapper.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { Tier as TierCommand } from "./tier_cmd.js";
 
@@ -38,23 +38,18 @@ export class TierCreate extends Subcommand<typeof TierCreate.manual> {
 
     static readonly permissions = undefined;
 
-    @validate
     // eslint-disable-next-line complexity
     async activate(
         values: ValidatedArguments<typeof TierCreate.manual>,
         message: TextChannelMessage,
         _client: Client,
-        queryable: Queryable<UsesClient>,
+        using_client: UsingClient,
         prefix: string,
         reply: Replier,
     ): Promise<BotCommandProcessResults> {
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
-        const using_client = await use_client(queryable, "TierCreate.activate");
-
         const exists = await Tier.Create(message.guild.id, values.ordinal, values.name, using_client);
-
-        using_client.handle_release();
 
         switch (exists.result) {
             case CreateTierResultType.TierAlreadyExists: {

@@ -1,9 +1,8 @@
 import { Client } from "discord.js";
-import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
+import { UsingClient } from "../../../pg_wrapper.js";
 
 import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
-import { validate } from "../../../module_decorators.js";
 import { log, LogType } from "../../../utilities/log.js";
 import { Permissions } from "../../../utilities/permissions.js";
 //import { CreateJumproleResult, create_jumprole } from "./internals/jumprole_postgres.js";
@@ -64,41 +63,38 @@ export class JumproleCreate extends Subcommand<typeof JumproleCreate.manual> {
     static readonly no_use_no_see = false;
     static readonly permissions = undefined as Permissions | undefined;
 
-    @validate
     async activate(
         args: ValidatedArguments<typeof JumproleCreate.manual>,
         message: TextChannelMessage,
         _client: Client,
-        queryable: Queryable<UsesClient>,
+        pg_client: UsingClient,
         prefix: string,
         reply: Replier,
     ): Promise<BotCommandProcessResults> {
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
-        const client = await use_client(queryable, "JumproleCreate.activate");
-
-        const get_tier = await Tier.Get(args.tier, message.guild.id, client);
+        const get_tier = await Tier.Get(args.tier, message.guild.id, pg_client);
 
         switch (get_tier.result) {
             case GetTierResultType.InvalidName: {
                 await reply(`invalid tier name.`);
-                client.handle_release();
+
                 return failed;
             }
             case GetTierResultType.InvalidServer: {
                 await reply(`an unknown internal error caused message.guild.id to be an invalid Snowflake. Contact @${MAINTAINER_TAG} for help.`);
                 log(`jumprole create: Tier.get - an unknown internal error caused message.guild.id to be an invalid Snowflake.`, LogType.Error);
-                client.handle_release();
+
                 return failed;
             }
             case GetTierResultType.NoMatchingEntries: {
                 await reply(`no tier with name "${args.tier} exists in this server."`);
-                client.handle_release();
+
                 return failed;
             }
             case GetTierResultType.QueryFailed: {
                 await reply(`an unknown internal error caused the database query to fail. Contact @${MAINTAINER_TAG} for help.`);
-                client.handle_release();
+
                 return failed;
             }
             case GetTierResultType.Success: {
@@ -114,9 +110,8 @@ export class JumproleCreate extends Subcommand<typeof JumproleCreate.manual> {
                         added_by: message.author.id,
                         server: message.guild.id,
                     },
-                    queryable,
+                    pg_client,
                 );
-                client.handle_release();
 
                 switch (query_result.type) {
                     case CreateJumproleResultType.Success: {

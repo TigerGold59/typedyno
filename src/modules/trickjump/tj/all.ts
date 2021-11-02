@@ -1,8 +1,8 @@
 import { Client } from "discord.js";
-import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
+import { UsingClient } from "../../../pg_wrapper.js";
 
 import { BotCommandProcessResults, BotCommandProcessResultType, Replier, Subcommand } from "../../../functions.js";
-import { validate } from "../../../module_decorators.js";
+
 import { log, LogType } from "../../../utilities/log.js";
 import { TJ } from "./tj_cmd.js";
 import { is_string, TextChannelMessage } from "../../../utilities/typeutils.js";
@@ -26,21 +26,18 @@ export class TJAll extends Subcommand<typeof TJAll.manual> {
     static readonly no_use_no_see = false;
     static readonly permissions = undefined;
 
-    @validate
     // eslint-disable-next-line complexity
     async activate(
         _values: ValidatedArguments<typeof TJAll.manual>,
         message: TextChannelMessage,
         _client: Client,
-        queryable: Queryable<UsesClient>,
+        pg_client: UsingClient,
         _prefix: string,
         reply: Replier,
     ): Promise<BotCommandProcessResults> {
-        const client = await use_client(queryable, "TJAll.activate");
-
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
-        let entry_results = await Jumprole.InServer(message.guild.id, client);
+        let entry_results = await Jumprole.InServer(message.guild.id, pg_client);
 
         switch (entry_results.type) {
             case FromJumproleQueryResultType.Success: {

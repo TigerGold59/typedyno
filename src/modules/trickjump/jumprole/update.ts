@@ -1,9 +1,9 @@
 import { Client } from "discord.js";
-import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
+import { UsingClient } from "../../../pg_wrapper.js";
 
 import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
-import { validate } from "../../../module_decorators.js";
+
 import { log, LogType } from "../../../utilities/log.js";
 import { Permissions } from "../../../utilities/permissions.js";
 import { is_string, is_text_channel, TextChannelMessage } from "../../../utilities/typeutils.js";
@@ -92,13 +92,12 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
     static readonly no_use_no_see = false;
     static readonly permissions = undefined as Permissions | undefined;
 
-    @validate
     // eslint-disable-next-line complexity
     async activate(
         values: ValidatedArguments<typeof JumproleUpdate.manual>,
         message: TextChannelMessage,
         _client: Client,
-        queryable: Queryable<UsesClient>,
+        pg_client: UsingClient,
         prefix: string,
         reply: Replier,
     ): Promise<BotCommandProcessResults> {
@@ -116,33 +115,31 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
 
         const name_change_intention = values.new_name === null ? values.name : values.new_name;
 
-        const client = await use_client(queryable, "JumproleUpdate.activate");
-
         let tier_intention = undefined;
 
         if (values.tier !== null) {
-            const get_tier = await Tier.Get(values.tier, message.guild.id, client);
+            const get_tier = await Tier.Get(values.tier, message.guild.id, pg_client);
 
             switch (get_tier.result) {
                 case GetTierResultType.InvalidName: {
                     await reply(`invalid tier name.`);
-                    client.handle_release();
+
                     return failed;
                 }
                 case GetTierResultType.InvalidServer: {
                     await reply(`an unknown internal error caused message.guild.id to be an invalid Snowflake. Contact @${MAINTAINER_TAG} for help.`);
                     log(`jumprole set: Tier.get - an unknown internal error caused message.guild.id to be an invalid Snowflake.`, LogType.Error);
-                    client.handle_release();
+
                     return failed;
                 }
                 case GetTierResultType.NoMatchingEntries: {
                     await reply(`no tier with name "${values.tier}" exists in this server.`);
-                    client.handle_release();
+
                     return failed;
                 }
                 case GetTierResultType.QueryFailed: {
                     await reply(`an unknown internal error caused the database query to fail. Contact @${MAINTAINER_TAG} for help.`);
-                    client.handle_release();
+
                     return failed;
                 }
                 case GetTierResultType.Success: {
@@ -163,12 +160,12 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
             description: values.description === null ? undefined : values.description,
         };
 
-        const get_result = await Jumprole.Get(values.name, message.guild.id, client);
+        const get_result = await Jumprole.Get(values.name, message.guild.id, pg_client);
 
         switch (get_result.type) {
             case GetJumproleResultType.InvalidName: {
                 await reply(`invalid jump name. Contact @${MAINTAINER_TAG} for help as this should have been caught earlier.`);
-                client.handle_release();
+
                 return { type: BotCommandProcessResultType.Invalid };
             }
             case GetJumproleResultType.InvalidServerSnowflake: {
@@ -179,17 +176,17 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
                 await reply(
                     `an unknown error caused Jumprole.Get to return GetJumproleResultType.InvalidServerSnowflake. Contact @${MAINTAINER_TAG} for help.`,
                 );
-                client.handle_release();
+
                 return failed;
             }
             case GetJumproleResultType.NoneMatched: {
                 await reply(`a jump with that name doesn't exist in this server. You can list all roles with \`${prefix}tj all\`.`);
-                client.handle_release();
+
                 return failed;
             }
             case GetJumproleResultType.QueryFailed: {
                 await reply(`an unknown error occurred (query failure). Contact @${MAINTAINER_TAG} for help.`);
-                client.handle_release();
+
                 return failed;
             }
             case GetJumproleResultType.GetTierWithIDFailed: {
@@ -200,7 +197,7 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
                     `jumprole update: Jumprole.Get with arguments [${values.name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.GetTierWithIDFailed.`,
                     LogType.Error,
                 );
-                client.handle_release();
+
                 return failed;
             }
             case GetJumproleResultType.Unknown: {
@@ -208,12 +205,12 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
                     `jumprole update: Jumprole.Get with arguments [${values.name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.Unknown.`,
                 );
                 await reply(`an unknown error occurred after Jumprole.Get. Contact @${MAINTAINER_TAG} for help.`);
-                client.handle_release();
+
                 return failed;
             }
             case GetJumproleResultType.Success: {
-                const result = await get_result.jumprole.update(jumprole_object, client);
-                client.handle_release();
+                const result = await get_result.jumprole.update(jumprole_object, pg_client);
+
                 switch (result) {
                     case ModifyJumproleResult.Success: {
                         await GiveCheck(message);

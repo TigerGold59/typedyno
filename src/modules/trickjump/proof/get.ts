@@ -1,8 +1,8 @@
 import { Client } from "discord.js";
-import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
+import { UsingClient } from "../../../pg_wrapper.js";
 
 import { BotCommandProcessResults, BotCommandProcessResultType, Replier, Subcommand } from "../../../functions.js";
-import { validate } from "../../../module_decorators.js";
+
 import { log, LogType } from "../../../utilities/log.js";
 import { Proof } from "./proof_cmd.js";
 import { MAINTAINER_TAG } from "../../../main.js";
@@ -38,26 +38,23 @@ export class ProofGet extends Subcommand<typeof ProofGet.manual> {
     static readonly no_use_no_see = false;
     static readonly permissions = undefined;
 
-    @validate
     // eslint-disable-next-line complexity
     async activate(
         values: ValidatedArguments<typeof ProofGet.manual>,
         message: TextChannelMessage,
         _client: Client,
-        queryable: Queryable<UsesClient>,
+        pg_client: UsingClient,
         prefix: string,
         reply: Replier,
     ): Promise<BotCommandProcessResults> {
-        const client = await use_client(queryable, "ProofGet.activate");
-
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
-        let jumprole_result = await Jumprole.Get(values.jumprole_name, message.guild.id, client);
+        let jumprole_result = await Jumprole.Get(values.jumprole_name, message.guild.id, pg_client);
 
         switch (jumprole_result.type) {
             case GetJumproleResultType.InvalidName: {
                 await reply(`invalid jump name. Contact @${MAINTAINER_TAG} for help as this should have been caught earlier.`);
-                client.handle_release();
+
                 return { type: BotCommandProcessResultType.Invalid };
             }
             case GetJumproleResultType.InvalidServerSnowflake: {
@@ -68,7 +65,7 @@ export class ProofGet extends Subcommand<typeof ProofGet.manual> {
                 await reply(
                     `an unknown error caused Jumprole.Get to return GetJumproleResultType.InvalidServerSnowflake. Contact @${MAINTAINER_TAG} for help.`,
                 );
-                client.handle_release();
+
                 return failed;
             }
             case GetJumproleResultType.GetTierWithIDFailed: {
@@ -79,17 +76,17 @@ export class ProofGet extends Subcommand<typeof ProofGet.manual> {
                     `proof get: Jumprole.Get with arguments [${values.jumprole_name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.GetTierWithIDFailed.`,
                     LogType.Error,
                 );
-                client.handle_release();
+
                 return failed;
             }
             case GetJumproleResultType.NoneMatched: {
                 await reply(`a jump with that name doesn't exist in this server. You can list all roles with \`${prefix}tj all\`.`);
-                client.handle_release();
+
                 return failed;
             }
             case GetJumproleResultType.QueryFailed: {
                 await reply(`an unknown error occurred (query failure). Contact @${MAINTAINER_TAG} for help.`);
-                client.handle_release();
+
                 return failed;
             }
             case GetJumproleResultType.Unknown: {
@@ -97,13 +94,13 @@ export class ProofGet extends Subcommand<typeof ProofGet.manual> {
                     `proof get: Jumprole.Get with arguments [${values.jumprole_name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.Unknown.`,
                 );
                 await reply(`an unknown error occurred after Jumprole.Get. Contact @${MAINTAINER_TAG} for help.`);
-                client.handle_release();
+
                 return failed;
             }
             case GetJumproleResultType.Success: {
                 let jumprole = jumprole_result.jumprole;
                 let user_intention = values.source === null ? message.author.id : values.source;
-                let result = await JumproleEntry.Get(user_intention, jumprole_result.jumprole, client);
+                let result = await JumproleEntry.Get(user_intention, jumprole_result.jumprole, pg_client);
 
                 switch (result.type) {
                     case GetJumproleEntryByJumproleAndHolderResultType.NoneMatched: {

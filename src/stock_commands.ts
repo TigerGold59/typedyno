@@ -2,7 +2,7 @@
 await new Promise((res, _rej) => setInterval(res, 2000));
 
 import { Permissions } from "./utilities/permissions.js";
-import { MakesSingleRequest, Queryable, UsesClient, use_client } from "./pg_wrapper.js";
+import { MakesSingleRequest, Queryable, UsingClient } from "./pg_wrapper.js";
 import { make_manual } from "./command_manual.js";
 
 import { Client, Guild, Message } from "discord.js";
@@ -14,17 +14,16 @@ import {
     designate_set_user,
     designate_user_status,
 } from "./designate.js";
-import { BotCommand, BotCommandProcessResultType, BotCommandProcessResults, GiveCheck, Subcommand } from "./functions.js";
+import { BotCommand, BotCommandProcessResultType, BotCommandProcessResults, GiveCheck, Subcommand, Replier } from "./functions.js";
 import { Paste, url } from "./integrations/paste_ee.js";
-import { CONFIG } from "./config.js";
 
 import { SetPrefixNonStringResult, get_prefix, set_prefix } from "./integrations/server_prefixes.js";
 import { GLOBAL_PREFIX, MAINTAINER_TAG } from "./main.js";
-import { automatic_dispatch, validate, value } from "./module_decorators.js";
+import { automatic_dispatch, value } from "./module_decorators.js";
 import { ValidatedArguments } from "./utilities/argument_processing/arguments_types.js";
 import { DebugLogType, LogType, log } from "./utilities/log.js";
 import * as RT from "./utilities/runtime_typeguard/standard_structures.js";
-import { is_string, safe_serialize } from "./utilities/typeutils.js";
+import { is_string, safe_serialize, TextChannelMessage } from "./utilities/typeutils.js";
 
 export class GetCommands extends BotCommand {
     constructor() {
@@ -82,14 +81,16 @@ export class PrefixGet extends Subcommand<typeof PrefixGet.manual> {
     static readonly no_use_no_see = false;
     static readonly permissions = undefined as Permissions | undefined;
 
-    @validate async activate(
+    async activate(
         _args: ValidatedArguments<typeof PrefixGet.manual>,
         message: Message,
         _client: Client,
-        queryable: Queryable<MakesSingleRequest>,
+        pg_client: UsingClient,
         _prefix: string,
+        _reply: Replier,
     ): Promise<BotCommandProcessResults> {
-        const prefix_result = await get_prefix(message.guild, queryable);
+        const prefix_result = await get_prefix(message.guild, pg_client);
+
         if (prefix_result.trim() === GLOBAL_PREFIX.trim()) {
             await message.channel.send(`The global prefix is "${prefix_result}" and it hasn't been changed locally, but you already knew that.`);
             return {
@@ -132,53 +133,66 @@ export class PrefixSet extends Subcommand<typeof PrefixSet.manual> {
     static readonly no_use_no_see = false;
     static readonly permissions = undefined as Permissions | undefined;
 
-    @validate async activate(
+    async activate(
         args: ValidatedArguments<typeof PrefixSet.manual>,
-        message: Message,
+        message: TextChannelMessage,
         client: Client,
-        queryable: Queryable<MakesSingleRequest>,
+        pg_client: UsingClient,
         _prefix: string,
+        _reply: Replier,
     ): Promise<BotCommandProcessResults> {
-        if (CONFIG.admins.includes(message.author.id)) {
-            const result = await set_prefix(
-                args.guild_id === null ? (message.guild as Guild) : await client.guilds.fetch(args.guild_id),
-                args.new_prefix,
-                queryable,
-            );
+        let designate_status = await designate_user_status({ user: message.author.id, server: message.guild.id }, pg_client);
+        switch (designate_status) {
+            case DesignateUserStatus.FullAccess:
+            case DesignateUserStatus.UserIsAdmin: {
+                const result = await set_prefix(
+                    args.guild_id === null ? (message.guild as Guild) : await client.guilds.fetch(args.guild_id),
+                    args.new_prefix,
+                    pg_client,
+                );
 
-            if (result.did_succeed) {
-                const confirmed = await GiveCheck(message);
-                if (confirmed === true) {
-                    return {
-                        type: BotCommandProcessResultType.Succeeded,
-                    };
+                if (result.did_succeed) {
+                    const confirmed = await GiveCheck(message);
+                    if (confirmed === true) {
+                        return {
+                            type: BotCommandProcessResultType.Succeeded,
+                        };
+                    } else {
+                        return {
+                            type: BotCommandProcessResultType.DidNotSucceed,
+                        };
+                    }
                 } else {
-                    return {
-                        type: BotCommandProcessResultType.DidNotSucceed,
-                    };
-                }
-            } else {
-                if (result.result === SetPrefixNonStringResult.LocalPrefixArgumentSameAsGlobalPrefix) {
-                    await message.channel.send(
-                        "Setting a local prefix the same as the global prefix is not allowed for flexibility reasons. However, since the prefix you wanted to set was already the prefix, you can use it just like you would if this command had worked.",
-                    );
-                    return {
-                        type: BotCommandProcessResultType.Succeeded,
-                    };
-                } else {
-                    await message.channel.send(`set_prefix failed: contact ${MAINTAINER_TAG} for help fixing this error.`);
-                    log(`set_prefix unexpectedly threw an error:`, LogType.Error);
-                    log(result.result, LogType.Error);
-                    return {
-                        type: BotCommandProcessResultType.DidNotSucceed,
-                    };
+                    if (result.result === SetPrefixNonStringResult.LocalPrefixArgumentSameAsGlobalPrefix) {
+                        await message.channel.send(
+                            "Setting a local prefix the same as the global prefix is not allowed for flexibility reasons. However, since the prefix you wanted to set was already the prefix, you can use it just like you would if this command had worked.",
+                        );
+                        return {
+                            type: BotCommandProcessResultType.Succeeded,
+                        };
+                    } else {
+                        await message.channel.send(`set_prefix failed: contact ${MAINTAINER_TAG} for help fixing this error.`);
+                        log(`set_prefix unexpectedly threw an error:`, LogType.Error);
+                        log(result.result, LogType.Error);
+                        return {
+                            type: BotCommandProcessResultType.DidNotSucceed,
+                        };
+                    }
                 }
             }
-        } else {
-            return {
-                type: BotCommandProcessResultType.Unauthorized,
-                not_authorized_message: "You must be a bot admin or otherwise authorized person to set a server prefix.",
-            };
+            case DesignateUserStatus.UserNotInRegistry:
+            case DesignateUserStatus.InvalidHandle: {
+                return {
+                    type: BotCommandProcessResultType.Unauthorized,
+                    not_authorized_message: "You were not found in the authorized users database, so your authority could not verified.",
+                };
+            }
+            case DesignateUserStatus.NoFullAccess: {
+                return {
+                    type: BotCommandProcessResultType.Unauthorized,
+                    not_authorized_message: "You must be a bot admin or fully authorized (designated) person to set a server prefix.",
+                };
+            }
         }
     }
 }
@@ -267,27 +281,25 @@ export class DesignateSet extends Subcommand<typeof DesignateSet.manual> {
     static readonly no_use_no_see = true;
     static readonly permissions = undefined as Permissions | undefined;
 
-    @validate async activate(
+    async activate(
         args: ValidatedArguments<typeof DesignateSet.manual>,
         message: Message,
         _client: Client,
-        queryable: Queryable<UsesClient>,
+        pg_client: UsingClient,
         prefix: string,
     ): Promise<BotCommandProcessResults> {
         const reply = async (response: string): Promise<void> => {
             await message.channel.send(response);
         };
 
-        const client = await use_client(queryable, "DesignateSet.activate");
-
         const target_handle = create_designate_handle(args.user_snowflake, message);
         const asker_handle = create_designate_handle(message.author.id, message);
-        const user_status = await designate_user_status(asker_handle, client);
+        const user_status = await designate_user_status(asker_handle, pg_client);
         const intention = args.allow_designating === true;
         switch (user_status) {
             case DesignateUserStatus.UserIsAdmin:
             case DesignateUserStatus.FullAccess: {
-                const new_status = await designate_set_user(target_handle, intention, client);
+                const new_status = await designate_set_user(target_handle, intention, pg_client);
                 switch (new_status) {
                     case null: {
                         await reply(`${prefix}designate set: an internal error occurred (query failure). Contact @${MAINTAINER_TAG} for help.`);
@@ -350,26 +362,24 @@ export class DesignateRemove extends Subcommand<typeof DesignateRemove.manual> {
     static readonly no_use_no_see = true;
     static readonly permissions = undefined as Permissions | undefined;
 
-    @validate async activate(
+    async activate(
         args: ValidatedArguments<typeof DesignateSet.manual>,
         message: Message,
         _client: Client,
-        queryable: Queryable<UsesClient>,
+        pg_client: UsingClient,
         prefix: string,
     ): Promise<BotCommandProcessResults> {
         const reply = async (response: string): Promise<void> => {
             await message.channel.send(response);
         };
 
-        const client = await use_client(queryable, "DesignateRemove.activate");
-
         const target_handle = create_designate_handle(args.user_snowflake, message);
         const asker_handle = create_designate_handle(message.author.id, message);
-        const user_status = await designate_user_status(asker_handle, client);
+        const user_status = await designate_user_status(asker_handle, pg_client);
         switch (user_status) {
             case DesignateUserStatus.UserIsAdmin:
             case DesignateUserStatus.FullAccess: {
-                const result = await designate_remove_user(target_handle, client);
+                const result = await designate_remove_user(target_handle, pg_client);
                 switch (result) {
                     case DesignateRemoveUserResult.UserAlreadyNotInRegistry: {
                         await reply(`${prefix}designate remove: User already had no designate privileges.`);
@@ -438,7 +448,7 @@ export class DesignateGet extends Subcommand<typeof DesignateGet.manual> {
     static readonly no_use_no_see = false;
     static readonly permissions = undefined;
 
-    @validate async activate(
+    async activate(
         args: ValidatedArguments<typeof DesignateGet.manual>,
         message: Message,
         _client: Client,

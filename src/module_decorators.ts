@@ -1,21 +1,19 @@
 import "reflect-metadata";
-import { PoolInstance as Pool, Queryable, UsesClient } from "./pg_wrapper.js";
-import { ValidatedArguments } from "./utilities/argument_processing/arguments_types.js";
+import { PoolInstance as Pool } from "./pg_wrapper.js";
 import { get_args, get_first_matching_subcommand, handle_GetArgsResult } from "./utilities/argument_processing/arguments.js";
-import { BotCommand, BotCommandProcessResultType, BotCommandProcessResults, Subcommand, Replier, MakeReplier } from "./functions.js";
+import { BotCommand, BotCommandProcessResultType, BotCommandProcessResults, Subcommand } from "./functions.js";
 import { Client, Message } from "discord.js";
 import {
     CommandManualType,
     CommandManualValidation,
     MultifacetedCommandManual,
     SubcommandManual,
-    get_type,
     argument_structure_from_manual,
     indent,
 } from "./command_manual.js";
 import { DebugLogType, LogType, log } from "./utilities/log.js";
 import { Structure, NormalizedStructure, AnyStructure, log_stack } from "./utilities/runtime_typeguard/runtime_typeguard.js";
-import { is_text_channel, safe_serialize, TextChannelMessage } from "./utilities/typeutils.js";
+import { is_text_channel, safe_serialize } from "./utilities/typeutils.js";
 
 type ClassType<Instance extends unknown> = (new (...args: unknown[]) => Instance) & { prototype: Instance };
 // type ConcreteClassType<Instance extends object> = new (...args: any[]) => Instance & { prototype: Instance };
@@ -136,13 +134,12 @@ export function automatic_dispatch<DispatchTargets extends Subcommand<Subcommand
                         const should_call_subcommand = await method_body.apply(this, [message, client, pool, prefix]);
                         switch (should_call_subcommand.type) {
                             case BotCommandProcessResultType.PassThrough: {
-                                return await args[subcommand_index as number].activate.apply(this, [
+                                return await args[subcommand_index as number].run_activate.apply(this, [
                                     result.normalized,
                                     message,
                                     client,
                                     pool,
                                     prefix,
-                                    MakeReplier(message, prefix, args[subcommand_index as number].full_name()),
                                 ]);
                             }
                             default: {
@@ -168,101 +165,6 @@ export function automatic_dispatch<DispatchTargets extends Subcommand<Subcommand
             }
         };
     } as MethodDecorator;
-}
-
-type ActivateMethodType<Manual extends SubcommandManual> = (
-    this: Subcommand<Manual>,
-    args: ValidatedArguments<Manual>,
-    message: TextChannelMessage,
-    client: Client,
-    queryable: Queryable<UsesClient>,
-    prefix: string,
-    reply: Replier,
-) => Promise<BotCommandProcessResults>;
-
-export function validate<Manual extends SubcommandManual>(
-    target: Subcommand<Manual>,
-    _property_key: string | symbol,
-    descriptor: TypedPropertyDescriptor<ActivateMethodType<Manual>>,
-): TypedPropertyDescriptor<ActivateMethodType<Manual>> {
-    const target_name = target.constructor.name;
-    log(`validate decorator: applying to target with class name ${target_name}...`, LogType.Status, DebugLogType.Decorators);
-    const method_body = descriptor.value;
-    if (method_body === undefined) {
-        log("validate decorator: applied to method which took value of undefined (what?). Throwing a TypeError (unacceptable)", LogType.Error);
-        throw new TypeError(`Invalid application of method_body decorator to undefined method "${target_name}"`);
-    }
-    if (subclasses(target.constructor, Subcommand) === false) {
-        log(
-            `validate decorator: applied to constructor "${target_name}" which doesn't extend Subcommand. Throwing a TypeError (unacceptable)`,
-            LogType.Error,
-        );
-        throw new TypeError(`Invalid application of automatic_dispatch decorator to non-Subcommand type "${target_name}"`);
-    }
-    if (method_body instanceof Function === false) {
-        log("validate decorator: applied to non-method object. Throwing a TypeError (unacceptable)", LogType.Error);
-        throw new TypeError(`Invalid application of validate decorator to non-method (class: "${target_name})"`);
-    }
-    if (method_body.name !== "activate") {
-        log("validate decorator: applied to non-activate method. Throwing a TypeError (unacceptable)", LogType.Error);
-        throw new TypeError(`Invalid application of validate decorator to non-activate method "${method_body.name}"`);
-    }
-
-    descriptor.value = async function activate(
-        this: Subcommand<Manual>,
-        args: ValidatedArguments<Manual>,
-        message: Message,
-        client: Client,
-        queryable: Queryable<UsesClient>,
-        prefix: string,
-        _reply: Replier,
-    ): Promise<BotCommandProcessResults> {
-        const manual = manual_of(target);
-        log(`manual is ${typeof manual}`, LogType.Status, DebugLogType.Decorators);
-        log(safe_serialize(manual), LogType.Status, DebugLogType.Decorators);
-        const manual_type = get_type(manual);
-
-        switch (manual_type) {
-            case CommandManualType.Invalid: {
-                log(
-                    `validate decorator: applied with invalid manual on class target with class name "${target.constructor.name}"! Throwing a TypeError (unacceptable)`,
-                    LogType.Error,
-                );
-                throw new TypeError("Invalid application of validate decorator to class target with no valid manual");
-            }
-            case CommandManualType.MultifacetedCommandManual: {
-                log(
-                    "validate decorator: applied to Subcommand subclass that had a manual type of MultifacetedCommandManual! Throwing a TypeError (unacceptable)",
-                    LogType.Error,
-                );
-                throw new TypeError("Invalid application of validate decorator to Subcommand subclass with manual type MultifacetedCommandManual");
-            }
-            case CommandManualType.SimpleCommandManual: {
-                const spec = argument_structure_from_manual(manual as SubcommandManual);
-                const values = spec.check(args);
-
-                if (values.succeeded === false) return { type: BotCommandProcessResultType.Invalid };
-
-                if (is_text_channel(message)) {
-                    return await method_body.apply(this, [
-                        args,
-                        message,
-                        client,
-                        queryable,
-                        prefix,
-                        MakeReplier(message, prefix, target.full_name()),
-                    ]);
-                } else {
-                    return {
-                        type: BotCommandProcessResultType.Unauthorized,
-                        not_authorized_message: "The command was used in a channel that either wasn't in a server or wasn't a text channel.",
-                    };
-                }
-            }
-        }
-    } as ActivateMethodType<Manual>;
-
-    return descriptor;
 }
 
 const StructureMetadataKey = Symbol("ParamType metadata key");

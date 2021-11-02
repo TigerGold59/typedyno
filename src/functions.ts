@@ -1,5 +1,5 @@
 import { Message, Client } from "discord.js";
-import { PoolInstance as Pool, Queryable, UsesClient } from "./pg_wrapper.js";
+import { MakesSingleRequest, PoolInstance as Pool, Queryable, UsesClient, use_client, UsingClient } from "./pg_wrapper.js";
 import {
     CommandManual,
     manual_of,
@@ -127,10 +127,48 @@ export abstract class Subcommand<Manual extends SubcommandManual> extends BotCom
         values: ValidatedArguments<Manual>,
         message: TextChannelMessage,
         client: Client,
-        queryable: Queryable<UsesClient>,
+        pg_client: UsingClient,
         prefix: string,
         reply: Replier,
     ): PromiseLike<BotCommandProcessResults>;
+
+    uppercase_name() {
+        let parts = this.full_name().split(" ");
+
+        return parts
+            .map(str => {
+                let char = str[0];
+                return char.toUpperCase() + str.slice(1);
+            })
+            .join("");
+    }
+
+    async run_activate(
+        args: ValidatedArguments<Manual>,
+        message: TextChannelMessage,
+        client: Client,
+        queryable: Queryable<MakesSingleRequest>,
+        prefix: string,
+    ): Promise<BotCommandProcessResults> {
+        const pg_client = await use_client(queryable, `${this.uppercase_name()}.activate`);
+        const manual = manual_of(this);
+        const spec = argument_structure_from_manual(manual as SubcommandManual);
+        const values = spec.check(args);
+
+        if (values.succeeded === false) return { type: BotCommandProcessResultType.Invalid };
+
+        if (is_text_channel(message)) {
+            let result = await this.activate(args, message, client, pg_client, prefix, MakeReplier(message, prefix, this.full_name()));
+
+            pg_client.handle_release();
+            return result;
+        } else {
+            return {
+                type: BotCommandProcessResultType.Unauthorized,
+                not_authorized_message: "The command was used in a channel that either wasn't in a server or wasn't a text channel.",
+            };
+        }
+    }
 
     async process(message: Message, client: Client, pool: Pool, prefix: string): Promise<BotCommandProcessResults> {
         const manual = manual_of(this) as SubcommandManual;
@@ -153,14 +191,19 @@ export abstract class Subcommand<Manual extends SubcommandManual> extends BotCom
                 return { type: BotCommandProcessResultType.Invalid };
             }
 
-            return await this.activate(
+            let pg_client = await use_client(pool, this.full_name());
+
+            let activate_result = await this.run_activate(
                 values.normalized as ValidatedArguments<Manual>,
                 message as TextChannelMessage,
                 client,
-                pool,
+                pg_client,
                 prefix,
-                MakeReplier(message, prefix, this.full_name()),
             );
+
+            pg_client.handle_release();
+
+            return activate_result;
         } else {
             return { type: BotCommandProcessResultType.Unauthorized };
         }

@@ -1,4 +1,4 @@
-import { validate_constructor, type } from "../../../../module_decorators.js";
+import { type } from "../../../../module_decorators.js";
 import { MakesSingleRequest, Queryable, UsesClient, use_client } from "../../../../pg_wrapper.js";
 import { log, LogType } from "../../../../utilities/log.js";
 import { Snowflake } from "../../../../utilities/permissions.js";
@@ -65,8 +65,6 @@ export const enum DeleteTierResultType {
     QueryFailed = "QueryFailed",
     Success = "Success",
 }
-
-@validate_constructor
 export class Tier {
     readonly id: number;
     readonly server: Snowflake;

@@ -1,8 +1,8 @@
 import { Client } from "discord.js";
-import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
+import { UsingClient } from "../../../pg_wrapper.js";
 
 import { BotCommandProcessResults, BotCommandProcessResultType, Replier, Subcommand } from "../../../functions.js";
-import { validate } from "../../../module_decorators.js";
+
 import { log, LogType } from "../../../utilities/log.js";
 import { TJ } from "./tj_cmd.js";
 import { is_string, TextChannelMessage } from "../../../utilities/typeutils.js";
@@ -33,18 +33,15 @@ export class TJMissing extends Subcommand<typeof TJMissing.manual> {
     static readonly no_use_no_see = false;
     static readonly permissions = undefined;
 
-    @validate
     // eslint-disable-next-line complexity
     async activate(
         values: ValidatedArguments<typeof TJMissing.manual>,
         message: TextChannelMessage,
         _client: Client,
-        queryable: Queryable<UsesClient>,
+        pg_client: UsingClient,
         _prefix: string,
         reply: Replier,
     ): Promise<BotCommandProcessResults> {
-        const client = await use_client(queryable, "TJMissing.activate");
-
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
         let user_intention = values.source === null ? message.author.id : values.source;
@@ -57,10 +54,8 @@ export class TJMissing extends Subcommand<typeof TJMissing.manual> {
         let entry_results = await Jumprole.FromQuery(
             `SELECT * FROM trickjump_jumps WHERE server=$1 AND NOT EXISTS (SELECT * FROM trickjump_entries WHERE server=$2 AND holder=$3 AND trickjump_entries.jump_id=trickjump_jumps.id)`,
             [message.guild.id, message.guild.id, user_intention],
-            client,
+            pg_client,
         );
-
-        client.handle_release();
 
         switch (entry_results.type) {
             case FromJumproleQueryResultType.Success: {

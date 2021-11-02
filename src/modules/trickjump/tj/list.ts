@@ -1,8 +1,8 @@
 import { Client } from "discord.js";
-import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
+import { UsingClient } from "../../../pg_wrapper.js";
 
 import { BotCommandProcessResults, BotCommandProcessResultType, Replier, Subcommand } from "../../../functions.js";
-import { validate } from "../../../module_decorators.js";
+
 import { log, LogType } from "../../../utilities/log.js";
 import { TJ } from "./tj_cmd.js";
 import { is_string, TextChannelMessage } from "../../../utilities/typeutils.js";
@@ -39,26 +39,21 @@ export class TJList extends Subcommand<typeof TJList.manual> {
     static readonly no_use_no_see = false;
     static readonly permissions = undefined;
 
-    @validate
     // eslint-disable-next-line complexity
     async activate(
         values: ValidatedArguments<typeof TJList.manual>,
         message: TextChannelMessage,
         _client: Client,
-        queryable: Queryable<UsesClient>,
+        pg_client: UsingClient,
         prefix: string,
         reply: Replier,
     ): Promise<BotCommandProcessResults> {
-        const client = await use_client(queryable, "TJList.activate");
-
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
         let user_intention = values.source === null ? message.author.id : values.source;
         let proof_intention = values.proof === null ? false : values.proof;
 
-        let entry_results = await JumproleEntry.WithHolderInServer(user_intention, message.guild.id, client);
-
-        client.handle_release();
+        let entry_results = await JumproleEntry.WithHolderInServer(user_intention, message.guild.id, pg_client);
 
         switch (entry_results.type) {
             case GetJumproleEntriesWithHolderResultType.Success: {

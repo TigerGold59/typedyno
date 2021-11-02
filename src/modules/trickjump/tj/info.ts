@@ -1,9 +1,9 @@
 import { Client, MessageEmbed } from "discord.js";
-import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
+import { UsingClient } from "../../../pg_wrapper.js";
 
 import { BotCommandProcessResults, BotCommandProcessResultType, Replier, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
-import { validate } from "../../../module_decorators.js";
+
 import { Permissions } from "../../../utilities/permissions.js";
 import { GetJumproleResultType, Jumprole, KINGDOM_NAMES } from "../jumprole/internals/jumprole_type.js";
 //import { DeleteJumproleResult, delete_jumprole } from "./internals/jumprole_postgres.js";
@@ -34,23 +34,18 @@ export class TJInfo extends Subcommand<typeof TJInfo.manual> {
     static readonly no_use_no_see = false;
     static readonly permissions = undefined as Permissions | undefined;
 
-    @validate
     async activate(
         values: ValidatedArguments<typeof TJInfo.manual>,
         message: TextChannelMessage,
         discord_client: Client,
-        queryable: Queryable<UsesClient>,
+        pg_client: UsingClient,
         prefix: string,
         reply: Replier,
     ): Promise<BotCommandProcessResults> {
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
         const name = values.name;
 
-        const client = await use_client(queryable, "TJInfo.activate");
-
-        const instance = await Jumprole.Get(name, message.guild.id, client);
-
-        client.handle_release();
+        const instance = await Jumprole.Get(name, message.guild.id, pg_client);
 
         switch (instance.type) {
             case GetJumproleResultType.InvalidName: {

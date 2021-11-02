@@ -1,9 +1,8 @@
 import { Client } from "discord.js";
-import { Queryable, UsesClient, use_client } from "../../../pg_wrapper.js";
+import { UsingClient } from "../../../pg_wrapper.js";
 
 import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
-import { validate } from "../../../module_decorators.js";
 import { Permissions } from "../../../utilities/permissions.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js";
@@ -38,23 +37,21 @@ export class JumproleChoose extends Subcommand<typeof JumproleChoose.manual> {
         return new RegExp(`^${escape_reg_exp(prefix)}\s*jumprole choose`).test(message.content);
     }
 
-    @validate
     async activate(
         values: ValidatedArguments<typeof JumproleChoose.manual>,
         message: TextChannelMessage,
         _client: Client,
-        queryable: Queryable<UsesClient>,
+        pg_client: UsingClient,
         prefix: string,
         reply: Replier,
     ): Promise<BotCommandProcessResults> {
         const user_handle = create_designate_handle(message.author.id, message);
-        const client = await use_client(queryable, "JumproleChoose.activate");
-        const status = await designate_user_status(user_handle, client);
+        const status = await designate_user_status(user_handle, pg_client);
 
         if (status >= 2) {
             const query_params = [message.guild.id, values.channel_snowflake];
             try {
-                await client.query(UPSERT_GUILD_JUMPROLE_CHANNEL, query_params);
+                await pg_client.query(UPSERT_GUILD_JUMPROLE_CHANNEL, query_params);
                 await GiveCheck(message);
                 return { type: BotCommandProcessResultType.Succeeded };
             } catch (err) {
