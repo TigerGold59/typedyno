@@ -237,6 +237,7 @@ export class RecordStructure<
                             const validated = structure[key].transform(input[key]);
                             if (validated.succeeded === false) {
                                 add_errors(validated.information, `${value_descriptor(key, name)}: `, errors);
+                                all_correct = false;
                                 continue;
                             } else new_result[key] = validated.result;
                         }
@@ -786,15 +787,48 @@ export const Base64Hash = string.validate(<Input extends string>(input: Input): 
     else return error("input was string but didn't match 32 byte base64 string regex", StructureValidationFailedReason.InvalidValue);
 });
 
-export const TwitterLink = string.validate(<Input extends string>(result: Input): TransformResult<Input> => {
-    if (/^https:\/\/twitter\.com\/[a-zA-Z0-9_]{1,16}\/status\/[0-9]{3,35}\/?/i.test(result.trim())) {
-        return { succeeded: true, result: result };
-    } else
-        return {
-            succeeded: false,
-            error: StructureValidationFailedReason.InvalidValue,
-            information: [
-                `link to Twitter video was a string but it didn't fit the following format: 'https://twitter.com/<username>/status/<tweet snowflake>'`,
-            ],
-        };
-});
+const TWITTER_REGEX =
+    /^\s*https:\/\/(?:www\.|mobile\.)?twitter\.com\/(?<tag>[a-zA-Z0-9_]{1,16})\/status\/(?<id>[0-9]{3,35})(?:\?(?:[a-z]=[a-zA-Z0-9-_]+)+)\/?\s*$/i;
+
+export const TwitterLink = new Structure<string>(
+    "Twitter link",
+    (input: unknown): TransformResult<string> => {
+        if (is_string(input)) {
+            let matches = TWITTER_REGEX.exec(input);
+            if (matches === null) {
+                return {
+                    succeeded: false,
+                    error: StructureValidationFailedReason.InvalidValue,
+                    information: [
+                        `link to Twitter video was a string but it didn't fit the following format: 'https://twitter.com/<username>/status/<tweet snowflake>'`,
+                    ],
+                };
+            } else {
+                let groups = matches.groups as { tag: string; id: string };
+                return { succeeded: true, result: `https://twitter.com/${groups.tag}/status/${groups.id}` };
+            }
+        } else {
+            return {
+                succeeded: false,
+                error: StructureValidationFailedReason.IncorrectType,
+                information: [`input was ${typeof input} (expected string)`],
+            };
+        }
+    },
+    <Input extends string>(result: Input): TransformResult<Input> => {
+        if (
+            /^https:\/\/(?:www\.|mobile\.)?twitter\.com\/(?<tag>[a-zA-Z0-9_]{1,16})\/status\/(?<id>[0-9]{3,35})(?:\?(?:[a-z]=[a-zA-Z0-9-_]+)+)\/?$/i.test(
+                result.trim(),
+            )
+        ) {
+            return { succeeded: true, result: result };
+        } else
+            return {
+                succeeded: false,
+                error: StructureValidationFailedReason.InvalidValue,
+                information: [
+                    `link to Twitter video was a string but it didn't fit the following format: 'https://(mobile.)twitter.com/<username>/status/<tweet snowflake>'`,
+                ],
+            };
+    },
+);

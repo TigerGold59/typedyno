@@ -134,13 +134,7 @@ export function automatic_dispatch<DispatchTargets extends Subcommand<Subcommand
                         const should_call_subcommand = await method_body.apply(this, [message, client, pool, prefix]);
                         switch (should_call_subcommand.type) {
                             case BotCommandProcessResultType.PassThrough: {
-                                return await args[subcommand_index as number].run_activate.apply(this, [
-                                    result.normalized,
-                                    message,
-                                    client,
-                                    pool,
-                                    prefix,
-                                ]);
+                                return await args[subcommand_index as number].run_activate(result.normalized, message, client, pool, prefix);
                             }
                             default: {
                                 return should_call_subcommand;

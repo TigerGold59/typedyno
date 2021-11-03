@@ -29,7 +29,7 @@ export class TJGive extends Subcommand<typeof TJGive.manual> {
                 name: "link to Twitter video",
                 id: "proof_link",
                 optional: true,
-                further_contraint: RT.TwitterLink,
+                further_constraint: RT.TwitterLink,
             },
         ],
         syntax: "::<prefix>tj give:: NAME $1{opt $2}[ PROOF $2]",

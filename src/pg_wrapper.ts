@@ -27,7 +27,7 @@ export type Queryable<Use extends QueryableUseType> = Use extends UsesClient
     : PoolInstance | PoolClient | UsingClient;
 //export type Once = PoolInstance | PoolClient | UsingClient;
 
-const USING_CLIENT_DEBUG_MODE = true;
+const USING_CLIENT_DEBUG_MODE = false;
 const NOT_COLLECTED_CLIENT_ERROR_DELAY_MS = 2000;
 export class UsingClient {
     readonly client: NodePostgres.PoolClient;
