@@ -13,7 +13,7 @@ import { Jumprole as JumproleCommand } from "./jumprole_cmd.js";
 const UPSERT_GUILD_JUMPROLE_CHANNEL = `INSERT INTO trickjump_guilds VALUES ($1, $2) ON CONFLICT (server) DO UPDATE SET jumprole_channel=$2 WHERE trickjump_guilds.server=$1`;
 export class JumproleChoose extends Subcommand<typeof JumproleChoose.manual> {
     constructor() {
-        super(JumproleCommand.manual, JumproleChoose.manual, JumproleChoose.no_use_no_see, JumproleChoose.permissions);
+        super(JumproleCommand.manual);
     }
 
     static readonly manual = {
@@ -30,8 +30,10 @@ export class JumproleChoose extends Subcommand<typeof JumproleChoose.manual> {
         syntax: "::<prefix>jumprole choose:: CHANNEL $1",
     } as const;
 
-    static readonly no_use_no_see = false;
-    static readonly permissions = undefined as Permissions | undefined;
+    manual = JumproleChoose.manual;
+
+    no_use_no_see = false;
+    permissions = undefined as Permissions | undefined;
 
     is_attempted_use(message: TextChannelMessage, _client: Client, prefix: string): boolean {
         return new RegExp(`^${escape_reg_exp(prefix)}\s*jumprole choose`).test(message.content);

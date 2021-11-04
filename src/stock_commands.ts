@@ -3,7 +3,7 @@ await new Promise((res, _rej) => setInterval(res, 2000));
 
 import { Permissions } from "./utilities/permissions.js";
 import { MakesSingleRequest, Queryable, UsingClient } from "./pg_wrapper.js";
-import { make_manual } from "./command_manual.js";
+import { make_manual, manual_of, SimpleCommandManual, SubcommandManual } from "./command_manual.js";
 
 import { Client, Guild, Message } from "discord.js";
 import {
@@ -14,32 +14,31 @@ import {
     designate_set_user,
     designate_user_status,
 } from "./designate.js";
-import { BotCommand, BotCommandProcessResultType, BotCommandProcessResults, GiveCheck, Subcommand, Replier } from "./functions.js";
+import { BotCommand, BotCommandProcessResultType, BotCommandProcessResults, GiveCheck, Subcommand, Replier, ParentCommand } from "./functions.js";
 import { Paste, url } from "./integrations/paste_ee.js";
 
 import { SetPrefixNonStringResult, get_prefix, set_prefix } from "./integrations/server_prefixes.js";
 import { GLOBAL_PREFIX, MAINTAINER_TAG } from "./main.js";
-import { automatic_dispatch, value } from "./module_decorators.js";
 import { ValidatedArguments } from "./utilities/argument_processing/arguments_types.js";
 import { DebugLogType, LogType, log } from "./utilities/log.js";
 import * as RT from "./utilities/runtime_typeguard/standard_structures.js";
 import { is_string, safe_serialize, TextChannelMessage } from "./utilities/typeutils.js";
 
-export class GetCommands extends BotCommand {
+export class GetCommands extends BotCommand<SimpleCommandManual> {
     constructor() {
-        super(GetCommands.manual, GetCommands.no_use_no_see, GetCommands.permissions);
+        super();
     }
 
-    static readonly manual = {
+    readonly manual = {
         name: "commands",
         arguments: [],
         description: "Links to a paste where you can view all the available bot commands.",
         syntax: "::<prefix>commands::",
     } as const;
 
-    static readonly no_use_no_see = false;
+    readonly no_use_no_see = false;
 
-    static readonly permissions = undefined;
+    readonly permissions = undefined;
 
     async process(message: Message, _client: Client, _queryable: Queryable<MakesSingleRequest>, prefix: string): Promise<BotCommandProcessResults> {
         const paste = await make_manual(message, prefix, STOCK_BOT_COMMANDS);
@@ -68,7 +67,7 @@ export class GetCommands extends BotCommand {
 
 export class PrefixGet extends Subcommand<typeof PrefixGet.manual> {
     constructor() {
-        super(Prefix.manual, PrefixGet.manual, PrefixGet.no_use_no_see, PrefixGet.permissions);
+        super("prefix");
     }
 
     static readonly manual = {
@@ -78,8 +77,9 @@ export class PrefixGet extends Subcommand<typeof PrefixGet.manual> {
         syntax: "::<prefix>prefix get::",
     } as const;
 
-    static readonly no_use_no_see = false;
-    static readonly permissions = undefined as Permissions | undefined;
+    readonly manual = PrefixGet.manual;
+    readonly no_use_no_see = false;
+    readonly permissions = undefined as Permissions | undefined;
 
     async activate(
         _args: ValidatedArguments<typeof PrefixGet.manual>,
@@ -107,7 +107,7 @@ export class PrefixGet extends Subcommand<typeof PrefixGet.manual> {
 
 export class PrefixSet extends Subcommand<typeof PrefixSet.manual> {
     constructor() {
-        super(Prefix.manual, PrefixSet.manual, PrefixSet.no_use_no_see, PrefixSet.permissions);
+        super("prefix");
     }
 
     static readonly manual = {
@@ -130,8 +130,9 @@ export class PrefixSet extends Subcommand<typeof PrefixSet.manual> {
         syntax: "::<prefix>prefix set:: NEW $1{opt $2}[ SERVER $2]",
     } as const;
 
-    static readonly no_use_no_see = false;
-    static readonly permissions = undefined as Permissions | undefined;
+    readonly manual = PrefixSet.manual;
+    readonly no_use_no_see = false;
+    readonly permissions = undefined;
 
     async activate(
         args: ValidatedArguments<typeof PrefixSet.manual>,
@@ -197,46 +198,47 @@ export class PrefixSet extends Subcommand<typeof PrefixSet.manual> {
     }
 }
 
-export class Prefix extends BotCommand {
+export class Prefix extends ParentCommand {
     constructor() {
-        super(Prefix.manual, Prefix.no_use_no_see, Prefix.permissions);
+        super(new PrefixGet(), new PrefixSet());
     }
 
-    static readonly manual = {
+    readonly manual = {
         name: "prefix",
-        subcommands: [PrefixGet.manual, PrefixSet.manual],
+        subcommands: this.subcommand_manuals,
         description: "Manage or get the prefix for your current server.",
     } as const;
 
-    static readonly no_use_no_see = false;
-    static readonly permissions = undefined;
+    readonly no_use_no_see = false;
+    readonly permissions = undefined;
 
-    @automatic_dispatch(new PrefixGet(), new PrefixSet()) process(
+    async pre_dispatch(
+        _subcommand: Subcommand<SubcommandManual>,
         _message: Message,
         _client: Client,
         _queryable: Queryable<MakesSingleRequest>,
         _prefix: string,
     ): Promise<BotCommandProcessResults> {
         log(`Prefix command: passing through to subcommand`, LogType.Status, DebugLogType.AutomaticDispatchPassThrough);
-        return value({ type: BotCommandProcessResultType.PassThrough });
+        return { type: BotCommandProcessResultType.PassThrough };
     }
 }
 
-export class Info extends BotCommand {
+export class Info extends BotCommand<SimpleCommandManual> {
     constructor() {
-        super(Info.manual, Info.no_use_no_see, Info.permissions);
+        super();
     }
 
-    static readonly manual = {
+    readonly manual = {
         name: "info",
         arguments: [],
         syntax: "::<prefix>info::",
         description: "Provides a description of useful commands and the design of the bot.",
     } as const;
 
-    static readonly no_use_no_see = false;
+    readonly no_use_no_see = false;
 
-    static readonly permissions = undefined;
+    readonly permissions = undefined;
 
     async process(message: Message, _client: Client, _queryable: Queryable<MakesSingleRequest>, prefix: string): Promise<BotCommandProcessResults> {
         let base_info = `**Useful commands**:\n${prefix}commands: Lists the commands this bot has.\n**GitHub**: https://github.com/TigerGold59/typedyno`;
@@ -255,7 +257,7 @@ export class Info extends BotCommand {
 
 export class DesignateSet extends Subcommand<typeof DesignateSet.manual> {
     constructor() {
-        super(Designate.manual, DesignateSet.manual, DesignateSet.no_use_no_see, DesignateSet.permissions);
+        super("designate");
     }
 
     static readonly manual = {
@@ -278,8 +280,9 @@ export class DesignateSet extends Subcommand<typeof DesignateSet.manual> {
         syntax: "::<prefix>designate set:: USER $1{opt $2}[ FULL $2]",
     } as const;
 
-    static readonly no_use_no_see = true;
-    static readonly permissions = undefined as Permissions | undefined;
+    readonly manual = DesignateSet.manual;
+    readonly no_use_no_see = true;
+    readonly permissions = undefined;
 
     async activate(
         args: ValidatedArguments<typeof DesignateSet.manual>,
@@ -342,7 +345,7 @@ export class DesignateSet extends Subcommand<typeof DesignateSet.manual> {
 
 export class DesignateRemove extends Subcommand<typeof DesignateRemove.manual> {
     constructor() {
-        super(Designate.manual, DesignateRemove.manual, DesignateRemove.no_use_no_see, DesignateRemove.permissions);
+        super("designate");
     }
 
     static readonly manual = {
@@ -359,8 +362,9 @@ export class DesignateRemove extends Subcommand<typeof DesignateRemove.manual> {
         syntax: "::<prefix>designate remove:: USER $1",
     } as const;
 
-    static readonly no_use_no_see = true;
-    static readonly permissions = undefined as Permissions | undefined;
+    readonly manual = DesignateRemove.manual;
+    readonly no_use_no_see = true;
+    readonly permissions = undefined;
 
     async activate(
         args: ValidatedArguments<typeof DesignateSet.manual>,

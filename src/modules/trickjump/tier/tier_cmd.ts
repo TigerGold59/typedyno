@@ -1,8 +1,8 @@
 import { Client } from "discord.js";
 import { Pool } from "pg";
-import { BotCommand, BotCommandProcessResults, BotCommandProcessResultType } from "../../../functions.js";
+import { SubcommandManual } from "../../../command_manual.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, ParentCommand, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
-import { automatic_dispatch } from "../../../module_decorators.js";
 import { DebugLogType, log, LogType } from "../../../utilities/log.js";
 import { is_valid_Snowflake } from "../../../utilities/permissions.js";
 import { TextChannelMessage } from "../../../utilities/typeutils.js";
@@ -12,22 +12,25 @@ import { TierCreate } from "./create.js";
 import { TierDelete } from "./delete.js";
 import { TierUpdate } from "./update.js";
 
-export class Tier extends BotCommand {
+export class Tier extends ParentCommand {
+    static readonly subcommands = [new TierCreate(), new TierUpdate(), new TierDelete()];
+
     constructor() {
-        super(Tier.manual, Tier.no_use_no_see, Tier.permissions);
+        super(...Tier.subcommands);
     }
 
     static readonly manual = {
         name: "tier",
-        subcommands: [TierCreate.manual, TierUpdate.manual, TierDelete.manual],
+        subcommands: this.subcommand_manuals,
         description: "Manage Jumprole tiers in the current server.",
     } as const;
 
-    static readonly no_use_no_see = false;
+    readonly no_use_no_see = false;
 
-    static readonly permissions = undefined;
+    readonly permissions = undefined;
 
-    @automatic_dispatch(new TierCreate(), new TierUpdate(), new TierDelete()) async process(
+    async pre_dispatch(
+        _subcommand: Subcommand<SubcommandManual>,
         message: TextChannelMessage,
         _client: Client,
         pool: Pool,

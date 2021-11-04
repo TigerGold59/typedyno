@@ -122,7 +122,7 @@ interface SyntaxStringSegment {
 
 export type ContainedArgumentsList<Arr extends readonly (readonly [string, SubcommandManual])[]> = Arr[number][1]["arguments"];
 
-export type ContainedSubcommandNames<Arr extends readonly (readonly [string, SubcommandManual])[]> = Arr[number][0];
+export type ContainedSubcommandNames<Arr extends readonly SubcommandManual[]> = Arr[number]["name"];
 
 type Argument<ArgumentList extends readonly CommandArgument[]> = ArgumentList[number];
 

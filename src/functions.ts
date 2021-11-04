@@ -8,6 +8,7 @@ import {
     SubcommandManual,
     argument_structure_from_manual,
     MultifacetedCommandManual,
+    indent,
 } from "./command_manual.js";
 import { get_prefix } from "./integrations/server_prefixes.js";
 import { GLOBAL_PREFIX, MODULES } from "./main.js";
@@ -15,7 +16,7 @@ import { performance } from "perf_hooks";
 import { DebugLogType, log, LogType } from "./utilities/log.js";
 import { allowed, Permissions } from "./utilities/permissions.js";
 import { escape_reg_exp, is_boolean, is_string, is_text_channel, TextChannelMessage } from "./utilities/typeutils.js";
-import { get_args, handle_GetArgsResult, is_call_of } from "./utilities/argument_processing/arguments.js";
+import { get_args, get_first_matching_subcommand, handle_GetArgsResult, is_call_of } from "./utilities/argument_processing/arguments.js";
 import { GetArgsResult, ValidatedArguments } from "./utilities/argument_processing/arguments_types.js";
 import { log_stack } from "./utilities/runtime_typeguard/runtime_typeguard.js";
 
@@ -41,50 +42,19 @@ export interface BotCommandProcessResults {
     not_authorized_message?: string;
 }
 
-export type BotCommandProcess =
-    | ((message: Message, client: Client, pool: Pool, prefix: string) => Promise<BotCommandProcessResults> | BotCommandProcessResults)
-    | ((message: Message, client: Client, pool: Pool) => Promise<BotCommandProcessResults> | BotCommandProcessResults);
+export type AnyBotCommand = BotCommand<CommandManual>;
+export abstract class BotCommand<ManualType extends CommandManual> {
+    abstract readonly manual: ManualType;
+    abstract readonly no_use_no_see: boolean;
+    abstract readonly permissions: Permissions | undefined;
 
-export const BotCommandMetadataKey = {
-    Permissions: Symbol("typedyno_botcommand:permissions"),
-    Manual: Symbol("typedyno_botcommand:command_manual"),
-    NoUseNoSee: Symbol("typedyno_botcommand:no_use_no_see"),
-};
-export abstract class BotCommand {
-    static readonly manual: CommandManual = { name: "blank", arguments: [], description: "You shouldn't be seeing this.", syntax: "" };
-
-    static readonly no_use_no_see = false as boolean;
-    static readonly permissions = undefined as Permissions | undefined;
-
-    constructor(command_manual: CommandManual, no_use_no_see: boolean, permissions?: Permissions) {
-        // Optional more specific permissions. If a module is unavailable, this command will be too,
-        // however these permissions can further restrict certain commands.
-        Reflect.defineMetadata(BotCommandMetadataKey.Permissions, permissions, this);
-        // The command manual object which will be added to %commands results when the module (if it's part of a module) is available.
-        Reflect.defineMetadata(BotCommandMetadataKey.Manual, command_manual, this);
-        // Whether users that are restricted from using this command are also restricted from seeing that it exists
-        Reflect.defineMetadata(BotCommandMetadataKey.NoUseNoSee, no_use_no_see, this);
-    }
+    constructor() {}
 
     // Command should return whether the command succeeded or not
     abstract process(message: Message, client: Client, queryable: Queryable<UsesClient>, prefix: string): PromiseLike<BotCommandProcessResults>;
 }
 
 export type ArgumentValues<Manual extends SubcommandManual> = Exclude<GetArgsResult<Manual["arguments"]>["values"], null>;
-
-/*export abstract class ParentCommand<Manual extends MultifacetedCommandManual> extends BotCommand {
-    constructor(command_manual: Manual, no_use_no_see: boolean, permissions?: Permissions) {
-        super(command_manual, no_use_no_see, permissions);
-        Reflect.defineMetadata(BotCommandMetadataKey.Permissions, permissions, this);
-        Reflect.defineMetadata(BotCommandMetadataKey.Manual, command_manual, this);
-        Reflect.defineMetadata(BotCommandMetadataKey.NoUseNoSee, no_use_no_see, this);
-    }
-
-    abstract before_dispatch(subcommand_name: string, message: Message, client: Client, pool: Pool, prefix: string): Promise<BotCommandProcessResults>
-
-    async process(message: Message, client: Client, pool: Pool, prefix: string): Promise<BotCommandProcessResults> {
-    }
-}*/
 
 export type Replier = (response: string, use_prefix?: boolean) => Promise<void>;
 
@@ -95,23 +65,40 @@ export const MakeReplier = (message: TextChannelMessage, prefix: string, full_na
     };
 };
 
-export abstract class Subcommand<Manual extends SubcommandManual> extends BotCommand {
-    readonly parent_manual: MultifacetedCommandManual;
+export type ManualOf<Command extends Subcommand<SubcommandManual>> = Command extends Subcommand<infer T> ? T : never;
 
-    constructor(parent_manual: MultifacetedCommandManual, command_manual: Manual, no_use_no_see: boolean, permissions?: Permissions) {
-        super(command_manual, no_use_no_see, permissions);
-        this.parent_manual = parent_manual;
-        Reflect.defineMetadata(BotCommandMetadataKey.Permissions, permissions, this);
-        Reflect.defineMetadata(BotCommandMetadataKey.Manual, command_manual, this);
-        Reflect.defineMetadata(BotCommandMetadataKey.NoUseNoSee, no_use_no_see, this);
+export abstract class Subcommand<Manual extends SubcommandManual> extends BotCommand<Manual> {
+    readonly #_parent_name: string;
+
+    get parent_name() {
+        return this.#_parent_name;
+    }
+
+    abstract readonly manual: Manual;
+
+    constructor(parent_name: string) {
+        super();
+        this.#_parent_name = parent_name;
+        Object.freeze(this);
     }
 
     full_name(): string {
-        return `${this.parent_manual.name} ${manual_of(this).name}`;
+        return `${this.parent_name} ${this.manual.name}`;
+    }
+
+    uppercase_name() {
+        let parts = this.full_name().split(" ");
+
+        return parts
+            .map(str => {
+                let char = str[0];
+                return char.toUpperCase() + str.slice(1);
+            })
+            .join("");
     }
 
     is_attempted_use(message: TextChannelMessage, _client: Client, prefix: string): boolean {
-        let result = is_call_of(prefix, manual_of(this) as SubcommandManual, message.content);
+        let result = is_call_of(prefix, this.manual, message.content);
         if (result.succeeded) {
             return result.is_call;
         } else {
@@ -131,17 +118,6 @@ export abstract class Subcommand<Manual extends SubcommandManual> extends BotCom
         prefix: string,
         reply: Replier,
     ): PromiseLike<BotCommandProcessResults>;
-
-    uppercase_name() {
-        let parts = this.full_name().split(" ");
-
-        return parts
-            .map(str => {
-                let char = str[0];
-                return char.toUpperCase() + str.slice(1);
-            })
-            .join("");
-    }
 
     async run_activate(
         args: ValidatedArguments<Manual>,
@@ -210,7 +186,106 @@ export abstract class Subcommand<Manual extends SubcommandManual> extends BotCom
     }
 }
 
-export const is_valid_BotCommand = function (thing: unknown): thing is BotCommand {
+export type DispatchDecider = (
+    subcommand: Subcommand<SubcommandManual>,
+    message: TextChannelMessage,
+    pool: Pool,
+    prefix: string,
+) => PromiseLike<BotCommandProcessResults>;
+export abstract class ParentCommand extends BotCommand<MultifacetedCommandManual> {
+    readonly subcommands: Subcommand<SubcommandManual>[];
+    readonly subcommand_manuals: SubcommandManual[];
+
+    constructor(...subcommands: Subcommand<SubcommandManual>[]) {
+        super();
+        this.subcommands = subcommands;
+        this.subcommand_manuals = this.subcommands.map(x => x.manual);
+        Object.freeze(this);
+    }
+
+    abstract pre_dispatch(
+        subcommand: Subcommand<SubcommandManual>,
+        message: TextChannelMessage,
+        client: Client,
+        pool: Pool,
+        prefix: string,
+        reply: Replier,
+    ): PromiseLike<BotCommandProcessResults>;
+
+    async process(message: Message, client: Client, pool: Pool, prefix: string): Promise<BotCommandProcessResults> {
+        const match = get_first_matching_subcommand(prefix, message.content, this.subcommand_manuals);
+        if (match === false) {
+            await message.channel.send(
+                `${prefix}${this.manual.name}: your message had no matching subcommands. Try using '${prefix}commands' to see the syntax for each subcommand.`,
+            );
+            return { type: BotCommandProcessResultType.DidNotSucceed };
+        }
+
+        let subcommand_index = null as number | null;
+
+        const found = this.subcommand_manuals.find((tuple, index) => {
+            const predicate = tuple.name === match;
+            if (predicate) {
+                subcommand_index = index;
+                return true;
+            }
+        });
+
+        // never
+        if (found === undefined || subcommand_index === null) {
+            await message.channel.send(
+                `${prefix}${this.manual.name}: your message had no matching subcommands. Try using '${prefix}commands' to see the syntax for each subcommand.`,
+            );
+            return { type: BotCommandProcessResultType.DidNotSucceed };
+        }
+
+        if (is_text_channel(message)) {
+            const found_command = this.subcommands[subcommand_index];
+
+            const args_result = get_args(prefix, found, message.content);
+            let res = await handle_GetArgsResult(message, `${this.manual.name} ${found.name}`, args_result, prefix);
+
+            if (res === false) {
+                return { type: BotCommandProcessResultType.DidNotSucceed };
+            }
+
+            const arg_value_specification = argument_structure_from_manual(found);
+            const result = arg_value_specification.check(args_result.values);
+            if (result.succeeded === false) {
+                await message.channel.send(
+                    `${prefix}${this.manual.name}: your message did not have the proper arguments for subcommand ${
+                        found.name
+                    }. Try using '${prefix}commands' to see the syntax for each subcommand.\n${result.information
+                        .map(indent)
+                        .map(x => `${x}.`)
+                        .join("\n")}`,
+                );
+                return { type: BotCommandProcessResultType.DidNotSucceed };
+            }
+            const pre_dispatch_result = await this.pre_dispatch(
+                found_command,
+                message,
+                client,
+                pool,
+                prefix,
+                MakeReplier(message, prefix, this.manual.name),
+            );
+
+            switch (pre_dispatch_result.type) {
+                case BotCommandProcessResultType.PassThrough: {
+                    return await found_command.run_activate(result.normalized, message, client, pool, prefix);
+                }
+                default: {
+                    return pre_dispatch_result;
+                }
+            }
+        } else {
+            return { type: BotCommandProcessResultType.Unauthorized };
+        }
+    }
+}
+
+export const is_valid_BotCommand = function (thing: unknown): thing is BotCommand<CommandManual> {
     return thing instanceof BotCommand;
 };
 
@@ -283,14 +358,14 @@ export interface ParseMessageResult {
  */
 // eslint-disable-next-line complexity
 export const process_message_for_commands = async function (
-    stock_commands: BotCommand[],
+    stock_commands: AnyBotCommand[],
     message: Message,
     client: Client,
     pool: Pool,
 ): Promise<ParseMessageResult> {
     const prefix = await get_prefix(message.guild, pool);
 
-    let valid_command: BotCommand | null = null;
+    let valid_command: AnyBotCommand | null = null;
 
     // ALWAYS check stock bot commands first. NEVER let a module command override a stock command, although we would
     // hope that would've been caught earlier.

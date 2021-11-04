@@ -1,41 +1,46 @@
 import { Client } from "discord.js";
 import { PoolInstance as Pool } from "../../../pg_wrapper.js";
 
-import { BotCommand, BotCommandProcessResults, BotCommandProcessResultType } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, ParentCommand, Subcommand } from "../../../functions.js";
 import { JumproleCreate } from "./create.js";
 import { JumproleUpdate } from "./update.js";
 import { JumproleRemove } from "./remove.js";
-import { automatic_dispatch } from "../../../module_decorators.js";
 import { DebugLogType, log, LogType } from "../../../utilities/log.js";
 import { JumproleChoose } from "./choose.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 import { is_valid_Snowflake } from "../../../utilities/permissions.js";
 import { TextChannelMessage } from "../../../utilities/typeutils.js";
 import { trickjump_guildsQueryResults } from "../table_types.js";
+import { SubcommandManual } from "../../../command_manual.js";
 
 export const GET_SERVER_JUMPROLE_CHANNEL = `SELECT * FROM trickjump_guilds WHERE server=$1`;
 
-export class Jumprole extends BotCommand {
+export class Jumprole extends ParentCommand {
     constructor() {
-        super(Jumprole.manual, Jumprole.no_use_no_see, Jumprole.permissions);
+        super(new JumproleCreate(), new JumproleUpdate(), new JumproleRemove(), new JumproleChoose());
     }
 
-    static readonly manual = {
+    manual = {
         name: "jumprole",
-        subcommands: [JumproleCreate.manual, JumproleUpdate.manual, JumproleRemove.manual, JumproleChoose.manual],
+        subcommands: this.subcommand_manuals,
         description: "Manage Jumproles in the current server.",
-    } as const;
+    };
 
-    static readonly no_use_no_see = false;
+    readonly no_use_no_see = false;
 
-    static readonly permissions = undefined;
+    readonly permissions = undefined;
 
-    @automatic_dispatch(new JumproleCreate(), new JumproleUpdate(), new JumproleRemove(), new JumproleChoose())
-    async process(message: TextChannelMessage, _client: Client, pool: Pool, prefix: string): Promise<BotCommandProcessResults> {
+    async pre_dispatch(
+        subcommand: Subcommand<SubcommandManual>,
+        message: TextChannelMessage,
+        _client: Client,
+        pool: Pool,
+        prefix: string,
+    ): Promise<BotCommandProcessResults> {
         const reply = async (response: string) => {
             await message.channel.send(`${prefix}jumprole: ${response}`);
         };
-        if (message.content.toLowerCase().startsWith(`${prefix.toLowerCase()}jumprole choose`)) {
+        if (subcommand.manual.name === "choose") {
             return { type: BotCommandProcessResultType.PassThrough };
         }
         // Do before calling subcommand
