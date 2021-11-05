@@ -1,27 +1,12 @@
 import type { Message } from "discord.js";
-import { BotCommand, BotCommandMetadataKey } from "./functions.js";
+import { AnyBotCommand } from "./functions.js";
 import { CreatePasteResult, create_paste } from "./integrations/paste_ee.js";
 import { GLOBAL_PREFIX, MODULES } from "./main.js";
 import { DebugLogType, log, LogType } from "./utilities/log.js";
-import { allowed, Permissions } from "./utilities/permissions.js";
+import { allowed } from "./utilities/permissions.js";
 import { AnyStructure, InferNormalizedType, log_stack, NormalizedStructure, Structure } from "./utilities/runtime_typeguard/runtime_typeguard.js";
 import * as Structs from "./utilities/runtime_typeguard/standard_structures.js";
 import { escape_reg_exp, is_string } from "./utilities/typeutils.js";
-
-export const manual_of = function (command: BotCommand | { constructor: new (...args: unknown[]) => BotCommand }): CommandManual {
-    let metadata = Reflect.getMetadata(BotCommandMetadataKey.Manual, command) as CommandManual | undefined;
-    if (metadata === undefined) {
-        return (command.constructor as Function & { manual: CommandManual }).manual;
-    } else return metadata;
-};
-
-export const permissions_of = function (command: BotCommand): Permissions | undefined {
-    return Reflect.getMetadata(BotCommandMetadataKey.Permissions, command) as Permissions | undefined;
-};
-
-export const is_no_use_no_see = function (command: BotCommand): boolean {
-    return Boolean(Reflect.getMetadata(BotCommandMetadataKey.NoUseNoSee, command));
-};
 
 /**
  * An interface which describes an argument a command or subcommand takes.
@@ -357,7 +342,11 @@ export const create_manual_entry = function (command_manual: CommandManual, pref
     }
 };
 
-export const make_manual = async function (message: Message, prefix_substitution: string, stock_commands: BotCommand[]): Promise<CreatePasteResult> {
+export const make_manual = async function (
+    message: Message,
+    prefix_substitution: string,
+    stock_commands: AnyBotCommand[],
+): Promise<CreatePasteResult> {
     log(`make_manual function called. Process starting...`, LogType.Status, DebugLogType.MakeManualFunctionDebug);
 
     const manual_section_accumulator: string[] = [];
@@ -365,7 +354,7 @@ export const make_manual = async function (message: Message, prefix_substitution
     const stock_manual_accumulator: string[] = [];
 
     for (const bot_command of stock_commands) {
-        const manual = manual_of(bot_command);
+        const manual = bot_command.manual;
         if (manual === undefined) {
             log(`make_manual skipped stock bot function: instance had no manual saved as metadata. Continuing...`, LogType.Error);
             continue;
@@ -399,7 +388,7 @@ export const make_manual = async function (message: Message, prefix_substitution
                 module_manual_accumulator[0] += "\n(Module commands don't carry data between servers)";
             }
             for (const bot_command of module.functions) {
-                const manual = manual_of(bot_command);
+                const manual = bot_command.manual;
                 if (manual === undefined) {
                     log(
                         `make_manual displaying BotCommand from module "${module.name}": instance had no manual saved as metadata. Continuing...`,
@@ -407,7 +396,7 @@ export const make_manual = async function (message: Message, prefix_substitution
                     );
                     continue;
                 }
-                if (allowed(message, permissions_of(bot_command)) === false && is_no_use_no_see(bot_command)) {
+                if (allowed(message, bot_command.permissions) === false && bot_command.no_use_no_see) {
                     log(`make_manual hid function ${manual.name}: flag bot_command.hide_when_contradicts_permissions set.`);
                     continue;
                 } else {
@@ -435,7 +424,9 @@ export const make_manual = async function (message: Message, prefix_substitution
     const full_manual = manual_section_accumulator.join("\n\n\n");
 
     return await create_paste(
-        `TypeDyno Command Manual\n=======================\nLocal Prefix - ${prefix_substitution}\nNote: The prefix shown in this manual is only for this server.\nThe global prefix is ${GLOBAL_PREFIX}, but this may be overridden by individual servers.\n\n\n` +
+        `TypeDyno Command Manual\n${"=".repeat(
+            23,
+        )}\nLocal Prefix - ${prefix_substitution}\nNote: The prefix shown in this manual is only for this server.\nThe global prefix is ${GLOBAL_PREFIX}, but this may be overridden by individual servers.\n\n\n` +
             full_manual,
     );
 };
@@ -446,8 +437,8 @@ type BaseStructureType<Argument extends CommandArgument> = Argument["further_con
 type StructureType<Argument extends CommandArgument> = Argument["optional"] extends false
     ? BaseStructureType<Argument>
     : Structure<InferNormalizedType<BaseStructureType<Argument>> | null>;
-type ArgumentRepresentation<Manual extends SubcommandManual> = {
-    [P in keyof Manual["arguments"] & number as Manual["arguments"][P]["name"]]: StructureType<Manual["arguments"][P]>;
+export type ArgumentRepresentation<Manual extends SubcommandManual> = {
+    [Argument in Manual["arguments"][number] as Argument["id"]]: StructureType<Argument>;
 };
 export const argument_structure_from_manual = <Manual extends SubcommandManual>(
     manual: Manual,

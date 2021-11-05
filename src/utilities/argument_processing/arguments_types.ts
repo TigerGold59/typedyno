@@ -1,6 +1,7 @@
 import { CommandArgument, SubcommandManual } from "../../command_manual.js";
 import { AnyStructure, InferNormalizedType } from "../runtime_typeguard/runtime_typeguard.js";
 import { is_string } from "../typeutils.js";
+import { SyntaxStringCompilationError } from "./arguments.js";
 
 export const is_alphabetic = function (str: string): boolean {
     if (!is_string(str) || str.length !== 1) return false;
@@ -145,7 +146,7 @@ export interface GetArgsResult<ArgumentList extends readonly CommandArgument[]> 
           }
         | null;
     inconsistent_key_offs: [string, number, boolean][];
-    syntax_string_compilation_error: [InvalidSyntaxStringReason, number] | null;
+    syntax_string_compilation_error: SyntaxStringCompilationError | null;
 }
 
 type BaseType<Argument extends CommandArgument> = Argument["further_constraint"] extends AnyStructure

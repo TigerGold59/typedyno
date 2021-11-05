@@ -4,7 +4,6 @@ import { UsingClient } from "../../../pg_wrapper.js";
 import { BotCommandProcessResults, BotCommandProcessResultType, Replier, Subcommand } from "../../../functions.js";
 
 import { log, LogType } from "../../../utilities/log.js";
-import { TJ } from "./tj_cmd.js";
 import { is_string, TextChannelMessage } from "../../../utilities/typeutils.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
@@ -13,7 +12,7 @@ import { FromJumproleQueryResultType, Jumprole } from "../jumprole/internals/jum
 
 export class TJAll extends Subcommand<typeof TJAll.manual> {
     constructor() {
-        super(TJ.manual, TJAll.manual, TJAll.no_use_no_see, TJAll.permissions);
+        super();
     }
 
     static readonly manual = {
@@ -23,8 +22,9 @@ export class TJAll extends Subcommand<typeof TJAll.manual> {
         description: "List all the Jumproles in the current server.",
     } as const;
 
-    static readonly no_use_no_see = false;
-    static readonly permissions = undefined;
+    readonly manual = TJAll.manual;
+    readonly no_use_no_see = false;
+    readonly permissions = undefined;
 
     // eslint-disable-next-line complexity
     async activate(

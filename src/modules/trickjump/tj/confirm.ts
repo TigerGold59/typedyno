@@ -4,7 +4,6 @@ import { UsingClient } from "../../../pg_wrapper.js";
 import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
 
 import { log, LogType } from "../../../utilities/log.js";
-import { TJ } from "./tj_cmd.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { TextChannelMessage } from "../../../utilities/typeutils.js";
@@ -14,7 +13,7 @@ import { ConfirmJumproleEntryResult, GetJumproleEntryByJumproleAndHolderResultTy
 
 export class TJConfirm extends Subcommand<typeof TJConfirm.manual> {
     constructor() {
-        super(TJ.manual, TJConfirm.manual, TJConfirm.no_use_no_see, TJConfirm.permissions);
+        super();
     }
 
     static readonly manual = {
@@ -30,8 +29,9 @@ export class TJConfirm extends Subcommand<typeof TJConfirm.manual> {
         description: "Confirm that a completion still applies to the updated version of a Jumprole.",
     } as const;
 
-    static readonly no_use_no_see = false;
-    static readonly permissions = undefined;
+    readonly manual = TJConfirm.manual;
+    readonly no_use_no_see = false;
+    readonly permissions = undefined;
 
     // eslint-disable-next-line complexity
     async activate(

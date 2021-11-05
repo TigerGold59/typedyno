@@ -7,11 +7,9 @@ import { CreateTierResultType, Tier } from "./internals/tier_type.js";
 import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js";
 import { UsingClient } from "../../../pg_wrapper.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
-import { Tier as TierCommand } from "./tier_cmd.js";
-
 export class TierCreate extends Subcommand<typeof TierCreate.manual> {
     constructor() {
-        super(TierCommand.manual, TierCreate.manual, TierCreate.no_use_no_see, TierCreate.permissions);
+        super();
     }
 
     static readonly manual = {
@@ -34,9 +32,9 @@ export class TierCreate extends Subcommand<typeof TierCreate.manual> {
         compact_syntaxes: false,
     } as const;
 
-    static readonly no_use_no_see = false;
-
-    static readonly permissions = undefined;
+    readonly manual = TierCreate.manual;
+    readonly no_use_no_see = false;
+    readonly permissions = undefined;
 
     // eslint-disable-next-line complexity
     async activate(

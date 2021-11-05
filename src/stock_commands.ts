@@ -1,9 +1,7 @@
 // Wait before decorating
-await new Promise((res, _rej) => setInterval(res, 2000));
-
-import { Permissions } from "./utilities/permissions.js";
+//await new Promise((res, _rej) => setInterval(res, 2000));
 import { MakesSingleRequest, Queryable, UsingClient } from "./pg_wrapper.js";
-import { make_manual, manual_of, SimpleCommandManual, SubcommandManual } from "./command_manual.js";
+import { make_manual, SimpleCommandManual, SubcommandManual } from "./command_manual.js";
 
 import { Client, Guild, Message } from "discord.js";
 import {
@@ -14,7 +12,16 @@ import {
     designate_set_user,
     designate_user_status,
 } from "./designate.js";
-import { BotCommand, BotCommandProcessResultType, BotCommandProcessResults, GiveCheck, Subcommand, Replier, ParentCommand } from "./functions.js";
+import {
+    BotCommand,
+    BotCommandProcessResultType,
+    BotCommandProcessResults,
+    GiveCheck,
+    Subcommand,
+    Replier,
+    ParentCommand,
+    AnyBotCommand,
+} from "./functions.js";
 import { Paste, url } from "./integrations/paste_ee.js";
 
 import { SetPrefixNonStringResult, get_prefix, set_prefix } from "./integrations/server_prefixes.js";
@@ -23,6 +30,29 @@ import { ValidatedArguments } from "./utilities/argument_processing/arguments_ty
 import { DebugLogType, LogType, log } from "./utilities/log.js";
 import * as RT from "./utilities/runtime_typeguard/standard_structures.js";
 import { is_string, safe_serialize, TextChannelMessage } from "./utilities/typeutils.js";
+
+export class IDExplain extends BotCommand<SimpleCommandManual> {
+    constructor() {
+        super();
+    }
+
+    readonly manual = {
+        name: "idexplain",
+        arguments: [],
+        description: "Explains the .",
+        syntax: "::<prefix>idexplain::",
+    } as const;
+
+    readonly no_use_no_see = false;
+    readonly permissions = undefined;
+
+    async process(message: Message, _client: Client, _queryable: Queryable<MakesSingleRequest>, _prefix: string): Promise<BotCommandProcessResults> {
+        await message.channel.send(
+            `A Discord ID, or Snowflake, is a long string of numbers used to represent a specific server, channel, user, or message.\n**Q: How do I get it?**\n**A: **First, turn on Developer Mode. To do so, go to Settings -> Advanced and switch on Developer Mode. Then, simply right click on the server, channel, user, or message that you want the ID of and click 'Copy ID'.\nNote: You can also send a mention of a user or a link to a channel in place of their ID for the purpose of bot commands.`,
+        );
+        return { type: BotCommandProcessResultType.Succeeded };
+    }
+}
 
 export class GetCommands extends BotCommand<SimpleCommandManual> {
     constructor() {
@@ -67,7 +97,7 @@ export class GetCommands extends BotCommand<SimpleCommandManual> {
 
 export class PrefixGet extends Subcommand<typeof PrefixGet.manual> {
     constructor() {
-        super("prefix");
+        super();
     }
 
     static readonly manual = {
@@ -79,7 +109,7 @@ export class PrefixGet extends Subcommand<typeof PrefixGet.manual> {
 
     readonly manual = PrefixGet.manual;
     readonly no_use_no_see = false;
-    readonly permissions = undefined as Permissions | undefined;
+    readonly permissions = undefined;
 
     async activate(
         _args: ValidatedArguments<typeof PrefixGet.manual>,
@@ -107,7 +137,7 @@ export class PrefixGet extends Subcommand<typeof PrefixGet.manual> {
 
 export class PrefixSet extends Subcommand<typeof PrefixSet.manual> {
     constructor() {
-        super("prefix");
+        super();
     }
 
     static readonly manual = {
@@ -257,7 +287,7 @@ export class Info extends BotCommand<SimpleCommandManual> {
 
 export class DesignateSet extends Subcommand<typeof DesignateSet.manual> {
     constructor() {
-        super("designate");
+        super();
     }
 
     static readonly manual = {
@@ -345,7 +375,7 @@ export class DesignateSet extends Subcommand<typeof DesignateSet.manual> {
 
 export class DesignateRemove extends Subcommand<typeof DesignateRemove.manual> {
     constructor() {
-        super("designate");
+        super();
     }
 
     static readonly manual = {
@@ -432,7 +462,7 @@ export class DesignateRemove extends Subcommand<typeof DesignateRemove.manual> {
 
 export class DesignateGet extends Subcommand<typeof DesignateGet.manual> {
     constructor() {
-        super(Designate.manual, DesignateGet.manual, DesignateGet.no_use_no_see, DesignateGet.permissions);
+        super();
     }
 
     static readonly manual = {
@@ -449,8 +479,10 @@ export class DesignateGet extends Subcommand<typeof DesignateGet.manual> {
         syntax: "::<prefix>designate get::{opt $1}[ USER $1]",
     } as const;
 
-    static readonly no_use_no_see = false;
-    static readonly permissions = undefined;
+    readonly manual = DesignateGet.manual;
+
+    readonly no_use_no_see = false;
+    readonly permissions = undefined;
 
     async activate(
         args: ValidatedArguments<typeof DesignateGet.manual>,
@@ -495,28 +527,29 @@ export class DesignateGet extends Subcommand<typeof DesignateGet.manual> {
     }
 }
 
-export class Designate extends BotCommand {
+export class Designate extends ParentCommand {
     constructor() {
-        super(Designate.manual, Designate.no_use_no_see, Designate.permissions);
+        super(new DesignateSet(), new DesignateRemove(), new DesignateGet());
     }
-    static readonly manual = {
+    readonly manual = {
         name: "designate",
         description: "Manage user permissions in this server.",
-        subcommands: [DesignateSet.manual, DesignateRemove.manual, DesignateGet.manual],
+        subcommands: this.subcommand_manuals,
     } as const;
 
-    static readonly no_use_no_see = false;
-    static readonly permissions = undefined;
+    readonly no_use_no_see = false;
+    readonly permissions = undefined;
 
-    @automatic_dispatch(new DesignateSet(), new DesignateRemove(), new DesignateGet()) process(
+    async pre_dispatch(
+        _subcommand: Subcommand<SubcommandManual>,
         _message: Message,
         _client: Client,
         _queryable: Queryable<MakesSingleRequest>,
         _prefix: string,
     ): Promise<BotCommandProcessResults> {
         log(`Designate command: passing through to subcommand`, LogType.Status, DebugLogType.AutomaticDispatchPassThrough);
-        return value({ type: BotCommandProcessResultType.PassThrough });
+        return { type: BotCommandProcessResultType.PassThrough };
     }
 }
 
-export const STOCK_BOT_COMMANDS: BotCommand[] = [new GetCommands(), new Info(), new Prefix(), new Designate()];
+export const STOCK_BOT_COMMANDS: AnyBotCommand[] = [new GetCommands(), new Info(), new Prefix(), new Designate()];

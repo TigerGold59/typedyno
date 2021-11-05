@@ -4,17 +4,16 @@ import { UsingClient } from "../../../pg_wrapper.js";
 import { BotCommandProcessResults, BotCommandProcessResultType, Replier, Subcommand } from "../../../functions.js";
 
 import { log, LogType } from "../../../utilities/log.js";
-import { TJ } from "./tj_cmd.js";
 import { is_string, TextChannelMessage } from "../../../utilities/typeutils.js";
 import { MAINTAINER_TAG, USER_ID_FAQ } from "../../../main.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { create_paste, Paste, url } from "../../../integrations/paste_ee.js";
 import { FromJumproleQueryResultType, Jumprole } from "../jumprole/internals/jumprole_type.js";
 import { is_valid_Snowflake } from "../../../utilities/permissions.js";
-
+import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js";
 export class TJMissing extends Subcommand<typeof TJMissing.manual> {
     constructor() {
-        super(TJ.manual, TJMissing.manual, TJMissing.no_use_no_see, TJMissing.permissions);
+        super();
     }
 
     static readonly manual = {
@@ -24,14 +23,16 @@ export class TJMissing extends Subcommand<typeof TJMissing.manual> {
                 name: "user ID",
                 id: "source",
                 optional: true,
+                further_constraint: RT.Snowflake,
             },
         ],
         syntax: "::<prefix>tj missing::{opt $1}[ SOURCE $1]",
         description: "List all the Jumproles that the source (or the user if source is not provided) is missing.",
     } as const;
 
-    static readonly no_use_no_see = false;
-    static readonly permissions = undefined;
+    readonly manual = TJMissing.manual;
+    readonly no_use_no_see = false;
+    readonly permissions = undefined;
 
     // eslint-disable-next-line complexity
     async activate(

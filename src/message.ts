@@ -18,6 +18,7 @@ import { is_number, is_string } from "./utilities/typeutils.js";
 export const process_message = async function (message: Message, client: Client, pool: Pool): Promise<void> {
     // Only use this area for non-command responses
     // such as replying to DMs.
+    console.log(message);
     if (message.author.id === BOT_USER_ID) return;
     const command_results = await process_message_for_commands_with_stock(STOCK_BOT_COMMANDS, message, client, pool);
 

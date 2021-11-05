@@ -4,7 +4,6 @@ import { UsingClient } from "../../../pg_wrapper.js";
 import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
 
 import { log, LogType } from "../../../utilities/log.js";
-import { TJ } from "./tj_cmd.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { TextChannelMessage } from "../../../utilities/typeutils.js";
 import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js";
@@ -14,7 +13,7 @@ import { JumproleEntry, RegisterJumproleEntryResultType } from "./internals/entr
 
 export class TJGive extends Subcommand<typeof TJGive.manual> {
     constructor() {
-        super(TJ.manual, TJGive.manual, TJGive.no_use_no_see, TJGive.permissions);
+        super();
     }
 
     static readonly manual = {
@@ -36,8 +35,9 @@ export class TJGive extends Subcommand<typeof TJGive.manual> {
         description: "Give yourself a Jumprole in the current server.",
     } as const;
 
-    static readonly no_use_no_see = false;
-    static readonly permissions = undefined;
+    readonly manual = TJGive.manual;
+    readonly no_use_no_see = false;
+    readonly permissions = undefined;
 
     // eslint-disable-next-line complexity
     async activate(

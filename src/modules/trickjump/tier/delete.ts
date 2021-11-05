@@ -6,11 +6,10 @@ import { TextChannelMessage } from "../../../utilities/typeutils.js";
 import { DeleteTierResultType, GetTierResultType, Tier } from "./internals/tier_type.js";
 import { UsingClient } from "../../../pg_wrapper.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
-import { Tier as TierCommand } from "./tier_cmd.js";
 
 export class TierDelete extends Subcommand<typeof TierDelete.manual> {
     constructor() {
-        super(TierCommand.manual, TierDelete.manual, TierDelete.no_use_no_see, TierDelete.permissions);
+        super();
     }
 
     static readonly manual = {
@@ -27,9 +26,10 @@ export class TierDelete extends Subcommand<typeof TierDelete.manual> {
         compact_syntaxes: false,
     } as const;
 
-    static readonly no_use_no_see = false;
+    readonly manual = TierDelete.manual;
+    readonly no_use_no_see = false;
 
-    static readonly permissions = undefined;
+    readonly permissions = undefined;
 
     // eslint-disable-next-line complexity
     async activate(

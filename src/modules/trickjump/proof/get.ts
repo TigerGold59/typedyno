@@ -4,17 +4,16 @@ import { UsingClient } from "../../../pg_wrapper.js";
 import { BotCommandProcessResults, BotCommandProcessResultType, Replier, Subcommand } from "../../../functions.js";
 
 import { log, LogType } from "../../../utilities/log.js";
-import { Proof } from "./proof_cmd.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { TextChannelMessage } from "../../../utilities/typeutils.js";
 import { GetJumproleResultType } from "../jumprole/internals/jumprole_type.js";
 import { Jumprole } from "../jumprole/internals/jumprole_type.js";
 import { GetJumproleEntryByJumproleAndHolderResultType, JumproleEntry } from "../tj/internals/entry_type.js";
-
+import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js";
 export class ProofGet extends Subcommand<typeof ProofGet.manual> {
     constructor() {
-        super(Proof.manual, ProofGet.manual, ProofGet.no_use_no_see, ProofGet.permissions);
+        super();
     }
 
     static readonly manual = {
@@ -29,14 +28,16 @@ export class ProofGet extends Subcommand<typeof ProofGet.manual> {
                 name: "user ID",
                 id: "source",
                 optional: true,
+                further_constraint: RT.TwitterLink,
             },
         ],
         syntax: "::<prefix>proof get:: NAME $1{opt $2}[ USER $2]",
         description: "Get the proof for a Jumprole you or someone else has.",
     } as const;
 
-    static readonly no_use_no_see = false;
-    static readonly permissions = undefined;
+    readonly manual = ProofGet.manual;
+    readonly no_use_no_see = false;
+    readonly permissions = undefined;
 
     // eslint-disable-next-line complexity
     async activate(

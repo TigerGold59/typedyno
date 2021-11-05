@@ -4,17 +4,15 @@ import { UsingClient } from "../../../pg_wrapper.js";
 import { BotCommandProcessResults, BotCommandProcessResultType, Replier, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 
-import { Permissions } from "../../../utilities/permissions.js";
 import { GetJumproleResultType, Jumprole, KINGDOM_NAMES } from "../jumprole/internals/jumprole_type.js";
 //import { DeleteJumproleResult, delete_jumprole } from "./internals/jumprole_postgres.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { is_number, is_string, TextChannelMessage } from "../../../utilities/typeutils.js";
 import { log, LogType } from "../../../utilities/log.js";
-import { TJ } from "./tj_cmd.js";
 
 export class TJInfo extends Subcommand<typeof TJInfo.manual> {
     constructor() {
-        super(TJ.manual, TJInfo.manual, TJInfo.no_use_no_see, TJInfo.permissions);
+        super();
     }
 
     static readonly manual = {
@@ -31,8 +29,9 @@ export class TJInfo extends Subcommand<typeof TJInfo.manual> {
         compact_syntaxes: true,
     } as const;
 
-    static readonly no_use_no_see = false;
-    static readonly permissions = undefined as Permissions | undefined;
+    readonly manual = TJInfo.manual;
+    readonly no_use_no_see = false;
+    readonly permissions = undefined;
 
     async activate(
         values: ValidatedArguments<typeof TJInfo.manual>,

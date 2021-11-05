@@ -19,7 +19,7 @@ export class Tier extends ParentCommand {
         super(...Tier.subcommands);
     }
 
-    static readonly manual = {
+    readonly manual = {
         name: "tier",
         subcommands: this.subcommand_manuals,
         description: "Manage Jumprole tiers in the current server.",

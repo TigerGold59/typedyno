@@ -1,6 +1,5 @@
 import { randomBytes } from "crypto";
-import { manual_of } from "./command_manual.js";
-import { BotCommand, is_valid_BotCommand } from "./functions.js";
+import { AnyBotCommand, is_valid_BotCommand } from "./functions.js";
 import { STOCK_TABLES } from "./main.js";
 import { CONFIG } from "./config.js";
 import { DebugLogType, log, LogType } from "./utilities/log.js";
@@ -8,7 +7,7 @@ import { is_valid_Permissions, Permissions } from "./utilities/permissions.js";
 import { filter_map, is_string } from "./utilities/typeutils.js";
 import { STOCK_BOT_COMMANDS } from "./stock_commands.js";
 
-type ModuleCommand = BotCommand;
+type ModuleCommand = AnyBotCommand;
 export interface Module {
     // Module name
     name: string;
@@ -128,7 +127,7 @@ export const load_modules = async function (): Promise<Module[]> {
     } {
         const dictionary: { [key: string]: string } = {};
         for (const bot_command of STOCK_BOT_COMMANDS) {
-            const manual = manual_of(bot_command);
+            const manual = bot_command.manual;
             if (manual === undefined) {
                 log("load_modules skipped stock bot function: instance had no manual saved as metadata. Continuing...", LogType.Error);
                 continue;
@@ -159,15 +158,12 @@ export const load_modules = async function (): Promise<Module[]> {
                 table_name_dictionary[table_name] = module.name;
             }
         }
-        const module_function_names = filter_map<BotCommand, string>(
+        const module_function_names = filter_map<AnyBotCommand, string>(
             module.functions,
-            <ThrowawaySymbol extends symbol>(command: BotCommand, _index: number, delete_symbol: ThrowawaySymbol): string | ThrowawaySymbol => {
-                const manual = manual_of(command);
+            <ThrowawaySymbol extends symbol>(command: AnyBotCommand, _index: number, delete_symbol: ThrowawaySymbol): string | ThrowawaySymbol => {
+                const manual = command.manual;
                 if (manual === undefined) {
-                    log(
-                        `load_modules skipped bot function from module "${module.name}: instance had no manual saved as metadata. Continuing...`,
-                        LogType.Error,
-                    );
+                    log(`load_modules skipped bot function from module "${module.name}: instance had no manual. Continuing...`, LogType.Error);
                     return delete_symbol;
                 }
                 return manual?.name;

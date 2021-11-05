@@ -4,16 +4,14 @@ import { UsingClient } from "../../../pg_wrapper.js";
 import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 import { log, LogType } from "../../../utilities/log.js";
-import { Permissions } from "../../../utilities/permissions.js";
-//import { CreateJumproleResult, create_jumprole } from "./internals/jumprole_postgres.js";
 import { Jumprole, KingdomNameToKingdom, CreateJumproleResultType } from "./internals/jumprole_type.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { TextChannelMessage } from "../../../utilities/typeutils.js";
 import { GetTierResultType, Tier } from "../tier/internals/tier_type.js";
-import { Jumprole as JumproleCommand } from "./jumprole_cmd.js";
+import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js";
 export class JumproleCreate extends Subcommand<typeof JumproleCreate.manual> {
     constructor() {
-        super(JumproleCommand.manual, JumproleCreate.manual, JumproleCreate.no_use_no_see, JumproleCreate.permissions);
+        super();
     }
 
     static readonly manual = {
@@ -48,6 +46,7 @@ export class JumproleCreate extends Subcommand<typeof JumproleCreate.manual> {
                 name: "link",
                 id: "link",
                 optional: true,
+                further_constraint: RT.TwitterLink,
             },
             {
                 name: "description",
@@ -60,8 +59,9 @@ export class JumproleCreate extends Subcommand<typeof JumproleCreate.manual> {
         compact_syntaxes: true,
     } as const;
 
-    static readonly no_use_no_see = false;
-    static readonly permissions = undefined as Permissions | undefined;
+    readonly manual = JumproleCreate.manual;
+    readonly no_use_no_see = false;
+    readonly permissions = undefined;
 
     async activate(
         args: ValidatedArguments<typeof JumproleCreate.manual>,

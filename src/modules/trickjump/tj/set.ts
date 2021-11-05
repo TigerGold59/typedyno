@@ -3,7 +3,6 @@ import { UsingClient } from "../../../pg_wrapper.js";
 
 import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
 
-import { TJ } from "./tj_cmd.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { query_failure, TextChannelMessage } from "../../../utilities/typeutils.js";
 import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js";
@@ -11,7 +10,7 @@ import { MAINTAINER_TAG } from "../../../main.js";
 
 export class TJSet extends Subcommand<typeof TJSet.manual> {
     constructor() {
-        super(TJ.manual, TJSet.manual, TJSet.no_use_no_see, TJSet.permissions);
+        super();
     }
 
     static readonly manual = {
@@ -28,8 +27,9 @@ export class TJSet extends Subcommand<typeof TJSet.manual> {
         description: "Give yourself all or remove all of the Jumproles in the server.",
     } as const;
 
-    static readonly no_use_no_see = false;
-    static readonly permissions = undefined;
+    readonly manual = TJSet.manual;
+    readonly no_use_no_see = false;
+    readonly permissions = undefined;
 
     // eslint-disable-next-line complexity
     async activate(

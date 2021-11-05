@@ -10,7 +10,7 @@ import { ValidatedArguments } from "../../../utilities/argument_processing/argum
 
 export class TierUpdate extends Subcommand<typeof TierUpdate.manual> {
     constructor() {
-        super("tier");
+        super();
     }
 
     static readonly manual = {

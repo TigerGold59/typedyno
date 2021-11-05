@@ -4,7 +4,6 @@ import { UsingClient } from "../../../pg_wrapper.js";
 import { BotCommandProcessResults, BotCommandProcessResultType, Replier, Subcommand } from "../../../functions.js";
 
 import { log, LogType } from "../../../utilities/log.js";
-import { TJ } from "./tj_cmd.js";
 import { is_string, TextChannelMessage } from "../../../utilities/typeutils.js";
 import { MAINTAINER_TAG, USER_ID_FAQ } from "../../../main.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
@@ -14,7 +13,7 @@ import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js
 
 export class TJList extends Subcommand<typeof TJList.manual> {
     constructor() {
-        super(TJ.manual, TJList.manual, TJList.no_use_no_see, TJList.permissions);
+        super();
     }
 
     static readonly manual = {
@@ -24,6 +23,7 @@ export class TJList extends Subcommand<typeof TJList.manual> {
                 name: "user ID",
                 id: "source",
                 optional: true,
+                further_constraint: RT.Snowflake,
             },
             {
                 name: "yes or no",
@@ -36,8 +36,9 @@ export class TJList extends Subcommand<typeof TJList.manual> {
         description: "Get Jumprole information.",
     } as const;
 
-    static readonly no_use_no_see = false;
-    static readonly permissions = undefined;
+    readonly manual = TJList.manual;
+    readonly no_use_no_see = false;
+    readonly permissions = undefined;
 
     // eslint-disable-next-line complexity
     async activate(

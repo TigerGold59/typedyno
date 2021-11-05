@@ -4,7 +4,6 @@ import { UsingClient } from "../../../pg_wrapper.js";
 import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
 
 import { log, LogType } from "../../../utilities/log.js";
-import { TJ } from "./tj_cmd.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { TextChannelMessage } from "../../../utilities/typeutils.js";
@@ -14,7 +13,7 @@ import { DeleteJumproleEntryResult, GetJumproleEntryByJumproleAndHolderResultTyp
 
 export class TJRemove extends Subcommand<typeof TJRemove.manual> {
     constructor() {
-        super(TJ.manual, TJRemove.manual, TJRemove.no_use_no_see, TJRemove.permissions);
+        super();
     }
 
     static readonly manual = {
@@ -30,8 +29,9 @@ export class TJRemove extends Subcommand<typeof TJRemove.manual> {
         description: "Remove a Jumprole from your list.",
     } as const;
 
-    static readonly no_use_no_see = false;
-    static readonly permissions = undefined;
+    readonly manual = TJRemove.manual;
+    readonly no_use_no_see = false;
+    readonly permissions = undefined;
 
     // eslint-disable-next-line complexity
     async activate(

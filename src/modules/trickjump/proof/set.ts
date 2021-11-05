@@ -4,7 +4,6 @@ import { UsingClient } from "../../../pg_wrapper.js";
 import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
 
 import { log, LogType } from "../../../utilities/log.js";
-import { Proof } from "./proof_cmd.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { TextChannelMessage } from "../../../utilities/typeutils.js";
@@ -15,7 +14,7 @@ import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js
 
 export class ProofSet extends Subcommand<typeof ProofSet.manual> {
     constructor() {
-        super(Proof.manual, ProofSet.manual, ProofSet.no_use_no_see, ProofSet.permissions);
+        super();
     }
 
     static readonly manual = {
@@ -37,8 +36,9 @@ export class ProofSet extends Subcommand<typeof ProofSet.manual> {
         description: "Set the proof for a jumprole you have.",
     } as const;
 
-    static readonly no_use_no_see = false;
-    static readonly permissions = undefined;
+    readonly manual = ProofSet.manual;
+    readonly no_use_no_see = false;
+    readonly permissions = undefined;
 
     // eslint-disable-next-line complexity
     async activate(

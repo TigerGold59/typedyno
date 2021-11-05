@@ -1,3 +1,4 @@
+import { KINGDOM_NAMES_LOWERCASE, KINGDOM_NAMES } from "../../modules/trickjump/jumprole/internals/jumprole_type.js";
 import { is_valid_Snowflake } from "../permissions.js";
 import {
     is_string,
@@ -832,3 +833,15 @@ export const TwitterLink = new Structure<string>(
             };
     },
 );
+
+export const KingdomString = string.validate(<Input extends string>(result: Input): TransformResult<Input> => {
+    if (KINGDOM_NAMES_LOWERCASE.includes(result.toLowerCase() as typeof KINGDOM_NAMES_LOWERCASE[number])) {
+        return { succeeded: true, result: result };
+    } else {
+        return {
+            succeeded: false,
+            error: StructureValidationFailedReason.InvalidValue,
+            information: [`input was a string but it wasn't a kingdom name. Valid kingdom names are: ${KINGDOM_NAMES.join()}.`],
+        };
+    }
+});

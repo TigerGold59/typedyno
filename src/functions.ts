@@ -1,22 +1,20 @@
 import { Message, Client } from "discord.js";
 import { MakesSingleRequest, PoolInstance as Pool, Queryable, UsesClient, use_client, UsingClient } from "./pg_wrapper.js";
-import {
-    CommandManual,
-    manual_of,
-    is_no_use_no_see,
-    permissions_of,
-    SubcommandManual,
-    argument_structure_from_manual,
-    MultifacetedCommandManual,
-    indent,
-} from "./command_manual.js";
+import { CommandManual, SubcommandManual, argument_structure_from_manual, MultifacetedCommandManual, indent } from "./command_manual.js";
 import { get_prefix } from "./integrations/server_prefixes.js";
 import { GLOBAL_PREFIX, MODULES } from "./main.js";
 import { performance } from "perf_hooks";
 import { DebugLogType, log, LogType } from "./utilities/log.js";
 import { allowed, Permissions } from "./utilities/permissions.js";
 import { escape_reg_exp, is_boolean, is_string, is_text_channel, TextChannelMessage } from "./utilities/typeutils.js";
-import { get_args, get_first_matching_subcommand, handle_GetArgsResult, is_call_of } from "./utilities/argument_processing/arguments.js";
+import {
+    GetDeterminationTagAsStringResultType,
+    get_args,
+    get_determination_tag_as_str,
+    get_first_matching_subcommand,
+    handle_GetArgsResult,
+    is_call_of,
+} from "./utilities/argument_processing/arguments.js";
 import { GetArgsResult, ValidatedArguments } from "./utilities/argument_processing/arguments_types.js";
 import { log_stack } from "./utilities/runtime_typeguard/runtime_typeguard.js";
 
@@ -58,43 +56,30 @@ export type ArgumentValues<Manual extends SubcommandManual> = Exclude<GetArgsRes
 
 export type Replier = (response: string, use_prefix?: boolean) => Promise<void>;
 
-export const MakeReplier = (message: TextChannelMessage, prefix: string, full_name: string) => {
+export const MakeReplier = (message: TextChannelMessage, determination_tag_string: string) => {
     return async (response: string, use_prefix?: boolean) => {
         let use_prefix_intention = is_boolean(use_prefix) ? use_prefix : true;
-        await message.channel.send(`${use_prefix_intention ? `${prefix}${full_name}: ` : ""}${response}`);
+        await message.channel.send(`${use_prefix_intention ? `${determination_tag_string}: ` : ""}${response}`);
     };
 };
 
 export type ManualOf<Command extends Subcommand<SubcommandManual>> = Command extends Subcommand<infer T> ? T : never;
 
 export abstract class Subcommand<Manual extends SubcommandManual> extends BotCommand<Manual> {
-    readonly #_parent_name: string;
-
-    get parent_name() {
-        return this.#_parent_name;
-    }
-
     abstract readonly manual: Manual;
 
-    constructor(parent_name: string) {
+    constructor() {
         super();
-        this.#_parent_name = parent_name;
         Object.freeze(this);
     }
 
-    full_name(): string {
-        return `${this.parent_name} ${this.manual.name}`;
-    }
-
-    uppercase_name() {
-        let parts = this.full_name().split(" ");
-
-        return parts
-            .map(str => {
-                let char = str[0];
-                return char.toUpperCase() + str.slice(1);
-            })
-            .join("");
+    determination_tag_string(prefix: string): string {
+        let result = get_determination_tag_as_str(prefix, this.manual);
+        if (result.type === GetDeterminationTagAsStringResultType.Failed) {
+            throw new Error(`${this.manual.name}: failed to get determination tag`);
+        } else {
+            return result.result;
+        }
     }
 
     is_attempted_use(message: TextChannelMessage, _client: Client, prefix: string): boolean {
@@ -103,7 +88,7 @@ export abstract class Subcommand<Manual extends SubcommandManual> extends BotCom
             return result.is_call;
         } else {
             log(
-                `is_attempted_use: syntax string parsing failed - error: ${result.syntax_string_error.map(x => x.toString).join(", location: ")}`,
+                `is_attempted_use: syntax string parsing failed - error: ${result.syntax_string_error.reason}, location: ${result.syntax_string_error.index}`,
                 LogType.Error,
             );
             return false;
@@ -126,15 +111,15 @@ export abstract class Subcommand<Manual extends SubcommandManual> extends BotCom
         queryable: Queryable<MakesSingleRequest>,
         prefix: string,
     ): Promise<BotCommandProcessResults> {
-        const pg_client = await use_client(queryable, `${this.uppercase_name()}.activate`);
-        const manual = manual_of(this);
-        const spec = argument_structure_from_manual(manual as SubcommandManual);
+        const pg_client = await use_client(queryable, this.determination_tag_string(prefix));
+        const manual = this.manual;
+        const spec = argument_structure_from_manual(manual);
         const values = spec.check(args);
 
         if (values.succeeded === false) return { type: BotCommandProcessResultType.Invalid };
 
         if (is_text_channel(message)) {
-            let result = await this.activate(args, message, client, pg_client, prefix, MakeReplier(message, prefix, this.full_name()));
+            let result = await this.activate(args, message, client, pg_client, prefix, MakeReplier(message, this.determination_tag_string(prefix)));
 
             pg_client.handle_release();
             return result;
@@ -147,13 +132,13 @@ export abstract class Subcommand<Manual extends SubcommandManual> extends BotCom
     }
 
     async process(message: Message, client: Client, pool: Pool, prefix: string): Promise<BotCommandProcessResults> {
-        const manual = manual_of(this) as SubcommandManual;
+        const manual = this.manual;
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
         const args = get_args(prefix, manual, message.content);
 
         if (is_text_channel(message)) {
-            const result = await handle_GetArgsResult(message, manual_of(this).name, args, prefix);
+            const result = await handle_GetArgsResult(message, this.manual.name, args, prefix);
 
             if (result === false) {
                 return failed;
@@ -167,9 +152,10 @@ export abstract class Subcommand<Manual extends SubcommandManual> extends BotCom
                 return { type: BotCommandProcessResultType.Invalid };
             }
 
-            let pg_client = await use_client(pool, this.full_name());
+            let pg_client = await use_client(pool, this.determination_tag_string(prefix));
 
             let activate_result = await this.run_activate(
+                // @ts-expect-error I have no clue why this errors
                 values.normalized as ValidatedArguments<Manual>,
                 message as TextChannelMessage,
                 client,
@@ -268,7 +254,7 @@ export abstract class ParentCommand extends BotCommand<MultifacetedCommandManual
                 client,
                 pool,
                 prefix,
-                MakeReplier(message, prefix, this.manual.name),
+                MakeReplier(message, `${prefix}${this.manual.name}`),
             );
 
             switch (pre_dispatch_result.type) {
@@ -370,7 +356,7 @@ export const process_message_for_commands = async function (
     // ALWAYS check stock bot commands first. NEVER let a module command override a stock command, although we would
     // hope that would've been caught earlier.
     for (const bot_command of stock_commands) {
-        const manual = manual_of(bot_command);
+        const manual = bot_command.manual;
         if (manual === undefined) {
             log(`process_message_for_commands skipped stock bot function: instance had no manual saved as metadata. Continuing...`, LogType.Error);
             continue;
@@ -389,10 +375,10 @@ export const process_message_for_commands = async function (
 
         if (regex instanceof RegExp && regex.test(message.content) && valid_command === null) {
             log(`Regex match found!`, LogType.Status, DebugLogType.ProcessMessageForCommandsFunctionDebug);
-            if (allowed(message, permissions_of(bot_command))) {
+            if (allowed(message, bot_command.permissions)) {
                 log(`Match is valid, permissions are a go.`, LogType.Status, DebugLogType.ProcessMessageForCommandsFunctionDebug);
                 valid_command = bot_command;
-            } else if (is_no_use_no_see(bot_command) === false) {
+            } else if (bot_command.no_use_no_see === false) {
                 log(`Match is not valid, permissions are restrictive.`, LogType.Status, DebugLogType.ProcessMessageForCommandsFunctionDebug);
                 return {
                     did_find_command: true,
@@ -413,7 +399,7 @@ export const process_message_for_commands = async function (
             // Skip checking command call if the module is already restricted here
             // Check module commands
             for (const bot_command of module.functions) {
-                const manual = manual_of(bot_command);
+                const manual = bot_command.manual;
                 if (manual === undefined) {
                     log(
                         `process_message_for_commands skipped bot command from module "${module.name}": instance had no manual saved as metadata. Continuing...`,
@@ -424,10 +410,10 @@ export const process_message_for_commands = async function (
 
                 const regex = make_command_regex(manual.name, prefix);
                 if (regex instanceof RegExp && regex.test(message.content) && valid_command === null && using_module === null) {
-                    if (allowed(message, permissions_of(bot_command))) {
+                    if (allowed(message, bot_command.permissions)) {
                         valid_command = bot_command;
                         using_module = module.name;
-                    } else if (is_no_use_no_see(bot_command) === false) {
+                    } else if (bot_command.no_use_no_see === false) {
                         return {
                             did_find_command: true,
                             command_authorized: false,
@@ -442,7 +428,7 @@ export const process_message_for_commands = async function (
     }
 
     // Check permissions validity of valid_command
-    if (is_valid_BotCommand(valid_command) && allowed(message, permissions_of(valid_command))) {
+    if (is_valid_BotCommand(valid_command) && allowed(message, valid_command.permissions)) {
         // Run the command
         const start_time = performance.now();
         const result = await valid_command.process(message, client, pool, prefix);
@@ -450,11 +436,11 @@ export const process_message_for_commands = async function (
 
         return {
             did_find_command: true,
-            no_use_no_see: is_no_use_no_see(valid_command),
+            no_use_no_see: valid_command.no_use_no_see,
             command_worked: result.type === BotCommandProcessResultType.Succeeded,
             command_authorized: result.type !== BotCommandProcessResultType.Unauthorized,
             call_to_return_span_ms: end_time - start_time,
-            command_name: manual_of(valid_command).name,
+            command_name: valid_command.manual.name,
             did_use_module: using_module !== null,
             module_name: using_module,
             not_authorized_reason: result.not_authorized_message,

@@ -5,27 +5,16 @@ import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Repli
 import { MAINTAINER_TAG } from "../../../main.js";
 
 import { log, LogType } from "../../../utilities/log.js";
-import { Permissions } from "../../../utilities/permissions.js";
 import { is_string, is_text_channel, TextChannelMessage } from "../../../utilities/typeutils.js";
 // import { ModifyJumproleResult, modify_jumprole } from "./internals/jumprole_postgres.js";
-import {
-    GetJumproleResultType,
-    Jumprole,
-    JumproleModifyOptions,
-    KingdomNameToKingdom,
-    KINGDOM_NAMES,
-    KINGDOM_NAMES_LOWERCASE,
-    ModifyJumproleResult,
-} from "./internals/jumprole_type.js";
+import { GetJumproleResultType, Jumprole, JumproleModifyOptions, KingdomNameToKingdom, ModifyJumproleResult } from "./internals/jumprole_type.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { GetTierResultType, Tier } from "../tier/internals/tier_type.js";
-import { Jumprole as JumproleCommand } from "./jumprole_cmd.js";
 import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js";
-import { StructureValidationFailedReason, TransformResult } from "../../../utilities/runtime_typeguard/runtime_typeguard.js";
 
 export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
     constructor() {
-        super(JumproleCommand.manual, JumproleUpdate.manual, JumproleUpdate.no_use_no_see, JumproleUpdate.permissions);
+        super();
     }
 
     static readonly manual = {
@@ -50,17 +39,7 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
                 name: "kingdom",
                 id: "kingdom",
                 optional: true,
-                further_constraint: RT.string.validate(<Input extends string>(result: Input): TransformResult<Input> => {
-                    if (KINGDOM_NAMES_LOWERCASE.includes(result.toLowerCase() as typeof KINGDOM_NAMES_LOWERCASE[number])) {
-                        return { succeeded: true, result: result };
-                    } else {
-                        return {
-                            succeeded: false,
-                            error: StructureValidationFailedReason.InvalidValue,
-                            information: [`input was a string but it wasn't a kingdom name. Valid kingdom names are: ${KINGDOM_NAMES.join()}.`],
-                        };
-                    }
-                }),
+                further_constraint: RT.KingdomString,
             },
             {
                 name: "location",
@@ -76,6 +55,7 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
                 name: "link",
                 id: "link",
                 optional: true,
+                further_constraint: RT.TwitterLink,
             },
             {
                 name: "description",
@@ -89,8 +69,9 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
         compact_syntaxes: true,
     } as const;
 
-    static readonly no_use_no_see = false;
-    static readonly permissions = undefined as Permissions | undefined;
+    readonly manual = JumproleUpdate.manual;
+    readonly no_use_no_see = false;
+    readonly permissions = undefined;
 
     // eslint-disable-next-line complexity
     async activate(

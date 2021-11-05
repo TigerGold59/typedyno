@@ -54,24 +54,38 @@ export const parse_loop_with_initial_state = function (
         const char = to_parse[index];
         switch (state) {
             case SyntaxStringParserState.None: {
-                if (char !== ":" || to_parse[index + 1] !== ":") return { type: SyntaxStringCompiledType.Error, error: { reason: InvalidSyntaxStringReason.DoesNotStartWithDeterminationTag, index }};
+                if (char !== ":" || to_parse[index + 1] !== ":")
+                    return {
+                        type: SyntaxStringCompiledType.Error,
+                        error: { reason: InvalidSyntaxStringReason.DoesNotStartWithDeterminationTag, index },
+                    };
                 state = SyntaxStringParserState.DeterminationTagBeginning;
                 current_segment = "";
                 index += 1;
                 break;
             }
             case SyntaxStringParserState.DeterminationTagBeginning: {
-                if (char !== "<") return { type: SyntaxStringCompiledType.Error, error: { reason: InvalidSyntaxStringReason.DeterminationTagDoesNotStartWithPrefixTag, index}};
+                if (char !== "<")
+                    return {
+                        type: SyntaxStringCompiledType.Error,
+                        error: { reason: InvalidSyntaxStringReason.DeterminationTagDoesNotStartWithPrefixTag, index },
+                    };
                 state = SyntaxStringParserState.PrefixTag;
                 current_segment = "";
                 break;
             }
             case SyntaxStringParserState.DeterminationTag: {
                 if (index === to_parse.length - 1) {
-                    return { type: SyntaxStringCompiledType.Error, error: { reason: InvalidSyntaxStringReason.UnmatchedDeterminationTagOpening, index}};
+                    return {
+                        type: SyntaxStringCompiledType.Error,
+                        error: { reason: InvalidSyntaxStringReason.UnmatchedDeterminationTagOpening, index },
+                    };
                 } else if (top_level_validated === false && top_level_call) {
                     if (is_alphabetic(char) === false && is_whitespace(char) === false)
-                        return { type: SyntaxStringCompiledType.Error, error: { reason: InvalidSyntaxStringReason.CommandNameDoesNotImmediatelyFollowPrefixTag, index}};
+                        return {
+                            type: SyntaxStringCompiledType.Error,
+                            error: { reason: InvalidSyntaxStringReason.CommandNameDoesNotImmediatelyFollowPrefixTag, index },
+                        };
                     else if (is_alphabetic(char)) {
                         current_segment += char;
                         top_level_validated = true;
@@ -106,7 +120,7 @@ export const parse_loop_with_initial_state = function (
 
                     // ignore coming whitespace
                     while (is_whitespace(to_parse[index + 1])) index++;
-                } else return { type: SyntaxStringCompiledType.Error, error: { reason: InvalidSyntaxStringReason.InvalidPrefixTagContent, index}};
+                } else return { type: SyntaxStringCompiledType.Error, error: { reason: InvalidSyntaxStringReason.InvalidPrefixTagContent, index } };
                 break;
             }
             case SyntaxStringParserState.StaticTopLevel: {
@@ -118,7 +132,7 @@ export const parse_loop_with_initial_state = function (
                     just_referred_to_argument = false;
                 } else if (char === "]" && top_level_call === false) {
                     res.push(current_segment);
-                    return { type: SyntaxStringCompiledType.Success, segments: res, argument_references}
+                    return { type: SyntaxStringCompiledType.Success, segments: res, argument_references, end_index: index };
                 } else {
                     current_segment += char;
                     just_referred_to_argument = false;
@@ -134,7 +148,10 @@ export const parse_loop_with_initial_state = function (
                 else if (char === "}") {
                     while (is_whitespace(to_parse[index + 1])) index++; // ignore whitespace
                     if (to_parse[index + 1] !== "[")
-                        return { type: SyntaxStringCompiledType.Error, error: { reason: InvalidSyntaxStringReason.InvalidContentInBetweenKeyOffCurlyBracesAndSquareBrackets, index}};
+                        return {
+                            type: SyntaxStringCompiledType.Error,
+                            error: { reason: InvalidSyntaxStringReason.InvalidContentInBetweenKeyOffCurlyBracesAndSquareBrackets, index },
+                        };
                     else if (current_argument_identifier !== null) {
                         state = SyntaxStringParserState.ContentInKeyOffInSquareBrackets;
                         auxiliary_segment = "";
@@ -144,7 +161,11 @@ export const parse_loop_with_initial_state = function (
                 else if (char === "$" && auxiliary_segment === "opt") {
                     argument_identifier_segment = "";
                     state = SyntaxStringParserState.ArgumentIdentifierInKeyOffInCurlyBraces;
-                } else return { type: SyntaxStringCompiledType.Error, error: { reason: InvalidSyntaxStringReason.InvalidContentInKeyOffCurlyBraces, index}};
+                } else
+                    return {
+                        type: SyntaxStringCompiledType.Error,
+                        error: { reason: InvalidSyntaxStringReason.InvalidContentInKeyOffCurlyBraces, index },
+                    };
                 break;
             }
             case SyntaxStringParserState.ArgumentIdentifierInKeyOffInCurlyBraces: {
@@ -161,15 +182,28 @@ export const parse_loop_with_initial_state = function (
                         state = SyntaxStringParserState.KeyOffInCurlyBraces;
                         const argument_number = Number(argument_identifier_segment);
                         if (Number.isInteger(argument_number) === false || argument_number < 1)
-                            return { type: SyntaxStringCompiledType.Error, error: { reason: InvalidSyntaxStringReason.InvalidContentInBetweenKeyOffCurlyBracesAndSquareBrackets, index}};
+                            return {
+                                type: SyntaxStringCompiledType.Error,
+                                error: { reason: InvalidSyntaxStringReason.InvalidContentInBetweenKeyOffCurlyBracesAndSquareBrackets, index },
+                            };
                         if (argument_number - 1 >= argument_references.length)
-                            return { type: SyntaxStringCompiledType.Error, error: { reason: InvalidSyntaxStringReason.NonexistentArgumentReferenced, index}};
+                            return {
+                                type: SyntaxStringCompiledType.Error,
+                                error: { reason: InvalidSyntaxStringReason.NonexistentArgumentReferenced, index },
+                            };
                         if (args[argument_number - 1].optional === false)
-                            return { type: SyntaxStringCompiledType.Error, error: { reason: InvalidSyntaxStringReason.KeyOffArgumentIdentifierRefersToNonOptionalArgument, index}};
+                            return {
+                                type: SyntaxStringCompiledType.Error,
+                                error: { reason: InvalidSyntaxStringReason.KeyOffArgumentIdentifierRefersToNonOptionalArgument, index },
+                            };
                         current_argument_identifier = Number(argument_identifier_segment);
                         index -= 1; // so that SyntaxStringParserState.KeyOffInCurlyBraces case reads this character, in order to judge if it's a valid end character
                         argument_identifier_segment = "";
-                    } else return { type: SyntaxStringCompiledType.Error, error: { reason: InvalidSyntaxStringReason.InvalidContentInKeyOffCurlyBraces, index}}; // we have nothing valid in here and the string has ended
+                    } else
+                        return {
+                            type: SyntaxStringCompiledType.Error,
+                            error: { reason: InvalidSyntaxStringReason.InvalidContentInKeyOffCurlyBraces, index },
+                        }; // we have nothing valid in here and the string has ended
                 }
                 break;
             }
@@ -182,18 +216,36 @@ export const parse_loop_with_initial_state = function (
                     if (argument_identifier_segment.length > 0) {
                         // we have at least one valid digit in here
                         if (just_referred_to_argument) {
-                            return { type: SyntaxStringCompiledType.Error, error: { reason: InvalidSyntaxStringReason.MultipleArgumentsReferredToByIdentifierWithoutSeparatingCharacters, index}};
+                            return {
+                                type: SyntaxStringCompiledType.Error,
+                                error: {
+                                    reason: InvalidSyntaxStringReason.MultipleArgumentsReferredToByIdentifierWithoutSeparatingCharacters,
+                                    index,
+                                },
+                            };
                         }
                         const argument_number = Number(argument_identifier_segment);
                         if (Number.isInteger(argument_number) === false || argument_number < 1)
-                            return { type: SyntaxStringCompiledType.Error, error: { reason: InvalidSyntaxStringReason.IllegalArgumentIdentifier, index}};
+                            return {
+                                type: SyntaxStringCompiledType.Error,
+                                error: { reason: InvalidSyntaxStringReason.IllegalArgumentIdentifier, index },
+                            };
                         if (argument_number - 1 >= argument_references.length)
-                            return { type: SyntaxStringCompiledType.Error, error: { reason: InvalidSyntaxStringReason.NonexistentArgumentReferenced, index}};
+                            return {
+                                type: SyntaxStringCompiledType.Error,
+                                error: { reason: InvalidSyntaxStringReason.NonexistentArgumentReferenced, index },
+                            };
                         if (argument_references[argument_number - 1] !== false)
-                            return { type: SyntaxStringCompiledType.Error, error: { reason: InvalidSyntaxStringReason.ArgumentReferencedMoreThanOnce, index}};
+                            return {
+                                type: SyntaxStringCompiledType.Error,
+                                error: { reason: InvalidSyntaxStringReason.ArgumentReferencedMoreThanOnce, index },
+                            };
                         // if we're referencing an optional arg outside its keyoff scope
                         if (key_off_stack.includes(argument_number) === false && args[argument_number - 1].optional) {
-                            return { type: SyntaxStringCompiledType.Error, error: { reason: InvalidSyntaxStringReason.OptionalArgumentReferredToByIdentifierOutsideItsKeyOff, index}};
+                            return {
+                                type: SyntaxStringCompiledType.Error,
+                                error: { reason: InvalidSyntaxStringReason.OptionalArgumentReferredToByIdentifierOutsideItsKeyOff, index },
+                            };
                         }
                         res.push(current_segment);
                         argument_references[argument_number - 1] = true;
@@ -228,17 +280,16 @@ export const parse_loop_with_initial_state = function (
                     argument_references,
                 );
                 const return_val = sub_res;
-                const sub_index = sub_res[1];
-                if (sub_res.type === SyntaxStringCompiledType.Success) return { type: sub_res.typereturn_val, index + sub_index];
+                if (return_val.type === SyntaxStringCompiledType.Error) return { type: return_val.type, error: return_val.error };
                 else {
                     res.push(current_segment);
                     current_segment = "";
                     res.push({
-                        content: return_val,
+                        content: return_val.segments,
                         type: SyntaxStringSegmentType.KeyOffStatement,
                         argument_number: current_argument_identifier,
                     });
-                    index += sub_index;
+                    index += return_val.end_index;
                     current_argument_identifier = null;
                     key_off_stack.pop();
                     state = SyntaxStringParserState.StaticTopLevel;
@@ -254,15 +305,24 @@ export const parse_loop_with_initial_state = function (
         // we have at least one valid digit in the argument identifier section
         const last = str.length - 1;
         if (just_referred_to_argument) {
-            return [InvalidSyntaxStringReason.MultipleArgumentsReferredToByIdentifierWithoutSeparatingCharacters, last];
+            return {
+                type: SyntaxStringCompiledType.Error,
+                error: { reason: InvalidSyntaxStringReason.MultipleArgumentsReferredToByIdentifierWithoutSeparatingCharacters, index: last },
+            };
         }
         const argument_number = Number(argument_identifier_segment);
-        if (Number.isInteger(argument_number) === false || argument_number < 1) return [InvalidSyntaxStringReason.IllegalArgumentIdentifier, last];
-        if (argument_number - 1 >= argument_references.length) return [InvalidSyntaxStringReason.NonexistentArgumentReferenced, last];
-        if (argument_references[argument_number - 1] !== false) return [InvalidSyntaxStringReason.ArgumentReferencedMoreThanOnce, last];
+        if (Number.isInteger(argument_number) === false || argument_number < 1)
+            return { type: SyntaxStringCompiledType.Error, error: { reason: InvalidSyntaxStringReason.IllegalArgumentIdentifier, index: last } };
+        if (argument_number - 1 >= argument_references.length)
+            return { type: SyntaxStringCompiledType.Error, error: { reason: InvalidSyntaxStringReason.NonexistentArgumentReferenced, index: last } };
+        if (argument_references[argument_number - 1] !== false)
+            return { type: SyntaxStringCompiledType.Error, error: { reason: InvalidSyntaxStringReason.ArgumentReferencedMoreThanOnce, index: last } };
         // if we're referencing an optional arg outside its keyoff scope
         if (key_off_stack.includes(argument_number) === false && args[argument_number - 1].optional) {
-            return [InvalidSyntaxStringReason.OptionalArgumentReferredToByIdentifierOutsideItsKeyOff, last];
+            return {
+                type: SyntaxStringCompiledType.Error,
+                error: { reason: InvalidSyntaxStringReason.OptionalArgumentReferredToByIdentifierOutsideItsKeyOff, index: last },
+            };
         }
         res.push({
             content: null,
@@ -271,26 +331,28 @@ export const parse_loop_with_initial_state = function (
         });
     }
 
-    return [res, to_parse.length - 1];
+    return { type: SyntaxStringCompiledType.Success, segments: res, argument_references, end_index: to_parse.length - 1 };
 };
 
 export const enum SyntaxStringCompiledType {
     Success,
-    Error
+    Error,
 }
 
-export type SyntaxStringCompiled = {
-    type: SyntaxStringCompiledType.Success,
-    segments: SyntaxStringSegmentContent[],
-    argument_references: boolean[]
-} | { type: Exclude<SyntaxStringCompiledType, SyntaxStringCompiledType.Success>, error: SyntaxStringCompilationError }
+export type SyntaxStringCompiled =
+    | {
+          type: SyntaxStringCompiledType.Success;
+          segments: SyntaxStringSegmentContent[];
+          argument_references: boolean[];
+          end_index: number;
+      }
+    | { type: Exclude<SyntaxStringCompiledType, SyntaxStringCompiledType.Success>; error: SyntaxStringCompilationError };
 
 // TODO: make a prefix-agnostic syntax string to argument regex compiler so that we can use the same compiled syntax string, even for different prefixes
 
-
 const syntax_string_compile_cache: {
     [key: string]: {
-        [key: string]: SyntaxStringSegmentContent[] | SyntaxStringCompilationError;
+        [key: string]: SyntaxStringCompiled;
     };
 } = {};
 
@@ -301,17 +363,17 @@ interface CompiledSyntaxString {
 }
 
 export type SyntaxStringCompilationError = {
-    reason: InvalidSyntaxStringReason,
-    index: number
-}
-
-export const update_syntax_string_cache = (prefix: string, syntax_string: string, result: SyntaxStringSegmentContent[] | SyntaxStringCompilationError): SyntaxStringSegmentContent[] | SyntaxStringCompilationError => {
-    if (prefix in syntax_string_compile_cache) syntax_string_compile_cache[prefix][syntax_string] = result;
-        else syntax_string_compile_cache[prefix] = { [syntax_string]: result };
-        return result;
+    reason: InvalidSyntaxStringReason;
+    index: number;
 };
 
-export const get_compiled = (prefix: string, args: readonly CommandArgument[], syntax_string: string): SyntaxStringSegmentContent[] | SyntaxStringCompilationError => {
+export const update_syntax_string_cache = (prefix: string, syntax_string: string, result: SyntaxStringCompiled): SyntaxStringCompiled => {
+    if (prefix in syntax_string_compile_cache) syntax_string_compile_cache[prefix][syntax_string] = result;
+    else syntax_string_compile_cache[prefix] = { [syntax_string]: result };
+    return result;
+};
+
+export const get_compiled = (prefix: string, args: readonly CommandArgument[], syntax_string: string): SyntaxStringCompiled => {
     if (prefix in syntax_string_compile_cache && syntax_string in syntax_string_compile_cache[prefix]) {
         return syntax_string_compile_cache[prefix][syntax_string];
     }
@@ -320,15 +382,21 @@ export const get_compiled = (prefix: string, args: readonly CommandArgument[], s
     for (let i = 1; i < args.length; i++) argument_references.push(false);
 
     const result = parse_loop_with_initial_state(args, syntax_string, SyntaxStringParserState.None, key_off_stack, true, argument_references);
-    const parsing_result = result[0];
-    if (typeof parsing_result === "number") {
-        return update_syntax_string_cache(prefix, syntax_string, { reason: parsing_result, index: result[1] });
-        
+    if (result.type === SyntaxStringCompiledType.Error) {
+        return update_syntax_string_cache(prefix, syntax_string, result);
+    } else {
+        return update_syntax_string_cache(prefix, syntax_string, result);
     }
-    else {
-        return update_syntax_string_cache(prefix, syntax_string, parsing_result);
-    }
+};
+
+export const enum SyntaxStringTestingResultType {
+    Success,
+    Error,
 }
+
+export type SyntaxStringTestingResult =
+    | { type: SyntaxStringTestingResultType.Success; tests: CompiledSyntaxString }
+    | { type: Exclude<SyntaxStringTestingResultType, SyntaxStringTestingResultType.Success>; error: SyntaxStringCompilationError };
 
 /**
  * Transforms syntax strings into a `RegExp` that can be used for processing commands
@@ -341,17 +409,9 @@ export const syntax_string_to_argument_regex = function (
     prefix: string,
     args: readonly CommandArgument[],
     syntax_string: string,
-): CompiledSyntaxString | SyntaxStringCompilationError {
-    if (prefix in syntax_string_compile_cache && syntax_string in syntax_string_compile_cache[prefix]) {
-        return syntax_string_compile_cache[prefix][syntax_string];
-    }
-    const key_off_stack: number[] = [];
-    const argument_references: boolean[] = args.length > 0 ? [false] : [];
-    for (let i = 1; i < args.length; i++) argument_references.push(false);
-
-    const result = parse_loop_with_initial_state(args, syntax_string, SyntaxStringParserState.None, key_off_stack, true, argument_references);
-    const parsing_result = result[0];
-    if (typeof parsing_result === "number") return { reason: parsing_result, index: result[1] };
+): SyntaxStringTestingResult {
+    let result = get_compiled(prefix, args, syntax_string);
+    if (result.type === SyntaxStringCompiledType.Error) return { type: SyntaxStringTestingResultType.Error, error: result.error };
 
     let determination_tag_regex_str = "";
 
@@ -396,22 +456,21 @@ export const syntax_string_to_argument_regex = function (
     };
 
     let res = "^";
-    for (const part of parsing_result) {
+    for (const part of result.segments) {
         res += construct_regex_part(part);
     }
     res += "$";
 
     let determination_tag_regex = new RegExp(`^${determination_tag_regex_str}`);
 
-    const return_value: CompiledSyntaxString = {
-        regex: new RegExp(res, "mi"),
-        argument_references: argument_keyoff_accumulator,
-        determination_tag: determination_tag_regex,
+    return {
+        type: SyntaxStringTestingResultType.Success,
+        tests: {
+            regex: new RegExp(res, "mi"),
+            argument_references: argument_keyoff_accumulator,
+            determination_tag: determination_tag_regex,
+        },
     };
-
-    if (prefix in syntax_string_compile_cache) syntax_string_compile_cache[prefix][syntax_string] = return_value;
-    else syntax_string_compile_cache[prefix] = { syntax_string: return_value };
-    return return_value;
 };
 
 export type CallCheckResult =
@@ -419,49 +478,76 @@ export type CallCheckResult =
           succeeded: true;
           is_call: boolean;
       }
-    | { succeeded: false; syntax_string_error: [InvalidSyntaxStringReason, number] };
+    | { succeeded: false; syntax_string_error: SyntaxStringCompilationError };
 
 export const is_call_of = (prefix: string, command: SimpleCommandManual, invocation: string): CallCheckResult => {
-    const failed = (syntax_string_error: [InvalidSyntaxStringReason, number]) => {
+    const failed = (syntax_string_error: SyntaxStringCompilationError) => {
         return {
             succeeded: false,
             syntax_string_error: syntax_string_error,
-        } as { succeeded: false; syntax_string_error: [InvalidSyntaxStringReason, number] };
+        } as { succeeded: false; syntax_string_error: SyntaxStringCompilationError };
     };
 
     const result = syntax_string_to_argument_regex(prefix, command.arguments, command.syntax);
-    if (result instanceof Array) {
+    if (result.type === SyntaxStringTestingResultType.Error) {
         log(
-            `is_call_of: command ${
-                command.name
-            } had a malformed syntax string (syntax string processing failed with error #${result[0].toString()} at index ${result[1].toString()}). Returning {succeeded: false}...`,
+            `is_call_of: command ${command.name} had a malformed syntax string (syntax string processing failed with error #${
+                result.error.reason
+            } at index ${result.error.index.toString()}). Returning {succeeded: false}...`,
             LogType.Error,
         );
-        return failed(result);
+        return failed(result.error);
     } else {
         return {
             succeeded: true,
-            is_call: result.determination_tag.test(invocation),
+            is_call: result.tests.determination_tag.test(invocation),
         };
     }
 };
 
 export const enum GetDeterminationTagAsStringResultType {
     Success,
-    Failed
+    Failed,
 }
 
-export type GetDeterminationTagAsStringResult = { type: GetDeterminationTagAsStringResultType.Success, result: string } | { type: Exclude<GetDeterminationTagAsStringResultType, GetDeterminationTagAsStringResultType.Success>, error: [InvalidSyntaxStringReason, number]} 
+export type GetDeterminationTagAsStringResult =
+    | { type: GetDeterminationTagAsStringResultType.Success; result: string }
+    | { type: Exclude<GetDeterminationTagAsStringResultType, GetDeterminationTagAsStringResultType.Success>; error: SyntaxStringCompilationError };
 export const get_determination_tag_as_str = (prefix: string, command: SimpleCommandManual): GetDeterminationTagAsStringResult => {
-    const result = syntax_string_to_argument_regex(prefix, command.arguments, command.syntax);
+    const result = get_compiled(prefix, command.arguments, command.syntax);
 
-    if (result instanceof Array) {
-        return { type: GetDeterminationTagAsStringResultType.Failed, error: result};
+    const assemble_parts = (syntax_string_segment_content: SyntaxStringSegmentContent): string => {
+        let buffer = "";
+        if (is_string(syntax_string_segment_content)) {
+            buffer += syntax_string_segment_content;
+        } else {
+            switch (syntax_string_segment_content.type) {
+                case SyntaxStringSegmentType.DeterminationTag: {
+                    if (syntax_string_segment_content.content === null) return "";
+                    buffer += syntax_string_segment_content.content.map(assemble_parts).join("");
+                    break;
+                }
+                case SyntaxStringSegmentType.PrefixTag: {
+                    buffer += prefix;
+                    break;
+                }
+                case SyntaxStringSegmentType.ArgumentIdentifier:
+                case SyntaxStringSegmentType.KeyOffStatement: {
+                    buffer += "";
+                    break;
+                }
+            }
+        }
+        return buffer;
+    };
+    if (result.type === SyntaxStringCompiledType.Error) {
+        return { type: GetDeterminationTagAsStringResultType.Failed, error: result.error };
+    } else {
+        let parts = result.segments;
+
+        return { type: GetDeterminationTagAsStringResultType.Success, result: parts.map(assemble_parts).join("") };
     }
-    else {
-        return result.regex.
-    }
-}
+};
 
 /**
  *
@@ -476,7 +562,7 @@ export const get_determination_tag_as_str = (prefix: string, command: SimpleComm
 export const get_args = function (prefix: string, command: SimpleCommandManual, invocation: string): ArgumentValues<typeof command.arguments> {
     const result = syntax_string_to_argument_regex(prefix, command.arguments, command.syntax);
 
-    const failed = (compiled: boolean, syntax_string_error: [InvalidSyntaxStringReason, number] | null): ArgumentValues<typeof command.arguments> => {
+    const failed = (compiled: boolean, syntax_string_error: SyntaxStringCompilationError | null): ArgumentValues<typeof command.arguments> => {
         return {
             succeeded: false,
             compiled: compiled,
@@ -487,18 +573,18 @@ export const get_args = function (prefix: string, command: SimpleCommandManual, 
     };
 
     // Processing syntax string failed
-    if (result instanceof Array) {
+    if (result.type === SyntaxStringTestingResultType.Error) {
         log(
             `get_args: command ${
                 command.name
-            } had a malformed syntax string (syntax string processing failed with error #${result[0].toString()} at index ${result[1].toString()}). Returning {succeeded: false}...`,
+            } had a malformed syntax string (syntax string processing failed with error #${result.error.reason.toString()} at index ${result.error.index.toString()}). Returning {succeeded: false}...`,
             LogType.Error,
         );
-        return failed(false, result as [InvalidSyntaxStringReason, number]);
+        return failed(false, result.error);
     } else {
-        const argument_key_off_list = result.argument_references;
+        const argument_key_off_list = result.tests.argument_references;
 
-        const match = result.regex.exec(invocation);
+        const match = result.tests.regex.exec(invocation);
 
         if (match === null) return failed(true, null);
         const groups = match.groups;
@@ -645,9 +731,7 @@ export const handle_GetArgsResult = async function <ArgumentList extends readonl
             );
         } else {
             await reply(
-                `an internal error occurred - the provided syntax string for the command failed to compile (error: ${result.syntax_string_compilation_error.join(
-                    ", location: ",
-                )}). Contact @${MAINTAINER_TAG} for help.`,
+                `an internal error occurred - the provided syntax string for the command failed to compile (error: #${result.syntax_string_compilation_error.reason}, location: ${result.syntax_string_compilation_error.index}). Contact @${MAINTAINER_TAG} for help.`,
             );
         }
 

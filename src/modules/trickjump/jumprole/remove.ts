@@ -4,17 +4,15 @@ import { UsingClient } from "../../../pg_wrapper.js";
 import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 
-import { Permissions } from "../../../utilities/permissions.js";
 import { Jumprole, DeleteJumproleResult, GetJumproleResultType } from "./internals/jumprole_type.js";
 //import { DeleteJumproleResult, delete_jumprole } from "./internals/jumprole_postgres.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { TextChannelMessage } from "../../../utilities/typeutils.js";
 import { log, LogType } from "../../../utilities/log.js";
-import { Jumprole as JumproleCommand } from "./jumprole_cmd.js";
 
 export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
     constructor() {
-        super(JumproleCommand.manual, JumproleRemove.manual, JumproleRemove.no_use_no_see, JumproleRemove.permissions);
+        super();
     }
 
     static readonly manual = {
@@ -31,8 +29,9 @@ export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
         compact_syntaxes: true,
     } as const;
 
-    static readonly no_use_no_see = false;
-    static readonly permissions = undefined as Permissions | undefined;
+    readonly manual = JumproleRemove.manual;
+    readonly no_use_no_see = false;
+    readonly permissions = undefined;
 
     async activate(
         values: ValidatedArguments<typeof JumproleRemove.manual>,
