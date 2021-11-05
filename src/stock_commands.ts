@@ -39,7 +39,7 @@ export class IDExplain extends BotCommand<SimpleCommandManual> {
     readonly manual = {
         name: "idexplain",
         arguments: [],
-        description: "Explains the .",
+        description: "Explains the concept of an ID on Discord, also known as a Snowflake.",
         syntax: "::<prefix>idexplain::",
     } as const;
 

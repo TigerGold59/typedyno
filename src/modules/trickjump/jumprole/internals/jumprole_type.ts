@@ -35,7 +35,7 @@ export const KingdomString = RT.string.validate(<Input extends string>(result: I
 });
 
 const TWITTER_REGEX =
-    /^\s*https:\/\/(?:www\.|mobile\.)?twitter\.com\/(?<tag>[a-zA-Z0-9_]{1,16})\/status\/(?<id>[0-9]{3,35})(?:\?(?:[a-z]=[a-zA-Z0-9-_]+)+)\/?\s*$/i;
+    /^\s*https:\/\/(?:(?:www\.)|(?:mobile\.))?twitter\.com\/(?<tag>[a-zA-Z0-9_]{1,16})\/status\/(?<id>[0-9]{3,35})(?:\?(?:[a-z]=[a-zA-Z0-9-_]+)+)\/?\s*$/i;
 
 export const TwitterLink = new Structure<string>(
     "Twitter link",
