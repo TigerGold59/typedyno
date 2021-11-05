@@ -70,7 +70,6 @@ export abstract class Subcommand<Manual extends SubcommandManual> extends BotCom
 
     constructor() {
         super();
-        Object.freeze(this);
     }
 
     determination_tag_string(prefix: string): string {
@@ -186,7 +185,6 @@ export abstract class ParentCommand extends BotCommand<MultifacetedCommandManual
         super();
         this.subcommands = subcommands;
         this.subcommand_manuals = this.subcommands.map(x => x.manual);
-        Object.freeze(this);
     }
 
     abstract pre_dispatch(

@@ -23,6 +23,7 @@ import { Pool, PoolInstance } from "./pg_wrapper.js";
 // I can't even top level 'await' the execution of this async function... it still does the same thing
 // Probably a bug, albeit a very complex one.
 export const MODULES = (async (): Promise<Module[]> => {
+    await new Promise((res, _rej) => setInterval(res, 1000));
     log("Loading modules...", LogType.Status);
     const res = await load_modules();
     log("Module loading complete.", LogType.Success);

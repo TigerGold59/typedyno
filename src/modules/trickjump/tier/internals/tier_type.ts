@@ -3,7 +3,6 @@ import { MakesSingleRequest, Queryable, UsesClient, use_client } from "../../../
 import { log, LogType } from "../../../../utilities/log.js";
 import { Snowflake } from "../../../../utilities/permissions.js";
 import { InferNormalizedType, log_stack } from "../../../../utilities/runtime_typeguard/runtime_typeguard.js";
-import * as RT from "../../../../utilities/runtime_typeguard/standard_structures.js";
 import { InclusiveRange, is_record, is_string, query_failure, to_num_and_lower } from "../../../../utilities/typeutils.js";
 import { trickjump_tiersTableRow } from "../../table_types.js";
 
@@ -46,13 +45,6 @@ export type CreateTierResult =
     | { result: Exclude<CreateTierResultType, CreateTierResultType.Success | CreateTierResultType.TierAlreadyExists> }
     | { result: CreateTierResultType.TierAlreadyExists; existing: Tier };
 
-export const TierModifyStructure = RT.object({
-    name: RT.Optional(RT.string.length(InclusiveRange(1, 100))),
-    ordinal: RT.Optional(RT.UInt4N),
-});
-
-export type TierModify = InferNormalizedType<typeof TierModifyStructure>;
-
 export const enum ModifyTierResultType {
     QueryFailed = "QueryFailed",
     Success = "Success",
@@ -65,6 +57,13 @@ export const enum DeleteTierResultType {
     QueryFailed = "QueryFailed",
     Success = "Success",
 }
+
+import * as RT from "../../../../utilities/runtime_typeguard/standard_structures.js";
+const TierModifyStructure = RT.object({
+    name: RT.Optional(RT.string.length(InclusiveRange(1, 100))),
+    ordinal: RT.Optional(RT.UInt4N),
+});
+export type TierModify = InferNormalizedType<typeof TierModifyStructure>;
 export class Tier {
     readonly id: number;
     readonly server: Snowflake;

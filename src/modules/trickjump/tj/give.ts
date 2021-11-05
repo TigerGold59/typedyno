@@ -6,8 +6,7 @@ import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Repli
 import { log, LogType } from "../../../utilities/log.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { TextChannelMessage } from "../../../utilities/typeutils.js";
-import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js";
-import { GetJumproleResultType, Jumprole } from "../jumprole/internals/jumprole_type.js";
+import { GetJumproleResultType, Jumprole, TwitterLink } from "../jumprole/internals/jumprole_type.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 import { JumproleEntry, RegisterJumproleEntryResultType } from "./internals/entry_type.js";
 
@@ -28,7 +27,7 @@ export class TJGive extends Subcommand<typeof TJGive.manual> {
                 name: "link to Twitter video",
                 id: "proof_link",
                 optional: true,
-                further_constraint: RT.TwitterLink,
+                further_constraint: TwitterLink,
             },
         ],
         syntax: "::<prefix>tj give:: NAME $1{opt $2}[ PROOF $2]",

@@ -7,10 +7,17 @@ import { MAINTAINER_TAG } from "../../../main.js";
 import { log, LogType } from "../../../utilities/log.js";
 import { is_string, is_text_channel, TextChannelMessage } from "../../../utilities/typeutils.js";
 // import { ModifyJumproleResult, modify_jumprole } from "./internals/jumprole_postgres.js";
-import { GetJumproleResultType, Jumprole, JumproleModifyOptions, KingdomNameToKingdom, ModifyJumproleResult } from "./internals/jumprole_type.js";
+import {
+    GetJumproleResultType,
+    Jumprole,
+    JumproleModifyOptions,
+    KingdomNameToKingdom,
+    KingdomString,
+    ModifyJumproleResult,
+    TwitterLink,
+} from "./internals/jumprole_type.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { GetTierResultType, Tier } from "../tier/internals/tier_type.js";
-import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js";
 
 export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
     constructor() {
@@ -39,7 +46,7 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
                 name: "kingdom",
                 id: "kingdom",
                 optional: true,
-                further_constraint: RT.KingdomString,
+                further_constraint: KingdomString,
             },
             {
                 name: "location",
@@ -55,7 +62,7 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
                 name: "link",
                 id: "link",
                 optional: true,
-                further_constraint: RT.TwitterLink,
+                further_constraint: TwitterLink,
             },
             {
                 name: "description",

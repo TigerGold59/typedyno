@@ -552,4 +552,4 @@ export class Designate extends ParentCommand {
     }
 }
 
-export const STOCK_BOT_COMMANDS: AnyBotCommand[] = [new GetCommands(), new Info(), new Prefix(), new Designate()];
+export const STOCK_BOT_COMMANDS: AnyBotCommand[] = [new IDExplain(), new GetCommands(), new Info(), new Prefix(), new Designate()];

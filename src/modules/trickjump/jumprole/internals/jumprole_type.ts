@@ -22,6 +22,64 @@ export const INSERT_JUMPROLE =
     "INSERT INTO trickjump_jumps (tier_id, name, display_name, description, kingdom, location, jump_type, link, added_by, updated_at, server, hash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)";
 export const GET_JUMPROLES_BY_SERVER = "SELECT * FROM trickjump_jumps WHERE server=$1";
 
+export const KingdomString = RT.string.validate(<Input extends string>(result: Input): TransformResult<Input> => {
+    if (KINGDOM_NAMES_LOWERCASE.includes(result.toLowerCase() as typeof KINGDOM_NAMES_LOWERCASE[number])) {
+        return { succeeded: true, result: result };
+    } else {
+        return {
+            succeeded: false,
+            error: StructureValidationFailedReason.InvalidValue,
+            information: [`input was a string but it wasn't a kingdom name. Valid kingdom names are: ${KINGDOM_NAMES.join()}.`],
+        };
+    }
+});
+
+const TWITTER_REGEX =
+    /^\s*https:\/\/(?:www\.|mobile\.)?twitter\.com\/(?<tag>[a-zA-Z0-9_]{1,16})\/status\/(?<id>[0-9]{3,35})(?:\?(?:[a-z]=[a-zA-Z0-9-_]+)+)\/?\s*$/i;
+
+export const TwitterLink = new Structure<string>(
+    "Twitter link",
+    (input: unknown): TransformResult<string> => {
+        if (is_string(input)) {
+            let matches = TWITTER_REGEX.exec(input);
+            if (matches === null) {
+                return {
+                    succeeded: false,
+                    error: StructureValidationFailedReason.InvalidValue,
+                    information: [
+                        `link to Twitter video was a string but it didn't fit the following format: 'https://twitter.com/<username>/status/<tweet snowflake>'`,
+                    ],
+                };
+            } else {
+                let groups = matches.groups as { tag: string; id: string };
+                return { succeeded: true, result: `https://twitter.com/${groups.tag}/status/${groups.id}` };
+            }
+        } else {
+            return {
+                succeeded: false,
+                error: StructureValidationFailedReason.IncorrectType,
+                information: [`input was ${typeof input} (expected string)`],
+            };
+        }
+    },
+    <Input extends string>(result: Input): TransformResult<Input> => {
+        if (
+            /^https:\/\/(?:www\.|mobile\.)?twitter\.com\/(?<tag>[a-zA-Z0-9_]{1,16})\/status\/(?<id>[0-9]{3,35})(?:\?(?:[a-z]=[a-zA-Z0-9-_]+)+)\/?$/i.test(
+                result.trim(),
+            )
+        ) {
+            return { succeeded: true, result: result };
+        } else
+            return {
+                succeeded: false,
+                error: StructureValidationFailedReason.InvalidValue,
+                information: [
+                    `link to Twitter video was a string but it didn't fit the following format: 'https://(mobile.)twitter.com/<username>/status/<tweet snowflake>'`,
+                ],
+            };
+    },
+);
+
 export const enum Kingdom {
     Cap = 0,
     Cascade,

@@ -7,10 +7,9 @@ import { log, LogType } from "../../../utilities/log.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { TextChannelMessage } from "../../../utilities/typeutils.js";
-import { GetJumproleResultType } from "../jumprole/internals/jumprole_type.js";
+import { GetJumproleResultType, TwitterLink } from "../jumprole/internals/jumprole_type.js";
 import { Jumprole } from "../jumprole/internals/jumprole_type.js";
 import { GetJumproleEntryByJumproleAndHolderResultType, JumproleEntry, SetJumproleEntryLinkResult } from "../tj/internals/entry_type.js";
-import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js";
 
 export class ProofSet extends Subcommand<typeof ProofSet.manual> {
     constructor() {
@@ -29,7 +28,7 @@ export class ProofSet extends Subcommand<typeof ProofSet.manual> {
                 name: "link",
                 id: "link",
                 optional: false,
-                further_constraint: RT.TwitterLink,
+                further_constraint: TwitterLink,
             },
         ],
         syntax: "::<prefix>proof set:: NAME $1 LINK $2",
