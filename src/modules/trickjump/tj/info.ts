@@ -110,11 +110,15 @@ export class TJInfo extends Subcommand<typeof TJInfo.manual> {
                     embed.addField("Location", jump.location, true);
                 }
                 embed.setDescription("");
-                if (is_string(jump.link)) {
+                let has_link = is_string(jump.link);
+                if (has_link) {
                     embed.setDescription(`Link: ${jump.link}\n\n`);
                 }
                 embed.setDescription(`${embed.description}Description: \n${jump.description}\n\n`);
-                message.channel.send(embed);
+                await message.channel.send(embed);
+                if (has_link) {
+                    await message.channel.send(jump.link as string);
+                }
 
                 return { type: BotCommandProcessResultType.Succeeded };
             }

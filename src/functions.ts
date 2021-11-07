@@ -59,7 +59,7 @@ export type Replier = (response: string, use_prefix?: boolean) => Promise<void>;
 export const MakeReplier = (message: TextChannelMessage, determination_tag_string: string) => {
     return async (response: string, use_prefix?: boolean) => {
         let use_prefix_intention = is_boolean(use_prefix) ? use_prefix : true;
-        await message.channel.send(`${use_prefix_intention ? `${determination_tag_string}: ` : ""}${response}`);
+        await message.reply(`${use_prefix_intention ? `${determination_tag_string}: ` : ""}${response}`);
     };
 };
 
