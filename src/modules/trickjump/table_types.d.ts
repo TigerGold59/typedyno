@@ -28,6 +28,24 @@ interface trickjump_jumpsTableRow {
 }
 export type trickjump_jumpsQueryResults = QueryResult<trickjump_jumpsTableRow>;
 
+interface trickjump_jumpsBulkTableRow {
+    id: number;
+    name: string;
+    display_name: string;
+    description: string;
+    kingdom: number;
+    location: string;
+    jump_type: string;
+    link: string;
+    added_by: Snowflake;
+    updated_at: number;
+    server: Snowflake;
+    tier_id: number;
+    hash: string;
+    tier: trickjump_tiersTableRow;
+}
+export type trickjump_jumpsBulkQueryResults = QueryResult<trickjump_jumpsTableRow>;
+
 interface trickjump_entriesTableRow {
     id: number;
     jump_id: number;
@@ -39,6 +57,21 @@ interface trickjump_entriesTableRow {
     updated_at: number;
 }
 export type trickjump_entriesQueryResults = QueryResult<trickjump_entriesTableRow>;
+
+interface trickjump_entriesBulkTableRow {
+    json_build_object: {
+        id: number;
+        jump_id: number;
+        jump_hash: string;
+        holder: Snowflake;
+        link: string;
+        server: Snowflake;
+        added_at: number;
+        updated_at: number;
+        jumprole: trickjump_jumpsBulkTableRow;
+    };
+}
+export type trickjump_entriesBulkQueryResults = QueryResult<trickjump_entriesTableRow>;
 
 interface trickjump_guildsTableRow {
     server: Snowflake;

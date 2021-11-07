@@ -5,12 +5,45 @@ import { log, LogType } from "../../../../utilities/log.js";
 import { InferNormalizedType, log_stack } from "../../../../utilities/runtime_typeguard/runtime_typeguard.js";
 import * as RT from "../../../../utilities/runtime_typeguard/standard_structures.js";
 import { PositiveIntegerMax, query_failure } from "../../../../utilities/typeutils.js";
-import { trickjump_entriesTableRow } from "../../table_types.js";
+import { trickjump_entriesBulkTableRow, trickjump_entriesTableRow } from "../../table_types.js";
 import { GetJumproleFailureType, GetJumproleResultType, Jumprole, JumproleStructure } from "../../jumprole/internals/jumprole_type.js";
 
 const CHANGE_JUMP_HASH_BY_ID = "UPDATE trickjump_entries SET jump_hash=$1, updated_at=$2 WHERE id=$3";
 const CHANGE_LINK_BY_ID = "UPDATE trickjump_entries SET link=$1, updated_at=$2 WHERE id=$3";
-const GET_ENTRIES_BY_HOLDER_AND_SERVER = "SELECT * FROM trickjump_entries WHERE holder=$1 AND server=$2";
+const BULK_ENTRY_QUERY_FIELDS = `json_build_object(
+    'id', e.id,
+    'jump_id', e.jump_id,
+    'jump_hash', e.jump_hash,
+    'holder', e.holder::varchar(23),
+    'link', e.link,
+    'server', e.server::varchar(23),
+    'added_at', e.added_at,
+    'updated_at', e.updated_at,
+    'jumprole', json_build_object(
+        'id', j.id,
+        'name', j.name,
+        'display_name', j.display_name,
+        'description', j.description,
+        'kingdom', j.kingdom,
+        'location', j.location,
+        'jump_type', j.jump_type,
+        'link', j.link,
+        'added_by', j.added_by::varchar(23),
+        'updated_at', j.updated_at,
+        'server', j.server::varchar(23),
+        'tier_id', j.tier_id,
+        'hash', j.hash,
+        'tier', json_build_object(
+            'id', t.id,
+            'server', t.server::varchar(23),
+            'ordinal', t.ordinal,
+            'name', t.name,
+            'display_name', t.display_name
+        )
+    )
+)`;
+const BULK_ENTRY_JOIN = `INNER JOIN trickjump_jumps j ON j.id=e.jump_id INNER JOIN trickjump_tiers t ON t.id=j.tier_id`;
+const GET_ENTRIES_BY_HOLDER_AND_SERVER = `SELECT ${BULK_ENTRY_QUERY_FIELDS} FROM trickjump_entries e ${BULK_ENTRY_JOIN} WHERE e.holder=$1 AND e.server=$2`;
 const CREATE_ENTRY =
     "INSERT INTO trickjump_entries (jump_id, jump_hash, holder, link, server, added_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7)";
 const GET_ENTRY_BY_JUMP_ID_AND_HOLDER = "SELECT * FROM trickjump_entries WHERE jump_id=$1 and holder=$2";
@@ -286,29 +319,9 @@ export class JumproleEntry {
     static readonly FromQuery = async (query_string: string, query_params: unknown[], queryable: Queryable<UsesClient>): Promise<FromQueryResult> => {
         let client = await use_client(queryable, "JumproleEntry.FromQuery");
         try {
-            let result = await client.query<trickjump_entriesTableRow>(query_string, query_params);
+            let result = await client.query<trickjump_entriesBulkTableRow>(query_string, query_params);
 
-            let collected: JumproleEntry[] = [];
-
-            for (const row of result.rows) {
-                let entry = await JumproleEntry.FromRow(row, client);
-
-                switch (entry.type) {
-                    case GetJumproleResultType.Success: {
-                        collected.push(entry.entry);
-                        break;
-                    }
-                    default: {
-                        return {
-                            type: FromQueryResultType.GetJumproleFailed,
-                            error: entry.type as GetJumproleFailureType,
-                            jump_id: row.jump_id,
-                        };
-                    }
-                }
-            }
-
-            return { type: FromQueryResultType.Success, values: collected };
+            return { type: FromQueryResultType.Success, values: result.rows.map(JumproleEntry.FromBulkRow) };
         } catch (err) {
             query_failure(`JumproleEntry.WithHolderInServer`, query_string, query_params, err);
             return { type: FromQueryResultType.QueryFailed };
@@ -364,6 +377,20 @@ export class JumproleEntry {
         }
     };
 
+    static readonly FromBulkRow = (row: trickjump_entriesBulkTableRow): JumproleEntry => {
+        let row_data = row.json_build_object;
+        return new JumproleEntry(
+            row_data.id,
+            Jumprole.FromBulkRow(row_data.jumprole),
+            row_data.jump_hash,
+            row_data.holder,
+            row_data.link,
+            row_data.server,
+            row_data.updated_at,
+            row_data.added_at,
+        );
+    };
+
     static readonly WithHolderInServer = async (
         holder: Snowflake,
         server: Snowflake,
@@ -388,31 +415,10 @@ export class JumproleEntry {
         const client = await use_client(queryable, "JumproleEntry.WithHolderInServer");
 
         try {
-            let result = await client.query<trickjump_entriesTableRow>(query_string, query_params);
-
-            let collected: JumproleEntry[] = [];
-
-            for (const row of result.rows) {
-                let entry = await JumproleEntry.FromRow(row, client);
-
-                switch (entry.type) {
-                    case GetJumproleResultType.Success: {
-                        collected.push(entry.entry);
-                        break;
-                    }
-                    default: {
-                        client.handle_release();
-                        return {
-                            type: GetJumproleEntriesWithHolderResultType.GetJumproleFailed,
-                            error: entry.type as GetJumproleFailureType,
-                            jump_id: row.jump_id,
-                        };
-                    }
-                }
-            }
+            let result = await client.query<trickjump_entriesBulkTableRow>(query_string, query_params);
 
             client.handle_release();
-            return { type: GetJumproleEntriesWithHolderResultType.Success, values: collected };
+            return { type: GetJumproleEntriesWithHolderResultType.Success, values: result.rows.map(JumproleEntry.FromBulkRow) };
         } catch (err) {
             query_failure(`JumproleEntry.WithHolderInServer`, query_string, query_params, err);
             client.handle_release();

@@ -12,7 +12,7 @@ import { is_valid_Snowflake, Snowflake } from "../../../../utilities/permissions
 import { is_number, is_string, PositiveIntegerMax, query_failure, safe_serialize, to_num_and_lower } from "../../../../utilities/typeutils.js";
 import { type, validate_constructor } from "../../../../module_decorators.js";
 import { Queryable, UsesClient, use_client, MakesSingleRequest } from "../../../../pg_wrapper.js";
-import { trickjump_jumpsQueryResults, trickjump_jumpsTableRow } from "../../table_types.js";
+import { trickjump_jumpsBulkTableRow, trickjump_jumpsQueryResults, trickjump_jumpsTableRow } from "../../table_types.js";
 import { GetTierFailureType, GetTierResultType, Tier, TierStructure } from "../../tier/internals/tier_type.js";
 
 export const GET_JUMPROLE_BY_ID = "SELECT * FROM trickjump_jumps WHERE id=$1";
@@ -20,7 +20,9 @@ export const GET_JUMPROLE_BY_NAME_AND_SERVER = "SELECT * FROM trickjump_jumps WH
 export const DELETE_JUMPROLE_BY_ID = "DELETE FROM trickjump_jumps WHERE id=$1";
 export const INSERT_JUMPROLE =
     "INSERT INTO trickjump_jumps (tier_id, name, display_name, description, kingdom, location, jump_type, link, added_by, updated_at, server, hash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)";
-export const GET_JUMPROLES_BY_SERVER = "SELECT * FROM trickjump_jumps WHERE server=$1";
+export const BULK_JUMPROLE_QUERY_FIELDS = "trickjump_jumps.*, row_to_json(trickjump_tiers.*) as tier";
+export const BULK_JUMPROLE_JOIN = `INNER JOIN trickjump_tiers ON trickjump_jumps.tier_id=trickjump_tiers.id`;
+export const GET_JUMPROLES_IN_BULK_BY_SERVER = `SELECT ${BULK_JUMPROLE_QUERY_FIELDS} FROM trickjump_jumps ${BULK_JUMPROLE_JOIN} WHERE trickjump_jumps.server=$1 ORDER BY trickjump_jumps.updated_at`;
 
 export const KingdomString = RT.string.validate(<Input extends string>(result: Input): TransformResult<Input> => {
     if (KINGDOM_NAMES_LOWERCASE.includes(result.toLowerCase() as typeof KINGDOM_NAMES_LOWERCASE[number])) {
@@ -35,7 +37,7 @@ export const KingdomString = RT.string.validate(<Input extends string>(result: I
 });
 
 const TWITTER_REGEX =
-    /^\s*https:\/\/(?:(?:www\.)|(?:mobile\.))?twitter\.com\/(?<tag>[a-zA-Z0-9_]{1,16})\/status\/(?<id>[0-9]{3,35})(?:\?(?:[a-z]=[a-zA-Z0-9-_]+)+)\/?\s*$/i;
+    /^\s*https:\/\/(?:(?:www\.)|(?:mobile\.))?twitter\.com\/(?<tag>[a-zA-Z0-9_]{1,16})\/status\/(?<id>[0-9]{3,35})(?:\?(?:[a-z]=[a-zA-Z0-9-_]+)(?:\&(?:[a-z]=[a-zA-Z0-9-_]+))*)?\/?\s*$/i;
 
 export const TwitterLink = new Structure<string>(
     "Twitter link",
@@ -47,7 +49,7 @@ export const TwitterLink = new Structure<string>(
                     succeeded: false,
                     error: StructureValidationFailedReason.InvalidValue,
                     information: [
-                        `link to Twitter video was a string but it didn't fit the following format: 'https://twitter.com/<username>/status/<tweet snowflake>'`,
+                        `link to Twitter video was a string but it didn't fit the following format: \`https://(mobile.)twitter.com/<username>/status/<tweet snowflake>\``,
                     ],
                 };
             } else {
@@ -63,20 +65,18 @@ export const TwitterLink = new Structure<string>(
         }
     },
     <Input extends string>(result: Input): TransformResult<Input> => {
-        if (
-            /^https:\/\/(?:www\.|mobile\.)?twitter\.com\/(?<tag>[a-zA-Z0-9_]{1,16})\/status\/(?<id>[0-9]{3,35})(?:\?(?:[a-z]=[a-zA-Z0-9-_]+)+)\/?$/i.test(
-                result.trim(),
-            )
-        ) {
-            return { succeeded: true, result: result };
-        } else
+        let matches = TWITTER_REGEX.exec(result);
+        if (matches === null) {
             return {
                 succeeded: false,
                 error: StructureValidationFailedReason.InvalidValue,
                 information: [
-                    `link to Twitter video was a string but it didn't fit the following format: 'https://(mobile.)twitter.com/<username>/status/<tweet snowflake>'`,
+                    `link to Twitter video was a string but it didn't fit the following format: \`https://(mobile.)twitter.com/<username>/status/<tweet snowflake>\``,
                 ],
             };
+        } else {
+            return { succeeded: true, result: result };
+        }
     },
 );
 
@@ -367,42 +367,45 @@ export class Jumprole {
         }
     };
 
+    static readonly FromBulkRow = (row: trickjump_jumpsBulkTableRow): Jumprole => {
+        return new Jumprole(
+            row.id,
+            row.display_name,
+            row.description,
+            row.kingdom,
+            row.location,
+            row.jump_type,
+            row.link,
+            row.added_by,
+            row.updated_at,
+            row.server,
+            new Tier(row.tier.id, row.tier.server, row.tier.ordinal, row.tier.display_name),
+            row.hash,
+        );
+    };
+
     static readonly InServer = async (id: Snowflake, queryable: Queryable<UsesClient>): Promise<FromJumproleQueryResult> => {
-        const query_string = GET_JUMPROLES_BY_SERVER;
+        const query_string = GET_JUMPROLES_IN_BULK_BY_SERVER;
         const query_params = [id];
         const client = await use_client(queryable, "Jumprole.InServer");
 
         try {
-            const rows_result = await client.query<trickjump_jumpsTableRow>(query_string, query_params);
+            const rows_result = await client.query<trickjump_jumpsBulkTableRow>(query_string, query_params);
 
             if (rows_result.rows.length < 1) return { type: FromJumproleQueryResultType.NoJumproles };
 
-            let res = [];
-
-            for (const row of rows_result.rows) {
-                let row_result = await Jumprole.FromRow(row, client);
-
-                switch (row_result.type) {
-                    case GetTierResultType.Success: {
-                        res.push(row_result.jumprole);
-                        break;
-                    }
-                    default: {
-                        return {
-                            type: FromJumproleQueryResultType.FromRowFailed,
-                            tier_id: row.tier_id,
-                            error: row_result.type as GetTierFailureType,
-                        };
-                    }
-                }
-            }
-
-            return { type: FromJumproleQueryResultType.Success, values: res };
+            return { type: FromJumproleQueryResultType.Success, values: rows_result.rows.map(Jumprole.FromBulkRow) };
         } catch (err) {
             return { type: FromJumproleQueryResultType.QueryFailed };
         }
     };
 
+    /**
+     * @param query_string A query string which returns a trickjump_jumpsBulkTableRow
+     * @param query_params Query parameters
+     * @param queryable A Queryable
+     * @returns FromJumproleQueryResult
+     */
     static readonly FromQuery = async (
         query_string: string,
         query_params: unknown[],
@@ -411,36 +414,17 @@ export class Jumprole {
         const client = await use_client(queryable, "Jumprole.FromQuery");
 
         try {
-            const rows_result = await client.query<trickjump_jumpsTableRow>(query_string, query_params);
+            const rows_result = await client.query<trickjump_jumpsBulkTableRow>(query_string, query_params);
 
             if (rows_result.rows.length < 1) return { type: FromJumproleQueryResultType.NoJumproles };
 
-            let res = [];
-
-            for (const row of rows_result.rows) {
-                let row_result = await Jumprole.FromRow(row, client);
-
-                switch (row_result.type) {
-                    case GetTierResultType.Success: {
-                        res.push(row_result.jumprole);
-                        break;
-                    }
-                    default: {
-                        return {
-                            type: FromJumproleQueryResultType.FromRowFailed,
-                            tier_id: row.tier_id,
-                            error: row_result.type as GetTierFailureType,
-                        };
-                    }
-                }
-            }
-
             client.handle_release();
 
-            return { type: FromJumproleQueryResultType.Success, values: res };
+            return { type: FromJumproleQueryResultType.Success, values: rows_result.rows.map(Jumprole.FromBulkRow) };
         } catch (err) {
             client.handle_release();
 
+            query_failure("Jumprole.FromQuery", query_string, query_params, err);
             return { type: FromJumproleQueryResultType.QueryFailed };
         }
     };

@@ -8,7 +8,7 @@ import { is_string, TextChannelMessage } from "../../../utilities/typeutils.js";
 import { MAINTAINER_TAG, USER_ID_FAQ } from "../../../main.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { create_paste, Paste, url } from "../../../integrations/paste_ee.js";
-import { FromJumproleQueryResultType, Jumprole } from "../jumprole/internals/jumprole_type.js";
+import { BULK_JUMPROLE_JOIN, BULK_JUMPROLE_QUERY_FIELDS, FromJumproleQueryResultType, Jumprole } from "../jumprole/internals/jumprole_type.js";
 import { is_valid_Snowflake } from "../../../utilities/permissions.js";
 import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js";
 export class TJMissing extends Subcommand<typeof TJMissing.manual> {
@@ -53,7 +53,7 @@ export class TJMissing extends Subcommand<typeof TJMissing.manual> {
         }
 
         let entry_results = await Jumprole.FromQuery(
-            `SELECT * FROM trickjump_jumps WHERE server=$1 AND NOT EXISTS (SELECT * FROM trickjump_entries WHERE server=$2 AND holder=$3 AND trickjump_entries.jump_id=trickjump_jumps.id)`,
+            `SELECT ${BULK_JUMPROLE_QUERY_FIELDS} FROM trickjump_jumps ${BULK_JUMPROLE_JOIN} WHERE trickjump_jumps.server=$1 AND NOT EXISTS (SELECT * FROM trickjump_entries WHERE trickjump_entries.server=$2 AND trickjump_entries.holder=$3 AND trickjump_entries.jump_id=trickjump_jumps.id)`,
             [message.guild.id, message.guild.id, user_intention],
             pg_client,
         );

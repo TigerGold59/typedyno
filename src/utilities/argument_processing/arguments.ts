@@ -545,7 +545,7 @@ export const get_determination_tag_as_str = (prefix: string, command: SimpleComm
     } else {
         let parts = result.segments;
 
-        return { type: GetDeterminationTagAsStringResultType.Success, result: parts.map(assemble_parts).join("") };
+        return { type: GetDeterminationTagAsStringResultType.Success, result: parts.map(assemble_parts).join("").trim() };
     }
 };
 
