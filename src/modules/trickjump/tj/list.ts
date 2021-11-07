@@ -44,7 +44,7 @@ export class TJList extends Subcommand<typeof TJList.manual> {
     async activate(
         values: ValidatedArguments<typeof TJList.manual>,
         message: TextChannelMessage,
-        _client: Client,
+        client: Client,
         pg_client: UsingClient,
         prefix: string,
         reply: Replier,
@@ -60,12 +60,14 @@ export class TJList extends Subcommand<typeof TJList.manual> {
             case GetJumproleEntriesWithHolderResultType.Success: {
                 let roles = entry_results.values;
 
+                let user = await client.users.fetch(user_intention);
+
                 if (roles.length === 0) {
-                    await reply(`${user_intention === message.author.id ? "you have" : `user with ID ${user_intention} has`} no jumproles.`);
+                    await reply(`${user_intention === message.author.id ? "you have" : `user ${user.tag} has`} no jumproles.`);
                     return { type: BotCommandProcessResultType.Succeeded };
                 }
 
-                const head = `Trickjumps for User ${message.author.tag}\n${"=".repeat(
+                const head = `Trickjumps for User ${user.tag}\n${"=".repeat(
                     20 + message.author.tag.length,
                 )}\n\n* - the jump has been changed since it was given.\nConfirm that completion of the jump still applies using '${prefix}tj confirm'.\n\n`;
 

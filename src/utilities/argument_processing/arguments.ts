@@ -516,15 +516,15 @@ export type GetDeterminationTagAsStringResult =
 export const get_determination_tag_as_str = (prefix: string, command: SimpleCommandManual): GetDeterminationTagAsStringResult => {
     const result = get_compiled(prefix, command.arguments, command.syntax);
 
-    const assemble_parts = (syntax_string_segment_content: SyntaxStringSegmentContent): string => {
+    const assemble_parts = (syntax_string_segment_content: SyntaxStringSegmentContent, include = false): string => {
         let buffer = "";
         if (is_string(syntax_string_segment_content)) {
-            buffer += syntax_string_segment_content;
+            if (include) buffer += syntax_string_segment_content;
         } else {
             switch (syntax_string_segment_content.type) {
                 case SyntaxStringSegmentType.DeterminationTag: {
                     if (syntax_string_segment_content.content === null) return "";
-                    buffer += syntax_string_segment_content.content.map(assemble_parts).join("");
+                    buffer += syntax_string_segment_content.content.map(segment => assemble_parts(segment, true)).join("");
                     break;
                 }
                 case SyntaxStringSegmentType.PrefixTag: {
@@ -545,7 +545,13 @@ export const get_determination_tag_as_str = (prefix: string, command: SimpleComm
     } else {
         let parts = result.segments;
 
-        return { type: GetDeterminationTagAsStringResultType.Success, result: parts.map(assemble_parts).join("").trim() };
+        return {
+            type: GetDeterminationTagAsStringResultType.Success,
+            result: parts
+                .map(part => assemble_parts(part, false))
+                .join("")
+                .trim(),
+        };
     }
 };
 
