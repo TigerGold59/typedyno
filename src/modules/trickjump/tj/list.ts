@@ -1,4 +1,4 @@
-import { Client } from "discord.js";
+import { Client, User } from "discord.js";
 import { UsingClient } from "../../../pg_wrapper.js";
 
 import { BotCommandProcessResults, BotCommandProcessResultType, Replier, Subcommand } from "../../../functions.js";
@@ -61,6 +61,10 @@ export class TJList extends Subcommand<typeof TJList.manual> {
                 let roles = entry_results.values;
 
                 let user = await client.users.fetch(user_intention);
+                if (user instanceof User === false) {
+                    await reply(`no user exists with that ID.`);
+                    return { type: BotCommandProcessResultType.DidNotSucceed };
+                }
 
                 if (roles.length === 0) {
                     await reply(`${user_intention === message.author.id ? "you have" : `user ${user.tag} has`} no jumproles.`);
