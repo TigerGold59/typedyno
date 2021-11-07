@@ -68,7 +68,7 @@ export class TJList extends Subcommand<typeof TJList.manual> {
                 }
 
                 const head = `Trickjumps for User ${user.tag}\n${"=".repeat(
-                    20 + message.author.tag.length,
+                    20 + user.tag.length,
                 )}\n\n* - the jump has been changed since it was given.\nConfirm that completion of the jump still applies using '${prefix}tj confirm'.\n\n`;
 
                 let tiered = roles.sort((a, b) => b.jumprole.tier.ordinal - a.jumprole.tier.ordinal);
