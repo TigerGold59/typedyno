@@ -1,4 +1,4 @@
-import { CommandArgument, SubcommandManual } from "../../command_manual.js";
+import { CommandArgumentBase, SubcommandManual } from "../../command_manual.js";
 import { AnyStructure, InferNormalizedType } from "../runtime_typeguard/runtime_typeguard.js";
 import { is_string } from "../typeutils.js";
 import { SyntaxStringCompilationError } from "./arguments.js";
@@ -125,11 +125,11 @@ export type ContainedArgumentsList<Arr extends readonly (readonly [string, Subco
 
 export type ContainedSubcommandNames<Arr extends readonly SubcommandManual[]> = Arr[number]["name"];
 
-type Argument<ArgumentList extends readonly CommandArgument[]> = ArgumentList[number];
+type Argument<ArgumentList extends readonly CommandArgumentBase[]> = ArgumentList[number];
 
-type ArgumentID<Argument extends CommandArgument> = Argument["id"];
+type ArgumentID<Argument extends CommandArgumentBase> = Argument["id"];
 
-type PossiblyNullable<ArgumentList extends readonly CommandArgument[], ID extends ArgumentID<Argument<ArgumentList>>> = ID extends ArgumentID<
+type PossiblyNullable<ArgumentList extends readonly CommandArgumentBase[], ID extends ArgumentID<Argument<ArgumentList>>> = ID extends ArgumentID<
     Argument<ArgumentList>
 >
     ? (Argument<ArgumentList> & { readonly id: ID })["optional"] extends false
@@ -137,7 +137,7 @@ type PossiblyNullable<ArgumentList extends readonly CommandArgument[], ID extend
         : string | null
     : never;
 
-export interface GetArgsResult<ArgumentList extends readonly CommandArgument[]> {
+export interface GetArgsResult<ArgumentList extends readonly CommandArgumentBase[]> {
     succeeded: boolean;
     compiled: boolean;
     values:
@@ -149,7 +149,7 @@ export interface GetArgsResult<ArgumentList extends readonly CommandArgument[]> 
     syntax_string_compilation_error: SyntaxStringCompilationError | null;
 }
 
-type BaseType<Argument extends CommandArgument> = Argument["further_constraint"] extends AnyStructure
+type BaseType<Argument extends CommandArgumentBase> = Argument["further_constraint"] extends AnyStructure
     ? InferNormalizedType<Argument["further_constraint"]>
     : string;
 

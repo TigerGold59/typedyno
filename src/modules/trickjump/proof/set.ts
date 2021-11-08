@@ -23,16 +23,19 @@ export class ProofSet extends Subcommand<typeof ProofSet.manual> {
                 name: "jump name",
                 id: "jumprole_name",
                 optional: false,
+                slash_command_description: "name",
             },
             {
                 name: "link",
                 id: "link",
                 optional: false,
                 further_constraint: TwitterLink,
+                slash_command_description: "Twitter link",
             },
         ],
         syntax: "::<prefix>proof set:: NAME $1 LINK $2",
         description: "Set the proof for a jumprole you have.",
+        supports_slash_commands: true,
     } as const;
 
     readonly manual = ProofSet.manual;

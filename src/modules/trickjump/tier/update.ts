@@ -20,23 +20,27 @@ export class TierUpdate extends Subcommand<typeof TierUpdate.manual> {
                 name: "current name",
                 id: "name",
                 optional: false,
+                slash_command_description: "current tier name",
             },
             {
                 name: "new name",
                 id: "new_name",
                 optional: true,
+                slash_command_description: "new tier name",
             },
             {
                 name: "rank number",
                 id: "ordinal",
                 optional: true,
                 further_constraint: RT.UInt4Like,
+                slash_command_description: "new rank number",
             },
         ],
         description:
             "Updates a tier, changing its name or rank number or both, depending on which are provided. The higher the rank number, the higher the tier.",
         syntax: "::<prefix>tier update:: NAME $1{opt $2}[ NEW NAME $2]{opt $3}[ RANK $3]",
         compact_syntaxes: false,
+        supports_slash_commands: true,
     } as const;
 
     readonly manual = TierUpdate.manual;

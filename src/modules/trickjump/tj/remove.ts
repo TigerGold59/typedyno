@@ -23,10 +23,12 @@ export class TJRemove extends Subcommand<typeof TJRemove.manual> {
                 name: "jump name",
                 id: "jumprole_name",
                 optional: false,
+                slash_command_description: "jump name",
             },
         ],
         syntax: "::<prefix>tj remove:: NAME $1",
         description: "Remove a Jumprole from your list.",
+        supports_slash_commands: true,
     } as const;
 
     readonly manual = TJRemove.manual;

@@ -1,17 +1,27 @@
-import type { Message } from "discord.js";
+import type { ApplicationCommandOptionType, Message } from "discord.js";
 import { AnyBotCommand } from "./functions.js";
 import { CreatePasteResult, create_paste } from "./integrations/paste_ee.js";
 import { GLOBAL_PREFIX, MODULES } from "./main.js";
 import { DebugLogType, log, LogType } from "./utilities/log.js";
 import { allowed } from "./utilities/permissions.js";
-import { AnyStructure, InferNormalizedType, log_stack, NormalizedStructure, Structure } from "./utilities/runtime_typeguard/runtime_typeguard.js";
+import {
+    AnyStructure,
+    InferNormalizedType,
+    log_stack,
+    NormalizedStructure,
+    Structure,
+    StructureValidationFailedReason,
+    TransformResult,
+} from "./utilities/runtime_typeguard/runtime_typeguard.js";
 import * as Structs from "./utilities/runtime_typeguard/standard_structures.js";
 import { escape_reg_exp, is_string } from "./utilities/typeutils.js";
+
+// https://discord.com/developers/docs/interactions/application-commands#application-command-object-application-command-option-type
 
 /**
  * An interface which describes an argument a command or subcommand takes.
  */
-export interface CommandArgument {
+export interface CommandArgumentBase {
     // Concise description of the argument's purpose
     readonly name: string;
     // One-word argument name, for internal use
@@ -21,22 +31,29 @@ export interface CommandArgument {
     // For auto-generating constraint
     readonly further_constraint?: AnyStructure;
 }
+export type CommandArgument<Slash extends true | false> = Slash extends true
+    ? CommandArgumentBase & {
+          slash_command_description: string;
+          slash_command_type?: Exclude<ApplicationCommandOptionType, "SUB_COMMAND" | "SUB_COMMAND_GROUP" | "MENTIONABLE">;
+      }
+    : CommandArgumentBase;
 
 const CommandArgumentStructure = Structs.object({
     name: Structs.string,
     id: Structs.string,
     optional: Structs.boolean,
     further_constraint: Structs.Optional(Structs.StructureStructure),
+    slash_command_description: Structs.Optional(Structs.string),
 });
 
-const is_valid_CommandArgument = function (thing: unknown): thing is CommandArgument {
+const is_valid_CommandArgument = function (thing: unknown): thing is CommandArgumentBase {
     return CommandArgumentStructure.check(thing).succeeded;
 };
 
 /**
  * A specific entry for one syntax as part of a larger command, i.e. %tj list as part of %tj
  */
-export interface SubcommandManual {
+export interface SubcommandManualBase {
     // Name of subcommand, i.e. list in %tj list
     readonly name: string;
     // Syntax string
@@ -44,12 +61,15 @@ export interface SubcommandManual {
     // Example with optional: ::<prefix>proof get::{opt $2}[ |] $1{opt $2}[ | $2]
     // In the example with the optional, the pipelines are only required if argument $2 is present.
     readonly syntax: string;
-    readonly arguments: readonly CommandArgument[];
     // Display all syntaxes, or compact it down into a readable optional thing
     readonly compact_syntaxes?: boolean;
     // A description of the subcommand to be added on in the manual.
     readonly description: string;
 }
+
+export type SubcommandManual =
+    | (SubcommandManualBase & { readonly supports_slash_commands: false; readonly arguments: readonly CommandArgument<false>[] })
+    | (SubcommandManualBase & { readonly supports_slash_commands: true; readonly arguments: readonly CommandArgument<true>[] });
 
 /**
  * A command which only has one syntax, i.e. %xofakind
@@ -62,6 +82,32 @@ const SimpleCommandManualStructure = Structs.object({
     arguments: Structs.array(CommandArgumentStructure),
     compact_syntaxes: Structs.Optional(Structs.boolean),
     description: Structs.string,
+    supports_slash_commands: Structs.boolean,
+}).validate(<Input extends InferNormalizedType<typeof SimpleCommandManualStructure>>(result: Input): TransformResult<Input> => {
+    let optionals = false;
+    for (let i = 0; i < result.arguments.length; i++) {
+        const arg = result.arguments[i];
+        if (arg.optional) optionals = true;
+        else if (optionals && result.supports_slash_commands) {
+            return {
+                succeeded: false,
+                error: StructureValidationFailedReason.InvalidValue,
+                information: [
+                    "command arguments were valid but a required argument came after an optional argument, which is not allowed because the slash command API prohibits it.",
+                ],
+            };
+        }
+        if (is_string(arg.slash_command_description) === false && result.supports_slash_commands) {
+            return {
+                succeeded: false,
+                error: StructureValidationFailedReason.InvalidValue,
+                information: [
+                    `argument at index ${i} was missing a slash command description, which is required because its command parent supports slash commands`,
+                ],
+            };
+        }
+    }
+    return { succeeded: true, result: result };
 });
 
 const is_valid_SimpleCommandManual = function (thing: unknown): thing is SimpleCommandManual {
@@ -79,6 +125,7 @@ const MultifacetedCommandManualStructure = Structs.object({
     name: Structs.string,
     subcommands: Structs.array(SimpleCommandManualStructure),
     description: Structs.string,
+    supports_slash_commands: Structs.boolean,
 });
 
 export interface MultifacetedCommandManual {
@@ -87,6 +134,7 @@ export interface MultifacetedCommandManual {
     readonly subcommands: readonly SubcommandManual[];
     // A description of the command to be added on in the manual.
     readonly description: string;
+    readonly supports_slash_commands: boolean;
 }
 
 const is_valid_MultifacetedCommandManual = function (thing: unknown): thing is MultifacetedCommandManual {
@@ -207,15 +255,16 @@ export const generate_syntaxes = function (command: SimpleCommandManual, syntax_
     const command_arguments = command.arguments;
     // List of optional arguments
     const optional_arguments = command_arguments.filter(argument => argument.optional);
+    const argument_ids = command_arguments.map(argument => argument.id);
     const argument_names = command_arguments.map(argument => argument.name);
 
-    const argument_names_indices: { [key: string]: number } = {};
+    const argument_ids_indices: { [key: string]: number } = {};
     let checked = 0;
-    const efficient_index_of = (name: string): number => {
-        if (name in argument_names_indices) return argument_names_indices[name];
+    const efficient_index_of = (id: string): number => {
+        if (id in argument_ids_indices) return argument_ids_indices[id];
         else {
-            while (argument_names[checked] !== name) {
-                argument_names_indices[argument_names[checked]] = checked;
+            while (argument_ids[checked] !== id) {
+                argument_ids_indices[argument_ids[checked]] = checked;
                 checked++;
             }
             return checked;
@@ -239,7 +288,7 @@ export const generate_syntaxes = function (command: SimpleCommandManual, syntax_
     if (command.compact_syntaxes === true) {
         let res = syntax_string;
         for (let i = 0; i < optional_arguments.length; i++) {
-            res = key_off_describe_optional(res, command_arguments.indexOf(optional_arguments[i]), true);
+            res = key_off_describe_optional(res, argument_ids.indexOf(optional_arguments[i].id), true);
         }
         return [finish_syntax_string(res)];
     }
@@ -277,7 +326,7 @@ export const generate_syntaxes = function (command: SimpleCommandManual, syntax_
 
         // Replace the parts that key off of whether the optional argument is provided, using the state
         for (let i = 0; i < optional_arguments.length; i++) {
-            const argument_index = efficient_index_of(optional_arguments[i].name);
+            const argument_index = efficient_index_of(optional_arguments[i].id);
             state_dependent_syntax = key_off(state_dependent_syntax, argument_index, state[i]);
         }
 
@@ -289,7 +338,7 @@ export const generate_syntaxes = function (command: SimpleCommandManual, syntax_
     // Do one more iteration for when all are true or there are no optional arguments
     let state_dependent_syntax = syntax_string;
     for (let i = 0; i < optional_arguments.length; i++) {
-        const argument_index = argument_names.indexOf(optional_arguments[i].name);
+        const argument_index = argument_ids.indexOf(optional_arguments[i].name);
         state_dependent_syntax = key_off(state_dependent_syntax, argument_index, state[i]);
     }
     state_dependent_syntax = finish_syntax_string(state_dependent_syntax);
@@ -431,10 +480,10 @@ export const make_manual = async function (
     );
 };
 
-type BaseStructureType<Argument extends CommandArgument> = Argument["further_constraint"] extends Structure<NormalizedStructure>
+type BaseStructureType<Argument extends CommandArgumentBase> = Argument["further_constraint"] extends Structure<NormalizedStructure>
     ? Argument["further_constraint"]
     : Structure<string>;
-type StructureType<Argument extends CommandArgument> = Argument["optional"] extends false
+type StructureType<Argument extends CommandArgumentBase> = Argument["optional"] extends false
     ? BaseStructureType<Argument>
     : Structure<InferNormalizedType<BaseStructureType<Argument>> | null>;
 export type ArgumentRepresentation<Manual extends SubcommandManual> = {

@@ -41,6 +41,7 @@ export class IDExplain extends BotCommand<SimpleCommandManual> {
         arguments: [],
         description: "Explains the concept of an ID on Discord, also known as a Snowflake.",
         syntax: "::<prefix>idexplain::",
+        supports_slash_commands: true,
     } as const;
 
     readonly no_use_no_see = false;
@@ -64,6 +65,7 @@ export class GetCommands extends BotCommand<SimpleCommandManual> {
         arguments: [],
         description: "Links to a paste where you can view all the available bot commands.",
         syntax: "::<prefix>commands::",
+        supports_slash_commands: true,
     } as const;
 
     readonly no_use_no_see = false;
@@ -105,6 +107,7 @@ export class PrefixGet extends Subcommand<typeof PrefixGet.manual> {
         arguments: [],
         description: "Tells you the only valid prefix that you can use on this server to activate the bot's commands.",
         syntax: "::<prefix>prefix get::",
+        supports_slash_commands: true,
     } as const;
 
     readonly manual = PrefixGet.manual;
@@ -147,17 +150,20 @@ export class PrefixSet extends Subcommand<typeof PrefixSet.manual> {
                 name: "string or symbol",
                 id: "new_prefix",
                 optional: false,
+                slash_command_description: "new prefix",
             },
             {
                 name: "server ID",
                 id: "guild_id",
                 optional: true,
                 further_constraint: RT.Snowflake,
+                slash_command_description: "server to set on",
             },
         ],
         description:
             "Sets the provided string as the local prefix, overriding the global prefix.\nYou must be a bot admin or have designated privileges to use this command.",
         syntax: "::<prefix>prefix set:: NEW $1{opt $2}[ SERVER $2]",
+        supports_slash_commands: true,
     } as const;
 
     readonly manual = PrefixSet.manual;
@@ -170,17 +176,22 @@ export class PrefixSet extends Subcommand<typeof PrefixSet.manual> {
         client: Client,
         pg_client: UsingClient,
         _prefix: string,
-        _reply: Replier,
+        reply: Replier,
     ): Promise<BotCommandProcessResults> {
-        let designate_status = await designate_user_status({ user: message.author.id, server: message.guild.id }, pg_client);
+        let guild: Guild = message.guild;
+        if (args.guild_id !== null) {
+            try {
+                guild = await client.guilds.fetch(args.guild_id);
+            } catch (err) {
+                await reply("the provided guild does not exist");
+                return { type: BotCommandProcessResultType.DidNotSucceed };
+            }
+        }
+        let designate_status = await designate_user_status({ user: message.author.id, server: guild.id }, pg_client);
         switch (designate_status) {
             case DesignateUserStatus.FullAccess:
             case DesignateUserStatus.UserIsAdmin: {
-                const result = await set_prefix(
-                    args.guild_id === null ? (message.guild as Guild) : await client.guilds.fetch(args.guild_id),
-                    args.new_prefix,
-                    pg_client,
-                );
+                const result = await set_prefix(guild, args.new_prefix, pg_client);
 
                 if (result.did_succeed) {
                     const confirmed = await GiveCheck(message);
@@ -237,6 +248,7 @@ export class Prefix extends ParentCommand {
         name: "prefix",
         subcommands: this.subcommand_manuals,
         description: "Manage or get the prefix for your current server.",
+        supports_slash_commands: true,
     } as const;
 
     readonly no_use_no_see = false;
@@ -264,6 +276,7 @@ export class Info extends BotCommand<SimpleCommandManual> {
         arguments: [],
         syntax: "::<prefix>info::",
         description: "Provides a description of useful commands and the design of the bot.",
+        supports_slash_commands: true,
     } as const;
 
     readonly no_use_no_see = false;
@@ -299,15 +312,18 @@ export class DesignateSet extends Subcommand<typeof DesignateSet.manual> {
                 id: "user_snowflake",
                 optional: false,
                 further_constraint: RT.Snowflake,
+                slash_command_description: "user",
             },
             {
                 name: "allow designating others",
                 id: "allow_designating",
                 optional: true,
                 further_constraint: RT.BooleanS,
+                slash_command_description: "allow them to designate others",
             },
         ],
         syntax: "::<prefix>designate set:: USER $1{opt $2}[ FULL $2]",
+        supports_slash_commands: true,
     } as const;
 
     readonly manual = DesignateSet.manual;
@@ -387,9 +403,11 @@ export class DesignateRemove extends Subcommand<typeof DesignateRemove.manual> {
                 id: "user_snowflake",
                 optional: false,
                 further_constraint: RT.Snowflake,
+                slash_command_description: "user",
             },
         ],
         syntax: "::<prefix>designate remove:: USER $1",
+        supports_slash_commands: true,
     } as const;
 
     readonly manual = DesignateRemove.manual;
@@ -474,9 +492,11 @@ export class DesignateGet extends Subcommand<typeof DesignateGet.manual> {
                 id: "user_snowflake",
                 optional: true,
                 further_constraint: RT.Snowflake,
+                slash_command_description: "user",
             },
         ],
         syntax: "::<prefix>designate get::{opt $1}[ USER $1]",
+        supports_slash_commands: true,
     } as const;
 
     readonly manual = DesignateGet.manual;
@@ -535,6 +555,7 @@ export class Designate extends ParentCommand {
         name: "designate",
         description: "Manage user permissions in this server.",
         subcommands: this.subcommand_manuals,
+        supports_slash_commands: true,
     } as const;
 
     readonly no_use_no_see = false;

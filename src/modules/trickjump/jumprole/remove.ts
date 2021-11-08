@@ -22,11 +22,13 @@ export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
                 name: "name",
                 id: "name",
                 optional: false,
+                slash_command_description: "current jump name",
             },
         ],
         description: "Removes the given Jumprole and clears it from all users' Jumprole lists.",
         syntax: "::<prefix>jumprole remove:: NAME $1",
         compact_syntaxes: true,
+        supports_slash_commands: true,
     } as const;
 
     readonly manual = JumproleRemove.manual;

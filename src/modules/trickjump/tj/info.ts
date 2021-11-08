@@ -22,11 +22,13 @@ export class TJInfo extends Subcommand<typeof TJInfo.manual> {
                 name: "name",
                 id: "name",
                 optional: false,
+                slash_command_description: "jump name",
             },
         ],
         description: "Retrieves comprehensive info in the given trickjump.",
         syntax: "::<prefix>tj info:: $1",
         compact_syntaxes: true,
+        supports_slash_commands: true,
     } as const;
 
     readonly manual = TJInfo.manual;
@@ -123,7 +125,7 @@ export class TJInfo extends Subcommand<typeof TJInfo.manual> {
                     embed.setDescription(`Link: ${jump.link}\n\n`);
                 }
                 embed.setDescription(`${embed.description}Description: \n${jump.description}\n\n`);
-                await message.channel.send(embed);
+                await message.channel.send({ embeds: [embed] });
                 if (has_link) {
                     await message.channel.send(jump.link as string);
                 }

@@ -23,10 +23,12 @@ export class TJConfirm extends Subcommand<typeof TJConfirm.manual> {
                 name: "jump name",
                 id: "jumprole_name",
                 optional: false,
+                slash_command_description: "current jump name",
             },
         ],
         syntax: "::<prefix>tj confirm:: NAME $1",
         description: "Confirm that a completion still applies to the updated version of a Jumprole.",
+        supports_slash_commands: true,
     } as const;
 
     readonly manual = TJConfirm.manual;

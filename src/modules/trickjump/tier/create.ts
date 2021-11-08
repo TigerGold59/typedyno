@@ -19,17 +19,20 @@ export class TierCreate extends Subcommand<typeof TierCreate.manual> {
                 name: "name",
                 id: "name",
                 optional: false,
+                slash_command_description: "name",
             },
             {
                 name: "rank number",
                 id: "ordinal",
                 optional: false,
                 further_constraint: RT.UInt4Like,
+                slash_command_description: "rank number",
             },
         ],
         description: "Creates a tier which may include jumproles. The higher the rank number, the higher the tier.",
         syntax: "::<prefix>tier create:: NAME $1 RANK $2",
         compact_syntaxes: false,
+        supports_slash_commands: true,
     } as const;
 
     readonly manual = TierCreate.manual;

@@ -23,6 +23,7 @@ export class Tier extends ParentCommand {
         name: "tier",
         subcommands: this.subcommand_manuals,
         description: "Manage Jumprole tiers in the current server.",
+        supports_slash_commands: true,
     } as const;
 
     readonly no_use_no_see = false;

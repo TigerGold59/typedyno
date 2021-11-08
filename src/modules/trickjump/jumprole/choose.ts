@@ -22,10 +22,12 @@ export class JumproleChoose extends Subcommand<typeof JumproleChoose.manual> {
                 id: "channel_snowflake",
                 optional: false,
                 further_constraint: RT.Snowflake,
+                slash_command_description: "channel",
             },
         ],
         description: "Designates the given channel as the server's channel authorized for all Jumprole commands (except this one).",
         syntax: "::<prefix>jumprole choose:: CHANNEL $1",
+        supports_slash_commands: true,
     } as const;
 
     manual = JumproleChoose.manual;

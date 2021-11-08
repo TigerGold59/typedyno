@@ -138,7 +138,7 @@ export type Unknown<T> = { [P in keyof T]: unknown };
 export type OptionalNull<T> = { [P in keyof T]: T[P] | null };
 
 export const filter_map = <Element, ResultElement>(
-    list: Element[],
+    list: readonly Element[],
     callback: <ThrowawaySymbol extends symbol>(element: Element, index: number, throwaway: ThrowawaySymbol) => ResultElement | ThrowawaySymbol,
 ): ResultElement[] => {
     const res = [];
@@ -222,4 +222,9 @@ export const in_range = (input: NumberComparable, range: Range): [boolean, boole
 export const null_to_undefined = <T>(arg: T | null): Exclude<T, null> | undefined => {
     if (arg === null) return undefined;
     else return arg as Exclude<T, null>;
+};
+
+export const undefined_to_null = <T>(arg: T | undefined): Exclude<T, undefined> | null => {
+    if (arg === undefined) return null;
+    else return arg as Exclude<T, undefined>;
 };

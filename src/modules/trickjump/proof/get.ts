@@ -23,16 +23,19 @@ export class ProofGet extends Subcommand<typeof ProofGet.manual> {
                 name: "jump name",
                 id: "jumprole_name",
                 optional: false,
+                slash_command_description: "jump name",
             },
             {
                 name: "user ID",
                 id: "source",
                 optional: true,
                 further_constraint: RT.Snowflake,
+                slash_command_description: "user",
             },
         ],
         syntax: "::<prefix>proof get:: NAME $1{opt $2}[ USER $2]",
         description: "Get the proof for a Jumprole you or someone else has.",
+        supports_slash_commands: true,
     } as const;
 
     readonly manual = ProofGet.manual;

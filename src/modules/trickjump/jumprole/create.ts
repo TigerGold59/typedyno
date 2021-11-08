@@ -4,7 +4,7 @@ import { UsingClient } from "../../../pg_wrapper.js";
 import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 import { log, LogType } from "../../../utilities/log.js";
-import { Jumprole, KingdomNameToKingdom, CreateJumproleResultType, TwitterLink } from "./internals/jumprole_type.js";
+import { Jumprole, KingdomNameToKingdom, CreateJumproleResultType, TwitterLink, KingdomString } from "./internals/jumprole_type.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { TextChannelMessage } from "../../../utilities/typeutils.js";
 import { GetTierResultType, Tier } from "../tier/internals/tier_type.js";
@@ -20,42 +20,51 @@ export class JumproleCreate extends Subcommand<typeof JumproleCreate.manual> {
                 name: "name",
                 id: "name",
                 optional: false,
+                slash_command_description: "jump name",
             },
             {
                 name: "tier",
                 id: "tier",
                 optional: false,
+                slash_command_description: "tier name",
+            },
+            {
+                name: "description",
+                id: "description",
+                optional: false,
+                slash_command_description: "jump description",
             },
             {
                 name: "kingdom",
                 id: "kingdom",
                 optional: true,
+                further_constraint: KingdomString,
+                slash_command_description: "kingdom of jump",
             },
             {
                 name: "location",
                 id: "location",
                 optional: true,
+                slash_command_description: "location of jump",
             },
             {
                 name: "jump type",
                 id: "jump_type",
                 optional: true,
+                slash_command_description: "jump type",
             },
             {
                 name: "link",
                 id: "link",
                 optional: true,
                 further_constraint: TwitterLink,
-            },
-            {
-                name: "description",
-                id: "description",
-                optional: false,
+                slash_command_description: "Twitter link",
             },
         ],
         description: "Creates or updates a Jumprole with the specified properties.",
         syntax: "::<prefix>jumprole create:: NAME $1 TIER $2{opt $3}[ KINGDOM $3]{opt $4}[ LOCATION $4]{opt $5}[ JUMP TYPE $5]{opt $6}[ LINK $6] INFO $7",
         compact_syntaxes: true,
+        supports_slash_commands: true,
     } as const;
 
     readonly manual = JumproleCreate.manual;

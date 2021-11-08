@@ -1,4 +1,4 @@
-import { CommandArgument, SimpleCommandManual, SubcommandManual } from "../../command_manual.js";
+import { CommandArgumentBase, SimpleCommandManual, SubcommandManual } from "../../command_manual.js";
 import { MAINTAINER_TAG } from "../../main.js";
 import { log, LogType } from "../log.js";
 import { escape_reg_exp, is_string, TextChannelMessage } from "../typeutils.js";
@@ -27,8 +27,8 @@ import {
  * @returns A tuple where `return[0]` is the syntax string, parsed into an array of segments, and `return[1]` is the index at which the last character read was located.
  */
 // eslint-disable-next-line complexity
-export const parse_loop_with_initial_state = function (
-    args: readonly CommandArgument[],
+export const parse_syntax_string_with_initial_state = function (
+    args: readonly CommandArgumentBase[],
     str: string,
     state: SyntaxStringParserState,
     key_off_stack: number[],
@@ -271,7 +271,7 @@ export const parse_loop_with_initial_state = function (
             }
             case SyntaxStringParserState.ContentInKeyOffInSquareBrackets: {
                 key_off_stack.push(current_argument_identifier as number);
-                const sub_res = parse_loop_with_initial_state(
+                const sub_res = parse_syntax_string_with_initial_state(
                     args,
                     to_parse.substring(index),
                     SyntaxStringParserState.StaticTopLevel,
@@ -373,7 +373,7 @@ export const update_syntax_string_cache = (prefix: string, syntax_string: string
     return result;
 };
 
-export const get_compiled = (prefix: string, args: readonly CommandArgument[], syntax_string: string): SyntaxStringCompiled => {
+export const get_compiled = (prefix: string, args: readonly CommandArgumentBase[], syntax_string: string): SyntaxStringCompiled => {
     if (prefix in syntax_string_compile_cache && syntax_string in syntax_string_compile_cache[prefix]) {
         return syntax_string_compile_cache[prefix][syntax_string];
     }
@@ -381,7 +381,14 @@ export const get_compiled = (prefix: string, args: readonly CommandArgument[], s
     const argument_references: boolean[] = args.length > 0 ? [false] : [];
     for (let i = 1; i < args.length; i++) argument_references.push(false);
 
-    const result = parse_loop_with_initial_state(args, syntax_string, SyntaxStringParserState.None, key_off_stack, true, argument_references);
+    const result = parse_syntax_string_with_initial_state(
+        args,
+        syntax_string,
+        SyntaxStringParserState.None,
+        key_off_stack,
+        true,
+        argument_references,
+    );
     if (result.type === SyntaxStringCompiledType.Error) {
         return update_syntax_string_cache(prefix, syntax_string, result);
     } else {
@@ -407,7 +414,7 @@ export type SyntaxStringTestingResult =
  */
 export const syntax_string_to_argument_regex = function (
     prefix: string,
-    args: readonly CommandArgument[],
+    args: readonly CommandArgumentBase[],
     syntax_string: string,
 ): SyntaxStringTestingResult {
     let result = get_compiled(prefix, args, syntax_string);
@@ -698,7 +705,7 @@ export const get_first_matching_subcommand = function <List extends readonly Sub
     return false;
 };
 
-export const handle_GetArgsResult = async function <ArgumentList extends readonly CommandArgument[]>(
+export const handle_GetArgsResult = async function <ArgumentList extends readonly CommandArgumentBase[]>(
     message: TextChannelMessage,
     command_name: string,
     result: ArgumentValues<ArgumentList>,

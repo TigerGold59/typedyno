@@ -31,49 +31,58 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
                 name: "name",
                 id: "name",
                 optional: false,
+                slash_command_description: "current jump name",
+            },
+            {
+                name: "description",
+                id: "description",
+                optional: true,
+                slash_command_description: "new jump description",
             },
             {
                 name: "tier",
                 id: "tier",
                 optional: true,
+                slash_command_description: "new tier name",
             },
             {
                 name: "new name",
                 id: "new_name",
                 optional: true,
+                slash_command_description: "new jump name",
             },
             {
                 name: "kingdom",
                 id: "kingdom",
                 optional: true,
                 further_constraint: KingdomString,
+                slash_command_description: "kingdom of jump",
             },
             {
                 name: "location",
                 id: "location",
                 optional: true,
+                slash_command_description: "location of jump",
             },
             {
                 name: "jump type",
                 id: "jump_type",
                 optional: true,
+                slash_command_description: "jump type",
             },
             {
                 name: "link",
                 id: "link",
                 optional: true,
                 further_constraint: TwitterLink,
-            },
-            {
-                name: "description",
-                id: "description",
-                optional: true,
+                slash_command_description: "Twitter link",
             },
         ],
         description:
             "Updates the specified properties of the jumprole. To unset a specific property, provide 'UNSET' as the argument. You cannot unset the NEW NAME property.",
         syntax: "::<prefix>jumprole update:: NAME $1{opt $2}[ TIER $2]{opt $3}[ NEW NAME $3]{opt $4}[ KINGDOM $4]{opt $5}[ LOCATION $5]{opt $6}[ JUMP TYPE $6]{opt $7}[ LINK $7]{opt $8}[ INFO $8]",
         compact_syntaxes: true,
+        supports_slash_commands: true,
     } as const;
 
     readonly manual = JumproleUpdate.manual;

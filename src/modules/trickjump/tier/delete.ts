@@ -19,11 +19,13 @@ export class TierDelete extends Subcommand<typeof TierDelete.manual> {
                 name: "name",
                 id: "name",
                 optional: false,
+                slash_command_description: "name",
             },
         ],
         description: "Deletes a tier.",
         syntax: "::<prefix>tier delete:: NAME $1",
         compact_syntaxes: false,
+        supports_slash_commands: true,
     } as const;
 
     readonly manual = TierDelete.manual;

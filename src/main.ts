@@ -28,7 +28,9 @@ export const MODULES = (async (): Promise<Module[]> => {
     const res = await load_modules();
     log("Module loading complete.", LogType.Success);
 
-    const client = new Discord.Client();
+    const client = new Discord.Client({
+        intents: [Discord.Intents.FLAGS.GUILD_MESSAGES, Discord.Intents.FLAGS.GUILD_MESSAGE_REACTIONS],
+    });
     log("Client created. Bot starting up...", LogType.Status);
 
     const connection_pool = new Pool({
@@ -48,9 +50,11 @@ export const MODULES = (async (): Promise<Module[]> => {
         // Set status
         if (!CONFIG.presence_data) {
             void client.user.setPresence({
-                activity: {
-                    name: "@ for server prefix",
-                },
+                activities: [
+                    {
+                        name: "@ for server prefix",
+                    },
+                ],
             });
         } else {
             void client.user.setPresence(CONFIG.presence_data);
@@ -62,6 +66,12 @@ export const MODULES = (async (): Promise<Module[]> => {
         void process_message(message, client, connection_pool);
     });
 
+    client.on("interaction", interaction => {
+        if (interaction.isApplicationCommand() && interaction.isCommand() && interaction.options) {
+            if (interaction.)
+        }
+    })
+
     // Use event listener files
     for (const listener_name of CONFIG.event_listeners) {
         // Import each through a require (the reason it's not .ts is because the listeners will get compiled to .js)
@@ -71,7 +81,7 @@ export const MODULES = (async (): Promise<Module[]> => {
             connection_pool,
         );
         // Apply the listener (listener name is actually the event name)
-        client.on(listener_name, listener);
+        client.on(listener_name, listener(client, connection_pool));
     }
 
     // Actually log the bot in

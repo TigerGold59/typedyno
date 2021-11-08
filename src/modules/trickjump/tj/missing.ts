@@ -24,10 +24,12 @@ export class TJMissing extends Subcommand<typeof TJMissing.manual> {
                 id: "source",
                 optional: true,
                 further_constraint: RT.Snowflake,
+                slash_command_description: "user",
             },
         ],
         syntax: "::<prefix>tj missing::{opt $1}[ SOURCE $1]",
         description: "List all the Jumproles that the source (or the user if source is not provided) is missing.",
+        supports_slash_commands: true,
     } as const;
 
     readonly manual = TJMissing.manual;

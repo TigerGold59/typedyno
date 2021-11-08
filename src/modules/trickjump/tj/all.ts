@@ -20,6 +20,7 @@ export class TJAll extends Subcommand<typeof TJAll.manual> {
         arguments: [],
         syntax: "::<prefix>tj all::",
         description: "List all the Jumproles in the current server.",
+        supports_slash_commands: true,
     } as const;
 
     readonly manual = TJAll.manual;

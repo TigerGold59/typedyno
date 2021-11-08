@@ -23,10 +23,12 @@ export class ProofRemove extends Subcommand<typeof ProofRemove.manual> {
                 name: "jump name",
                 id: "jumprole_name",
                 optional: false,
+                slash_command_description: "name",
             },
         ],
         syntax: "::<prefix>proof remove:: NAME $1",
         description: "Remove the proof for a jumprole you have.",
+        supports_slash_commands: true,
     } as const;
 
     readonly manual = ProofRemove.manual;

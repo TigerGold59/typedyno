@@ -45,6 +45,7 @@ export abstract class BotCommand<ManualType extends CommandManual> {
     abstract readonly manual: ManualType;
     abstract readonly no_use_no_see: boolean;
     abstract readonly permissions: Permissions | undefined;
+    readonly id = Symbol();
 
     constructor() {}
 

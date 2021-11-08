@@ -24,22 +24,26 @@ export class TJList extends Subcommand<typeof TJList.manual> {
                 id: "source",
                 optional: true,
                 further_constraint: RT.Snowflake,
+                slash_command_description: "user to list from",
             },
             {
                 name: "yes or no",
                 id: "proof",
                 optional: true,
                 further_constraint: RT.BooleanS,
+                slash_command_description: "whether to show proof",
             },
             {
-                name: "y/n",
+                name: "yes or no",
                 id: "proof_present",
                 optional: true,
                 further_constraint: RT.BooleanS,
+                slash_command_description: "whether proof must be present (yes) or missing (no)",
             },
         ],
         syntax: "::<prefix>tj list::{opt $1}[ SOURCE $1]{opt $2}[ SHOW PROOF $2]{opt $3}[ PROOF PRESENT $3]",
         description: "Get Jumprole information.",
+        supports_slash_commands: true,
     } as const;
 
     readonly manual = TJList.manual;

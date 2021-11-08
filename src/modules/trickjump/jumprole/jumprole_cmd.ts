@@ -24,6 +24,7 @@ export class Jumprole extends ParentCommand {
         name: "jumprole",
         subcommands: this.subcommand_manuals,
         description: "Manage Jumproles in the current server.",
+        supports_slash_commands: true,
     };
 
     readonly no_use_no_see = false;

@@ -22,16 +22,19 @@ export class TJGive extends Subcommand<typeof TJGive.manual> {
                 name: "jump name",
                 id: "jumprole_name",
                 optional: false,
+                slash_command_description: "jump name",
             },
             {
                 name: "link to Twitter video",
                 id: "proof_link",
                 optional: true,
                 further_constraint: TwitterLink,
+                slash_command_description: "Twitter link",
             },
         ],
         syntax: "::<prefix>tj give:: NAME $1{opt $2}[ PROOF $2]",
         description: "Give yourself a Jumprole in the current server.",
+        supports_slash_commands: true,
     } as const;
 
     readonly manual = TJGive.manual;
