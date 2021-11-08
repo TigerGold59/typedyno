@@ -1,4 +1,4 @@
-import { Client, MessageEmbed } from "discord.js";
+import { Client, MessageEmbed, User } from "discord.js";
 import { UsingClient } from "../../../pg_wrapper.js";
 
 import { BotCommandProcessResults, BotCommandProcessResultType, Replier, Subcommand } from "../../../functions.js";
@@ -95,12 +95,20 @@ export class TJInfo extends Subcommand<typeof TJInfo.manual> {
                 if (is_number(jump.kingdom)) {
                     embed.addField("Kingdom", KINGDOM_NAMES[jump.kingdom], true);
                 }
-                let user = await discord_client.users.fetch(jump.added_by);
-                if (is_string(user.tag)) {
-                    embed.setAuthor(
-                        user.tag,
-                        user.avatar === null ? user.defaultAvatarURL : `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.jpeg`,
-                    );
+                let user: User | null;
+                try {
+                    user = await discord_client.users.fetch(jump.added_by);
+                } catch (err) {
+                    user = null;
+                }
+                if (user === null) {
+                } else {
+                    if (is_string(user.tag)) {
+                        embed.setAuthor(
+                            user.tag,
+                            user.avatar === null ? user.defaultAvatarURL : `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.jpeg`,
+                        );
+                    }
                 }
                 embed.setTimestamp(new Date(jump.updated_at * 1000));
                 if (is_string(jump.jump_type)) {
