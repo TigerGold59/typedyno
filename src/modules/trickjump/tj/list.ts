@@ -32,7 +32,7 @@ export class TJList extends Subcommand<typeof TJList.manual> {
                 further_constraint: RT.BooleanS,
             },
             {
-                name: "yes or no",
+                name: "y/n",
                 id: "proof_present",
                 optional: true,
                 further_constraint: RT.BooleanS,
