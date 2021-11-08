@@ -59,7 +59,7 @@ export class TJList extends Subcommand<typeof TJList.manual> {
 
         let user_intention = values.source === null ? message.author.id : values.source;
         let proof_intention = values.proof === null ? false : values.proof;
-        let proof_present_filter = (val: JumproleEntry): boolean => {
+        const proof_present_filter = (val: JumproleEntry): boolean => {
             if (values.proof_present === null) return true;
             else {
                 return (val.link !== null) === values.proof_present;
@@ -87,8 +87,10 @@ export class TJList extends Subcommand<typeof TJList.manual> {
                         return { type: BotCommandProcessResultType.Succeeded };
                     }
 
-                    const head = `Trickjumps for User ${user.tag}\n${"=".repeat(
-                        20 + user.tag.length,
+                    let qualifier = values.proof_present === null ? " " : values.proof_present ? " With Proof " : " Without Proof ";
+
+                    const head = `Trickjumps${qualifier}for User ${user.tag}\n${"=".repeat(
+                        19 + qualifier.length + user.tag.length,
                     )}\n\n* - the jump has been changed since it was given.\nConfirm that completion of the jump still applies using '${prefix}tj confirm'.\n\n`;
 
                     let tiered = roles.sort((a, b) => b.jumprole.tier.ordinal - a.jumprole.tier.ordinal).filter(proof_present_filter);
@@ -133,9 +135,11 @@ export class TJList extends Subcommand<typeof TJList.manual> {
                     let link = await create_paste(head + tail);
                     if (is_string(link.paste?.id)) {
                         await reply(
-                            `${user_intention === message.author.id ? "you have" : `user with ID ${user_intention} has`} ${roles.length} total jump${
-                                roles.length === 1 ? "" : "s"
-                            } - view ${roles.length === 1 ? "it" : "them"} at ${url(link.paste as Paste)}`,
+                            `${user_intention === message.author.id ? "you have" : `user with ID ${user_intention} has`} ${tiered.length} total jump${
+                                tiered.length === 1 ? "" : "s"
+                            }${values.proof_present === null ? " " : values.proof_present ? " with proof " : " without proof "}- view ${
+                                tiered.length === 1 ? "it" : "them"
+                            } at ${url(link.paste as Paste)}`,
                         );
                     } else {
                         await reply(`error creating paste. Contact @${MAINTAINER_TAG} for help.`);
