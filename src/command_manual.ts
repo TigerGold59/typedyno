@@ -207,15 +207,16 @@ export const generate_syntaxes = function (command: SimpleCommandManual, syntax_
     const command_arguments = command.arguments;
     // List of optional arguments
     const optional_arguments = command_arguments.filter(argument => argument.optional);
+    const argument_ids = command_arguments.map(argument => argument.id);
     const argument_names = command_arguments.map(argument => argument.name);
 
-    const argument_names_indices: { [key: string]: number } = {};
+    const argument_ids_indices: { [key: string]: number } = {};
     let checked = 0;
-    const efficient_index_of = (name: string): number => {
-        if (name in argument_names_indices) return argument_names_indices[name];
+    const efficient_index_of = (id: string): number => {
+        if (id in argument_ids_indices) return argument_ids_indices[id];
         else {
-            while (argument_names[checked] !== name) {
-                argument_names_indices[argument_names[checked]] = checked;
+            while (argument_ids[checked] !== id) {
+                argument_ids_indices[argument_ids[checked]] = checked;
                 checked++;
             }
             return checked;
@@ -239,7 +240,7 @@ export const generate_syntaxes = function (command: SimpleCommandManual, syntax_
     if (command.compact_syntaxes === true) {
         let res = syntax_string;
         for (let i = 0; i < optional_arguments.length; i++) {
-            res = key_off_describe_optional(res, command_arguments.indexOf(optional_arguments[i]), true);
+            res = key_off_describe_optional(res, argument_ids.indexOf(optional_arguments[i].id), true);
         }
         return [finish_syntax_string(res)];
     }
@@ -277,7 +278,7 @@ export const generate_syntaxes = function (command: SimpleCommandManual, syntax_
 
         // Replace the parts that key off of whether the optional argument is provided, using the state
         for (let i = 0; i < optional_arguments.length; i++) {
-            const argument_index = efficient_index_of(optional_arguments[i].name);
+            const argument_index = efficient_index_of(optional_arguments[i].id);
             state_dependent_syntax = key_off(state_dependent_syntax, argument_index, state[i]);
         }
 
@@ -289,7 +290,7 @@ export const generate_syntaxes = function (command: SimpleCommandManual, syntax_
     // Do one more iteration for when all are true or there are no optional arguments
     let state_dependent_syntax = syntax_string;
     for (let i = 0; i < optional_arguments.length; i++) {
-        const argument_index = argument_names.indexOf(optional_arguments[i].name);
+        const argument_index = argument_ids.indexOf(optional_arguments[i].id);
         state_dependent_syntax = key_off(state_dependent_syntax, argument_index, state[i]);
     }
     state_dependent_syntax = finish_syntax_string(state_dependent_syntax);
