@@ -24,22 +24,26 @@ export class TJList extends Subcommand<typeof TJList.manual> {
                 id: "source",
                 optional: true,
                 further_constraint: RT.Snowflake,
+                slash_command_description: "user to list from",
             },
             {
                 name: "yes or no",
                 id: "proof",
                 optional: true,
                 further_constraint: RT.BooleanS,
+                slash_command_description: "whether to show proof",
             },
             {
-                name: "y/n",
+                name: "yes or no",
                 id: "proof_present",
                 optional: true,
                 further_constraint: RT.BooleanS,
+                slash_command_description: "whether proof must be present (yes) or missing (no)",
             },
         ],
         syntax: "::<prefix>tj list::{opt $1}[ SOURCE $1]{opt $2}[ SHOW PROOF $2]{opt $3}[ PROOF PRESENT $3]",
         description: "Get Jumprole information.",
+        supports_slash_commands: true,
     } as const;
 
     readonly manual = TJList.manual;
@@ -93,7 +97,19 @@ export class TJList extends Subcommand<typeof TJList.manual> {
                         19 + qualifier.length + user.tag.length,
                     )}\n\n* - the jump has been changed since it was given.\nConfirm that completion of the jump still applies using '${prefix}tj confirm'.\n\n`;
 
-                    let tiered = roles.sort((a, b) => b.jumprole.tier.ordinal - a.jumprole.tier.ordinal).filter(proof_present_filter);
+                    for (const entry of roles) {
+                        if (entry.jumprole === undefined) {
+                            log(`tj list: entry with ID ${entry.id} had undefined jumprole property. Entry:`);
+                            log(entry);
+                            await reply(`an internal error has occurred (role.jumprole was undefined). Contact @${MAINTAINER_TAG} for help.`);
+                            return { type: BotCommandProcessResultType.DidNotSucceed };
+                        }
+                    }
+                    let tiered = roles
+                        .sort((a, b) => {
+                            return b.jumprole.tier.ordinal - a.jumprole.tier.ordinal;
+                        })
+                        .filter(proof_present_filter);
 
                     if (tiered.length < 1 && values.proof_present !== null) {
                         await reply(

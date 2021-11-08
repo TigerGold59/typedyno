@@ -21,10 +21,12 @@ export class TJSet extends Subcommand<typeof TJSet.manual> {
                 id: "all",
                 optional: false,
                 further_constraint: RT.BooleanS,
+                slash_command_description: "yes to give all jumps, no to take all jumps away",
             },
         ],
         syntax: "::<prefix>tj set:: ALL $1",
         description: "Give yourself all or remove all of the Jumproles in the server.",
+        supports_slash_commands: true,
     } as const;
 
     readonly manual = TJSet.manual;
@@ -42,15 +44,18 @@ export class TJSet extends Subcommand<typeof TJSet.manual> {
     ): Promise<BotCommandProcessResults> {
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
-        let query_string = `DELETE FROM trickjump_entries WHERE holder=$1 AND server=$2`;
-        let query_params: unknown[] = [message.author.id, message.guild.id];
+        let query_string = "";
+        let query_params: unknown[] = [];
 
         try {
-            await pg_client.query(query_string, query_params);
-            query_string = `INSERT INTO trickjump_entries (jump_id, jump_hash, holder, server, added_at, updated_at) (SELECT id, hash, $1, trickjump_jumps.server, $2, $3 FROM trickjump_jumps WHERE server=$4)`;
             if (values.all) {
                 let date = Math.round(Date.now() / 1000);
+                query_string = `INSERT INTO trickjump_entries (jump_id, jump_hash, holder, server, added_at, updated_at) (SELECT id, hash, $1, trickjump_jumps.server, $2, $3 FROM trickjump_jumps WHERE server=$4) ON CONFLICT ON CONSTRAINT trickjump_entries_jump_id_holder_key DO NOTHING`;
                 query_params = [message.author.id, date, date, message.guild.id];
+                await pg_client.query(query_string, query_params);
+            } else {
+                query_string = `DELETE FROM trickjump_entries WHERE holder=$1 AND server=$2`;
+                query_params = [message.author.id, message.guild.id];
                 await pg_client.query(query_string, query_params);
             }
             await GiveCheck(message);
