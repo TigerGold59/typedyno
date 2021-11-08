@@ -21,12 +21,12 @@ export class TJSet extends Subcommand<typeof TJSet.manual> {
                 id: "all",
                 optional: false,
                 further_constraint: RT.BooleanS,
-                slash_command_description: "yes to give all jumps, no to take all jumps away",
+                //slash_command_description: "yes to give all jumps, no to take all jumps away",
             },
         ],
         syntax: "::<prefix>tj set:: ALL $1",
         description: "Give yourself all or remove all of the Jumproles in the server.",
-        supports_slash_commands: true,
+        //supports_slash_commands: true,
     } as const;
 
     readonly manual = TJSet.manual;
