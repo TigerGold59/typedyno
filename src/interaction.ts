@@ -97,6 +97,7 @@ export const process_message = async function (message: Message, client: Client,
             let { id } = await client.application?.commands.create(data);
             integration_cache[id] = command.id;
         }
+        registered_stock = true;
     }
     if (is_text_channel(message)) {
         if (cached_module_commands.length === 0) {
@@ -115,6 +116,7 @@ export const process_message = async function (message: Message, client: Client,
                 let { id } = await message.guild.commands.create(data);
                 integration_cache[id] = command.command.id;
             }
+            guild_registrations[message.guild.id] = true;
         }
     }
     // Only use this area for non-command responses
