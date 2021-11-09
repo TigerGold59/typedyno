@@ -11,6 +11,7 @@ import { Snowflake } from "./utilities/permissions.js";
 import { handle_interaction } from "./handle_interaction.js";
 import { Module } from "./module_loader.js";
 
+// TODO: store integration IDs in the database
 let registered_stock = false;
 let guild_registrations: Record<string, boolean> = {};
 let cached_module_commands: { command: BotCommand; module: Module }[] = [];
