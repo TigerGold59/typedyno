@@ -228,3 +228,15 @@ export const undefined_to_null = <T>(arg: T | undefined): Exclude<T, undefined> 
     if (arg === undefined) return null;
     else return arg as Exclude<T, undefined>;
 };
+
+type KeysByType<O, T> = {
+    [K in keyof O]-?: T extends O[K] ? K : never;
+}[keyof O];
+
+type KeysByNotType<O, T> = {
+    [K in keyof O]-?: T extends O[K] ? never : K;
+}[keyof O];
+
+export type UndefinedToOptional<S extends Record<string | number | symbol, unknown>> = {
+    [Key in KeysByType<S, undefined>]?: Exclude<S[Key], undefined>;
+} & { [Key in KeysByNotType<S, undefined>]: S[Key] };

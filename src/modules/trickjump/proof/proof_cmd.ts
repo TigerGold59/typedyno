@@ -12,7 +12,6 @@ export class Proof extends ParentCommand {
         name: "proof",
         subcommands: this.subcommand_manuals,
         description: "Manage and view the Proof people have set for Jumproles in the current server.",
-        supports_slash_commands: true,
     } as const;
 
     no_use_no_see = false;

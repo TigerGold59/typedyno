@@ -4,11 +4,9 @@ import {
     ApplicationCommandSubGroupData,
     CacheType,
     ChatInputApplicationCommandData,
-    CommandInteraction,
     CommandInteractionOption,
-    Interaction,
 } from "discord.js";
-import { ApplicationCommandOptionTypes, ChannelTypes } from "discord.js/typings/enums";
+import { ApplicationCommandOptionTypes, ChannelTypes } from "discord.js/typings/enums.js";
 import {
     CommandArgument,
     CommandManual,
@@ -17,13 +15,16 @@ import {
     MultifacetedCommandManual,
     SimpleCommandManual,
     SubcommandManual,
-} from "./command_manual";
-import { BotCommand } from "./functions";
-import { log, LogType } from "./utilities/log";
-import { filter_map, null_to_undefined, undefined_to_null } from "./utilities/typeutils";
+} from "./command_manual.js";
+import { BotCommand } from "./functions.js";
+import { undefined_to_null } from "./utilities/typeutils.js";
+
+export const fix_short_description = (str: string) => {
+    return str.toLowerCase().split(" ").join("-");
+};
 
 export const create_option_from_argument = (
-    argument: CommandArgument<true>,
+    argument: CommandArgument,
 ): Exclude<ApplicationCommandOptionData, ApplicationCommandSubCommandData | ApplicationCommandSubGroupData> => {
     if (
         argument.further_constraint !== undefined &&
@@ -31,9 +32,9 @@ export const create_option_from_argument = (
         argument.further_constraint.choices.length > 0
     ) {
         return {
-            name: argument.id,
-            description: argument.slash_command_description,
-            required: argument.optional,
+            name: fix_short_description(argument.short_description),
+            description: argument.name,
+            required: argument.optional !== true,
             type: ApplicationCommandOptionTypes.STRING,
             choices: argument.further_constraint.choices.map(val => {
                 return {
@@ -44,11 +45,11 @@ export const create_option_from_argument = (
         };
     } else {
         return {
-            name: argument.id,
-            description: argument.slash_command_description,
-            required: argument.optional,
+            name: fix_short_description(argument.short_description),
+            description: argument.name,
+            required: argument.optional !== true,
             channel_types: [ChannelTypes.GUILD_TEXT],
-            type: argument.slash_command_type === undefined ? ApplicationCommandOptionTypes.STRING : argument.slash_command_type,
+            type: argument.base_type,
         };
     }
 };
@@ -62,9 +63,7 @@ export const load_slash_command_single = (manual: SimpleCommandManual & { suppor
     };
 };
 
-export const load_slash_command_subcommand = (
-    manual: SubcommandManual & { readonly supports_slash_commands: true },
-): ApplicationCommandSubCommandData => {
+export const load_slash_command_subcommand = (manual: SubcommandManual): ApplicationCommandSubCommandData => {
     return {
         name: manual.name,
         description: manual.description,
@@ -73,52 +72,23 @@ export const load_slash_command_subcommand = (
     };
 };
 
-export const load_slash_command_multiple = (
-    manual: MultifacetedCommandManual & { supports_slash_commands: true },
-): ChatInputApplicationCommandData => {
+export const load_slash_command_multiple = (manual: MultifacetedCommandManual): ChatInputApplicationCommandData => {
     return {
         name: manual.name,
         description: manual.description,
-        options: filter_map(
-            manual.subcommands,
-            <ThrowawaySymbol extends symbol>(element: SubcommandManual, _index: number, throwaway: ThrowawaySymbol) => {
-                if (element.supports_slash_commands === false) {
-                    return throwaway;
-                } else {
-                    return load_slash_command_subcommand(element);
-                }
-            },
-        ),
+        options: manual.subcommands.map(load_slash_command_subcommand) as ApplicationCommandSubCommandData[],
     };
 };
 
-export const do_check_and_list = (command: BotCommand<CommandManual>): ChatInputApplicationCommandData | undefined => {
-    if (command.manual.supports_slash_commands === false) {
-        return undefined;
-    } else {
-        let type = get_type(command.manual);
+export const do_check_and_create_registration = (command: BotCommand<CommandManual>): ChatInputApplicationCommandData | undefined => {
+    if (command.no_use_no_see) return undefined;
+    let type = get_type(command.manual);
 
-        switch (type) {
-            case CommandManualType.MultifacetedCommandManual: {
-                let multiple_manual = command.manual as MultifacetedCommandManual & { supports_slash_commands: true };
-                let dont_support = [];
-                for (const sub_manual of multiple_manual.subcommands) {
-                    if (sub_manual.supports_slash_commands !== true) dont_support.push(sub_manual.name);
-                }
-                if (dont_support.length > 0) {
-                    log(
-                        `do_check_and_register: command ${
-                            multiple_manual.name
-                        } says it supports subcommands, but of its subcommands the following don't: ${dont_support.join(
-                            ", ",
-                        )}. This command will be omitted from registration.`,
-                        LogType.Mismatch,
-                    );
-                    return;
-                }
-                let data = load_slash_command_multiple(multiple_manual);
-                return data;
-            }
+    switch (type) {
+        case CommandManualType.MultifacetedCommandManual: {
+            let multiple_manual = command.manual as MultifacetedCommandManual & { supports_slash_commands: true };
+            let data = load_slash_command_multiple(multiple_manual);
+            return data;
         }
     }
 };

@@ -1,10 +1,10 @@
 import { Client, User } from "discord.js";
 import { UsingClient } from "../../../pg_wrapper.js";
 
-import { BotCommandProcessResults, BotCommandProcessResultType, Replier, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, BotInteraction, Replier, Subcommand } from "../../../functions.js";
 
 import { log, LogType } from "../../../utilities/log.js";
-import { is_string, TextChannelMessage } from "../../../utilities/typeutils.js";
+import { is_string } from "../../../utilities/typeutils.js";
 import { MAINTAINER_TAG, USER_ID_FAQ } from "../../../main.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { GetJumproleEntriesWithHolderResultType, JumproleEntry, JumproleEntryUpToDateResultType } from "./internals/entry_type.js";
@@ -24,26 +24,28 @@ export class TJList extends Subcommand<typeof TJList.manual> {
                 id: "source",
                 optional: true,
                 further_constraint: RT.Snowflake,
-                slash_command_description: "user to list from",
+                short_description: "user to list from",
+                base_type: "USER",
             },
             {
                 name: "yes or no",
                 id: "proof",
                 optional: true,
                 further_constraint: RT.BooleanS,
-                slash_command_description: "whether to show proof",
+                short_description: "show proof",
+                base_type: "BOOLEAN",
             },
             {
                 name: "yes or no",
                 id: "proof_present",
                 optional: true,
                 further_constraint: RT.BooleanS,
-                slash_command_description: "whether proof must be present (yes) or missing (no)",
+                short_description: "proof must be present",
+                base_type: "BOOLEAN",
             },
         ],
         syntax: "::<prefix>tj list::{opt $1}[ SOURCE $1]{opt $2}[ SHOW PROOF $2]{opt $3}[ PROOF PRESENT $3]",
         description: "Get Jumprole information.",
-        supports_slash_commands: true,
     } as const;
 
     readonly manual = TJList.manual;
@@ -53,7 +55,7 @@ export class TJList extends Subcommand<typeof TJList.manual> {
     // eslint-disable-next-line complexity
     async activate(
         values: ValidatedArguments<typeof TJList.manual>,
-        message: TextChannelMessage,
+        interaction: BotInteraction,
         client: Client,
         pg_client: UsingClient,
         prefix: string,
@@ -61,7 +63,7 @@ export class TJList extends Subcommand<typeof TJList.manual> {
     ): Promise<BotCommandProcessResults> {
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
-        let user_intention = values.source === null ? message.author.id : values.source;
+        let user_intention = values.source === null ? interaction.author.id : values.source;
         let proof_intention = values.proof === null ? false : values.proof;
         const proof_present_filter = (val: JumproleEntry): boolean => {
             if (values.proof_present === null) return true;
@@ -70,7 +72,7 @@ export class TJList extends Subcommand<typeof TJList.manual> {
             }
         };
 
-        let entry_results = await JumproleEntry.WithHolderInServer(user_intention, message.guild.id, pg_client);
+        let entry_results = await JumproleEntry.WithHolderInServer(user_intention, interaction.guild.id, pg_client);
 
         switch (entry_results.type) {
             case GetJumproleEntriesWithHolderResultType.Success: {
@@ -87,7 +89,7 @@ export class TJList extends Subcommand<typeof TJList.manual> {
                     return { type: BotCommandProcessResultType.DidNotSucceed };
                 } else {
                     if (roles.length === 0) {
-                        await reply(`${user_intention === message.author.id ? "you have" : `user ${user.tag} has`} no jumproles.`);
+                        await reply(`${user_intention === interaction.author.id ? "you have" : `user ${user.tag} has`} no jumproles.`);
                         return { type: BotCommandProcessResultType.Succeeded };
                     }
 
@@ -101,7 +103,7 @@ export class TJList extends Subcommand<typeof TJList.manual> {
 
                     if (tiered.length < 1 && values.proof_present !== null) {
                         await reply(
-                            `${user_intention === message.author.id ? "you have" : `user ${user.tag} has`} no jumproles for which proof was${
+                            `${user_intention === interaction.author.id ? "you have" : `user ${user.tag} has`} no jumproles for which proof was${
                                 values.proof_present ? "" : "n't"
                             } set.`,
                         );
@@ -139,11 +141,11 @@ export class TJList extends Subcommand<typeof TJList.manual> {
                     let link = await create_paste(head + tail);
                     if (is_string(link.paste?.id)) {
                         await reply(
-                            `${user_intention === message.author.id ? "you have" : `user with ID ${user_intention} has`} ${tiered.length} total jump${
-                                tiered.length === 1 ? "" : "s"
-                            }${values.proof_present === null ? " " : values.proof_present ? " with proof " : " without proof "}- view ${
-                                tiered.length === 1 ? "it" : "them"
-                            } at ${url(link.paste as Paste)}`,
+                            `${user_intention === interaction.author.id ? "you have" : `user with ID ${user_intention} has`} ${
+                                tiered.length
+                            } total jump${tiered.length === 1 ? "" : "s"}${
+                                values.proof_present === null ? " " : values.proof_present ? " with proof " : " without proof "
+                            }- view ${tiered.length === 1 ? "it" : "them"} at ${url(link.paste as Paste)}`,
                         );
                     } else {
                         await reply(`error creating paste. Contact @${MAINTAINER_TAG} for help.`);
@@ -158,7 +160,7 @@ export class TJList extends Subcommand<typeof TJList.manual> {
             }
             case GetJumproleEntriesWithHolderResultType.InvalidServerSnowflake: {
                 log(
-                    `tj list: JumproleEntry.WithHolderInServer returned GetJumproleEntriesWithHolderResultType.InvalidServerSnowflake for server snowflake ${message.guild.id}. Returning failed.`,
+                    `tj list: JumproleEntry.WithHolderInServer returned GetJumproleEntriesWithHolderResultType.InvalidServerSnowflake for server snowflake ${interaction.guild.id}. Returning failed.`,
                     LogType.Error,
                 );
                 await reply(
@@ -172,7 +174,7 @@ export class TJList extends Subcommand<typeof TJList.manual> {
             }
             case GetJumproleEntriesWithHolderResultType.GetJumproleFailed: {
                 log(
-                    `tj list: JumproleEntry.WithHolderInServer returned GetJumproleEntriesWithHolderResultType.GetJumproleFailed for holder snowflake ${user_intention} and server snowflake ${message.guild.id}. Returning failed.`,
+                    `tj list: JumproleEntry.WithHolderInServer returned GetJumproleEntriesWithHolderResultType.GetJumproleFailed for holder snowflake ${user_intention} and server snowflake ${interaction.guild.id}. Returning failed.`,
                     LogType.Error,
                 );
                 await reply(

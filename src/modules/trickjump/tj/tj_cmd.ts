@@ -17,7 +17,6 @@ export class TJ extends ParentCommand {
         name: "tj",
         subcommands: this.subcommand_manuals,
         description: "Manage and view the Jumproles people have in the current server.",
-        supports_slash_commands: true,
     } as const;
 
     readonly no_use_no_see = false;

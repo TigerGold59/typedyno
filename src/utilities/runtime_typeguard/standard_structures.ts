@@ -11,6 +11,7 @@ import {
     RangeValidated,
     safe_serialize,
     NumberComparable,
+    UndefinedToOptional,
 } from "../typeutils.js";
 import {
     Structure,
@@ -173,14 +174,21 @@ export class RangeRestrictableStructure<NormalizedType extends NumberComparable>
     }
 }
 
+type RuntimeNormalizedType<Representation extends { [key: string]: AnyStructure }> = {
+    [P in keyof Representation]: InferNormalizedType<Representation[P]>;
+};
+
+type NormalizedType<Representation extends { [key: string]: AnyStructure }> = UndefinedToOptional<RuntimeNormalizedType<Representation>>;
+
+declare const c: NormalizedType<{ s: Structure<undefined | string>; c: Structure<string>; w: Structure<number | undefined | string> }>;
+
 export class RecordStructure<
     Representation extends { [key: string]: AnyStructure },
     CatchAllKey extends Structure<string> | Structure<never>,
     CatchAllValue extends AnyStructure,
 > extends Structure<
-    { [P in keyof Representation]: InferNormalizedType<Representation[P]> } & (InferNormalizedType<CatchAllKey> extends never
-        ? unknown
-        : { [P in InferNormalizedType<CatchAllKey>]: InferNormalizedType<CatchAllValue> })
+    NormalizedType<Representation> &
+        (InferNormalizedType<CatchAllKey> extends never ? unknown : { [P in InferNormalizedType<CatchAllKey>]: InferNormalizedType<CatchAllValue> })
 > {
     readonly representation: Representation;
     readonly catchall_key: CatchAllKey;
@@ -196,11 +204,10 @@ export class RecordStructure<
         value_descriptor: (key: string, structure_name: string) => string = (key, structure_name) =>
             `value from key ${key} on structure ${structure_name}`,
     ) {
-        type NewNormalizedType = {
-            [P in keyof Representation]: InferNormalizedType<Representation[P]>;
-        } & (InferNormalizedType<CatchAllKey> extends never
-            ? unknown
-            : { [P in InferNormalizedType<CatchAllKey>]: InferNormalizedType<CatchAllValue> });
+        type NewNormalizedType = NormalizedType<Representation> &
+            (InferNormalizedType<CatchAllKey> extends never
+                ? unknown
+                : { [P in InferNormalizedType<CatchAllKey>]: InferNormalizedType<CatchAllValue> });
 
         super(
             name,
@@ -255,7 +262,7 @@ export class RecordStructure<
                     if (key in structure === false) {
                         const catchall_result = catchall_key.check(key);
                         if (catchall_result.succeeded) {
-                            const catchall_value_result = catchall_value.check(result[key]);
+                            const catchall_value_result = catchall_value.check(result[key as keyof Input]);
                             if (catchall_value_result.succeeded === false) {
                                 add_errors(
                                     catchall_value_result.information,
@@ -269,7 +276,7 @@ export class RecordStructure<
                             all_correct = false;
                         }
                     } else {
-                        const validated = structure[key].validate_transformed(result[key]);
+                        const validated = structure[key].validate_transformed(result[key as keyof Input]);
                         if (validated.succeeded === false) {
                             add_errors(validated.information, `${value_descriptor(key, name)}: `, errors);
                             all_correct = false;
@@ -301,15 +308,15 @@ export class RecordStructure<
             .map(key => `${key}: ${this.representation[key].name} | ${match_invalid.name}`)
             .join(", ")} } `,
     ): RecordStructure<
-        { [P in keyof Representation]: Structure<InferNormalizedType<Representation[P]> | InferNormalizedType<MatchInvalidProperties>> },
+        UndefinedToOptional<{
+            [P in keyof Representation]: Structure<InferNormalizedType<Representation[P]> | InferNormalizedType<MatchInvalidProperties>>;
+        }>,
         CatchAllKey,
         Structure<InferNormalizedType<CatchAllValue> | InferNormalizedType<MatchInvalidProperties>>
     > {
-        type NewRepresentation = {
+        type NewRepresentation = UndefinedToOptional<{
             [P in keyof Representation]: Structure<InferNormalizedType<Representation[P]> | InferNormalizedType<MatchInvalidProperties>>;
-        } & (InferNormalizedType<CatchAllKey> extends never
-            ? unknown
-            : { [P in InferNormalizedType<CatchAllKey>]: InferNormalizedType<CatchAllValue> | InferNormalizedType<MatchInvalidProperties> });
+        }>;
 
         const new_representation: Record<string, unknown> = {};
         for (const key in this.representation) {
@@ -800,3 +807,32 @@ export const Base64Hash = string.validate(<Input extends string>(input: Input): 
     if (BYTES_32_BASE64_REGEX.test(input)) return { succeeded: true, result: input };
     else return error("input was string but didn't match 32 byte base64 string regex", StructureValidationFailedReason.InvalidValue);
 });
+
+export const Enum = <Items extends readonly unknown[]>(name: string, items: Items): Structure<Items[number]> => {
+    const item_names = items.map(item => safe_serialize(item));
+    return new Structure(
+        name,
+        (input: unknown): TransformResult<Items[number]> => {
+            if (items.includes(input)) {
+                return { succeeded: true, result: input };
+            } else {
+                return {
+                    succeeded: false,
+                    error: StructureValidationFailedReason.InvalidValue,
+                    information: [`input was expected to be one of ${item_names.join(", ")}`],
+                };
+            }
+        },
+        <Input extends Items[number]>(result: Input): TransformResult<Input> => {
+            if (items.includes(result)) {
+                return { succeeded: true, result: result };
+            } else {
+                return {
+                    succeeded: false,
+                    error: StructureValidationFailedReason.InvalidValue,
+                    information: [`input was expected to be one of ${item_names.join(", ")}`],
+                };
+            }
+        },
+    ).with_choices(item_names);
+};

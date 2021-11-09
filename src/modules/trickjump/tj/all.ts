@@ -1,10 +1,10 @@
 import { Client } from "discord.js";
 import { UsingClient } from "../../../pg_wrapper.js";
 
-import { BotCommandProcessResults, BotCommandProcessResultType, Replier, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, BotInteraction, Replier, Subcommand } from "../../../functions.js";
 
 import { log, LogType } from "../../../utilities/log.js";
-import { is_string, TextChannelMessage } from "../../../utilities/typeutils.js";
+import { is_string } from "../../../utilities/typeutils.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { create_paste, Paste, url } from "../../../integrations/paste_ee.js";
@@ -20,7 +20,6 @@ export class TJAll extends Subcommand<typeof TJAll.manual> {
         arguments: [],
         syntax: "::<prefix>tj all::",
         description: "List all the Jumproles in the current server.",
-        supports_slash_commands: true,
     } as const;
 
     readonly manual = TJAll.manual;
@@ -30,7 +29,7 @@ export class TJAll extends Subcommand<typeof TJAll.manual> {
     // eslint-disable-next-line complexity
     async activate(
         _values: ValidatedArguments<typeof TJAll.manual>,
-        message: TextChannelMessage,
+        interaction: BotInteraction,
         _client: Client,
         pg_client: UsingClient,
         _prefix: string,
@@ -38,13 +37,15 @@ export class TJAll extends Subcommand<typeof TJAll.manual> {
     ): Promise<BotCommandProcessResults> {
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
-        let entry_results = await Jumprole.InServer(message.guild.id, pg_client);
+        let entry_results = await Jumprole.InServer(interaction.guild.id, pg_client);
 
         switch (entry_results.type) {
             case FromJumproleQueryResultType.Success: {
                 let roles = entry_results.values;
 
-                const head = `Trickjumps in ${message.guild.name}\n${"=".repeat(14 + message.guild.name.length)}\n\nTotal jumps: ${roles.length}\n\n`;
+                const head = `Trickjumps in ${interaction.guild.name}\n${"=".repeat(14 + interaction.guild.name.length)}\n\nTotal jumps: ${
+                    roles.length
+                }\n\n`;
 
                 let tiered = roles.sort((a, b) => b.tier.ordinal - a.tier.ordinal);
 

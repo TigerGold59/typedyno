@@ -1,7 +1,8 @@
-import { CommandArgumentBase, SimpleCommandManual, SubcommandManual } from "../../command_manual.js";
+import { CommandArgument, SimpleCommandManual, SubcommandManual } from "../../command_manual.js";
+import { BotInteraction, MakeReplier } from "../../functions.js";
 import { MAINTAINER_TAG } from "../../main.js";
 import { log, LogType } from "../log.js";
-import { escape_reg_exp, is_string, TextChannelMessage } from "../typeutils.js";
+import { escape_reg_exp, is_string } from "../typeutils.js";
 import {
     ContainedSubcommandNames,
     GetArgsResult as ArgumentValues,
@@ -28,7 +29,7 @@ import {
  */
 // eslint-disable-next-line complexity
 export const parse_syntax_string_with_initial_state = function (
-    args: readonly CommandArgumentBase[],
+    args: readonly CommandArgument[],
     str: string,
     state: SyntaxStringParserState,
     key_off_stack: number[],
@@ -373,7 +374,7 @@ export const update_syntax_string_cache = (prefix: string, syntax_string: string
     return result;
 };
 
-export const get_compiled = (prefix: string, args: readonly CommandArgumentBase[], syntax_string: string): SyntaxStringCompiled => {
+export const get_compiled = (prefix: string, args: readonly CommandArgument[], syntax_string: string): SyntaxStringCompiled => {
     if (prefix in syntax_string_compile_cache && syntax_string in syntax_string_compile_cache[prefix]) {
         return syntax_string_compile_cache[prefix][syntax_string];
     }
@@ -414,7 +415,7 @@ export type SyntaxStringTestingResult =
  */
 export const syntax_string_to_argument_regex = function (
     prefix: string,
-    args: readonly CommandArgumentBase[],
+    args: readonly CommandArgument[],
     syntax_string: string,
 ): SyntaxStringTestingResult {
     let result = get_compiled(prefix, args, syntax_string);
@@ -705,17 +706,15 @@ export const get_first_matching_subcommand = function <List extends readonly Sub
     return false;
 };
 
-export const handle_GetArgsResult = async function <ArgumentList extends readonly CommandArgumentBase[]>(
-    message: TextChannelMessage,
+export const handle_GetArgsResult = async function <ArgumentList extends readonly CommandArgument[]>(
+    interaction: BotInteraction,
     command_name: string,
     result: ArgumentValues<ArgumentList>,
     prefix: string,
 ): Promise<boolean> {
     if (result.succeeded) return true;
 
-    const reply = async function (response: string, use_prefix = true) {
-        await message.channel.send(`${use_prefix ? `${prefix}${command_name}: ` : ""}${response}`);
-    };
+    const reply = MakeReplier(interaction, command_name);
 
     if (result.compiled) {
         if (result.inconsistent_key_offs.length > 0) {

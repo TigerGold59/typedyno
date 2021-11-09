@@ -1,10 +1,10 @@
 import { CONFIG } from "./config.js";
-import { Message } from "discord.js";
 import { Queryable, MakesSingleRequest, use_client, UsesClient } from "./pg_wrapper.js";
 import { LogType, log } from "./utilities/log.js";
 import { Snowflake, is_valid_Snowflake } from "./utilities/permissions.js";
-import { is_boolean, is_text_channel, query_failure } from "./utilities/typeutils.js";
+import { is_boolean, query_failure } from "./utilities/typeutils.js";
 import { ServerQueryResults } from "./postgresql/table_types.js";
+import { BotInteraction } from "./functions.js";
 
 const DESIGNATE_INSERT_USER = "INSERT INTO servers (snowflake, full_access, server) VALUES ($1, $2, $3)";
 const DESIGNATE_CHANGE_USER_STATUS = "UPDATE servers SET full_access=$1 WHERE snowflake=$2 AND server=$3";
@@ -23,9 +23,8 @@ export const is_valid_DesignateHandle = (handle?: unknown): handle is DesignateH
     );
 };
 
-export const create_designate_handle = (user_id: Snowflake, message: Message): DesignateHandle => {
-    if (is_text_channel(message)) return { user: user_id, server: message.guild.id };
-    else throw new TypeError(`create_designate_handle: invalid message object (type ${typeof message})`);
+export const create_designate_handle = (user_id: Snowflake, interaction: BotInteraction): DesignateHandle => {
+    return { user: user_id, server: interaction.guild.id };
 };
 
 export const enum DesignateUserStatus {

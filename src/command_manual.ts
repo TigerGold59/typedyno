@@ -1,5 +1,4 @@
-import type { ApplicationCommandOptionType, Message } from "discord.js";
-import { AnyBotCommand } from "./functions.js";
+import { BotCommand, BotInteraction } from "./functions.js";
 import { CreatePasteResult, create_paste } from "./integrations/paste_ee.js";
 import { GLOBAL_PREFIX, MODULES } from "./main.js";
 import { DebugLogType, log, LogType } from "./utilities/log.js";
@@ -21,39 +20,35 @@ import { escape_reg_exp, is_string } from "./utilities/typeutils.js";
 /**
  * An interface which describes an argument a command or subcommand takes.
  */
-export interface CommandArgumentBase {
-    // Concise description of the argument's purpose
-    readonly name: string;
-    // One-word argument name, for internal use
-    readonly id: string;
-    // Whether the argument can be left out
-    readonly optional: boolean;
-    // For auto-generating constraint
-    readonly further_constraint?: AnyStructure;
-}
-export type CommandArgument<Slash extends true | false> = Slash extends true
-    ? CommandArgumentBase & {
-          slash_command_description: string;
-          slash_command_type?: Exclude<ApplicationCommandOptionType, "SUB_COMMAND" | "SUB_COMMAND_GROUP" | "MENTIONABLE">;
-      }
-    : CommandArgumentBase;
+
+export const CommandArgumentTypeStructure = Structs.Enum("CommandArgumentType", [
+    "STRING",
+    "BOOLEAN",
+    "INTEGER",
+    "NUMBER",
+    "CHANNEL",
+    "USER",
+] as const);
 
 const CommandArgumentStructure = Structs.object({
     name: Structs.string,
     id: Structs.string,
     optional: Structs.boolean,
+    base_type: CommandArgumentTypeStructure,
     further_constraint: Structs.Optional(Structs.StructureStructure),
-    slash_command_description: Structs.Optional(Structs.string),
+    short_description: Structs.string,
 });
 
-const is_valid_CommandArgument = function (thing: unknown): thing is CommandArgumentBase {
+export type CommandArgument = InferNormalizedType<typeof CommandArgumentStructure>;
+
+const is_valid_CommandArgument = function (thing: unknown): thing is CommandArgument {
     return CommandArgumentStructure.check(thing).succeeded;
 };
 
 /**
  * A specific entry for one syntax as part of a larger command, i.e. %tj list as part of %tj
  */
-export interface SubcommandManualBase {
+export interface SubcommandManual {
     // Name of subcommand, i.e. list in %tj list
     readonly name: string;
     // Syntax string
@@ -65,11 +60,9 @@ export interface SubcommandManualBase {
     readonly compact_syntaxes?: boolean;
     // A description of the subcommand to be added on in the manual.
     readonly description: string;
-}
 
-export type SubcommandManual =
-    | (SubcommandManualBase & { readonly supports_slash_commands: false; readonly arguments: readonly CommandArgument<false>[] })
-    | (SubcommandManualBase & { readonly supports_slash_commands: true; readonly arguments: readonly CommandArgument<true>[] });
+    readonly arguments: readonly CommandArgument[];
+}
 
 /**
  * A command which only has one syntax, i.e. %xofakind
@@ -82,27 +75,17 @@ const SimpleCommandManualStructure = Structs.object({
     arguments: Structs.array(CommandArgumentStructure),
     compact_syntaxes: Structs.Optional(Structs.boolean),
     description: Structs.string,
-    supports_slash_commands: Structs.boolean,
 }).validate(<Input extends InferNormalizedType<typeof SimpleCommandManualStructure>>(result: Input): TransformResult<Input> => {
     let optionals = false;
     for (let i = 0; i < result.arguments.length; i++) {
         const arg = result.arguments[i];
         if (arg.optional) optionals = true;
-        else if (optionals && result.supports_slash_commands) {
+        else if (optionals) {
             return {
                 succeeded: false,
                 error: StructureValidationFailedReason.InvalidValue,
                 information: [
                     "command arguments were valid but a required argument came after an optional argument, which is not allowed because the slash command API prohibits it.",
-                ],
-            };
-        }
-        if (is_string(arg.slash_command_description) === false && result.supports_slash_commands) {
-            return {
-                succeeded: false,
-                error: StructureValidationFailedReason.InvalidValue,
-                information: [
-                    `argument at index ${i} was missing a slash command description, which is required because its command parent supports slash commands`,
                 ],
             };
         }
@@ -125,7 +108,6 @@ const MultifacetedCommandManualStructure = Structs.object({
     name: Structs.string,
     subcommands: Structs.array(SimpleCommandManualStructure),
     description: Structs.string,
-    supports_slash_commands: Structs.boolean,
 });
 
 export interface MultifacetedCommandManual {
@@ -134,7 +116,6 @@ export interface MultifacetedCommandManual {
     readonly subcommands: readonly SubcommandManual[];
     // A description of the command to be added on in the manual.
     readonly description: string;
-    readonly supports_slash_commands: boolean;
 }
 
 const is_valid_MultifacetedCommandManual = function (thing: unknown): thing is MultifacetedCommandManual {
@@ -392,9 +373,9 @@ export const create_manual_entry = function (command_manual: CommandManual, pref
 };
 
 export const make_manual = async function (
-    message: Message,
+    interaction: BotInteraction,
     prefix_substitution: string,
-    stock_commands: AnyBotCommand[],
+    stock_commands: BotCommand[],
 ): Promise<CreatePasteResult> {
     log(`make_manual function called. Process starting...`, LogType.Status, DebugLogType.MakeManualFunctionDebug);
 
@@ -428,7 +409,7 @@ export const make_manual = async function (
     }
 
     for (const module of await MODULES) {
-        if (allowed(message, module.permissions) === false && module.hide_when_contradicts_permissions) {
+        if (allowed(interaction, module.permissions) === false && module.hide_when_contradicts_permissions) {
             log(`make_manual hid module ${module.name}: flag module.hide_when_contradicts_permissions set.`);
             continue;
         } else {
@@ -445,7 +426,7 @@ export const make_manual = async function (
                     );
                     continue;
                 }
-                if (allowed(message, bot_command.permissions) === false && bot_command.no_use_no_see) {
+                if (allowed(interaction, bot_command.permissions) === false && bot_command.no_use_no_see) {
                     log(`make_manual hid function ${manual.name}: flag bot_command.hide_when_contradicts_permissions set.`);
                     continue;
                 } else {
@@ -480,10 +461,10 @@ export const make_manual = async function (
     );
 };
 
-type BaseStructureType<Argument extends CommandArgumentBase> = Argument["further_constraint"] extends Structure<NormalizedStructure>
+type BaseStructureType<Argument extends CommandArgument> = Argument["further_constraint"] extends Structure<NormalizedStructure>
     ? Argument["further_constraint"]
     : Structure<string>;
-type StructureType<Argument extends CommandArgumentBase> = Argument["optional"] extends false
+type StructureType<Argument extends CommandArgument> = Argument["optional"] extends false
     ? BaseStructureType<Argument>
     : Structure<InferNormalizedType<BaseStructureType<Argument>> | null>;
 export type ArgumentRepresentation<Manual extends SubcommandManual> = {

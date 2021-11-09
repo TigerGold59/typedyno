@@ -16,11 +16,11 @@ import {
     BotCommand,
     BotCommandProcessResultType,
     BotCommandProcessResults,
-    GiveCheck,
     Subcommand,
     Replier,
     ParentCommand,
-    AnyBotCommand,
+    BotInteraction,
+    NoParametersCommand,
 } from "./functions.js";
 import { Paste, url } from "./integrations/paste_ee.js";
 
@@ -29,7 +29,7 @@ import { GLOBAL_PREFIX, MAINTAINER_TAG } from "./main.js";
 import { ValidatedArguments } from "./utilities/argument_processing/arguments_types.js";
 import { DebugLogType, LogType, log } from "./utilities/log.js";
 import * as RT from "./utilities/runtime_typeguard/standard_structures.js";
-import { is_string, safe_serialize, TextChannelMessage } from "./utilities/typeutils.js";
+import { is_string, safe_serialize } from "./utilities/typeutils.js";
 
 export class IDExplain extends BotCommand<SimpleCommandManual> {
     constructor() {
@@ -41,7 +41,6 @@ export class IDExplain extends BotCommand<SimpleCommandManual> {
         arguments: [],
         description: "Explains the concept of an ID on Discord, also known as a Snowflake.",
         syntax: "::<prefix>idexplain::",
-        supports_slash_commands: true,
     } as const;
 
     readonly no_use_no_see = false;
@@ -55,7 +54,7 @@ export class IDExplain extends BotCommand<SimpleCommandManual> {
     }
 }
 
-export class GetCommands extends BotCommand<SimpleCommandManual> {
+export class GetCommands extends NoParametersCommand {
     constructor() {
         super();
     }
@@ -65,21 +64,25 @@ export class GetCommands extends BotCommand<SimpleCommandManual> {
         arguments: [],
         description: "Links to a paste where you can view all the available bot commands.",
         syntax: "::<prefix>commands::",
-        supports_slash_commands: true,
     } as const;
 
     readonly no_use_no_see = false;
 
     readonly permissions = undefined;
 
-    async process(message: Message, _client: Client, _queryable: Queryable<MakesSingleRequest>, prefix: string): Promise<BotCommandProcessResults> {
-        const paste = await make_manual(message, prefix, STOCK_BOT_COMMANDS);
+    async run_activate(
+        interaction: BotInteraction,
+        _client: Client,
+        _queryable: Queryable<MakesSingleRequest>,
+        prefix: string,
+    ): Promise<BotCommandProcessResults> {
+        const paste = await make_manual(interaction, prefix, STOCK_BOT_COMMANDS);
 
         if (is_string(paste.error)) {
-            await message.channel.send(`paste.ee API failed to create paste: contact ${MAINTAINER_TAG} for help fixing this error.`);
+            await interaction.reply(`paste.ee API failed to create paste: contact ${MAINTAINER_TAG} for help fixing this error.`);
             return { type: BotCommandProcessResultType.DidNotSucceed };
         } else if (is_string(paste.paste?.id)) {
-            await message.channel.send(
+            await interaction.reply(
                 `You can find the command manual here: ${url(
                     <Paste>paste.paste,
                 )}. Note that certain commands may be hidden if you lack permission to use them.`,
@@ -89,7 +92,7 @@ export class GetCommands extends BotCommand<SimpleCommandManual> {
 
         const err = `'commands' process: internal error - make_manual neither returned an error nor a paste. Returning BotCommandProcessResultType.DidNotSucceed`;
 
-        await message.channel.send(err);
+        await interaction.reply(err);
         log(err, LogType.Error);
         return {
             type: BotCommandProcessResultType.DidNotSucceed,
@@ -107,7 +110,6 @@ export class PrefixGet extends Subcommand<typeof PrefixGet.manual> {
         arguments: [],
         description: "Tells you the only valid prefix that you can use on this server to activate the bot's commands.",
         syntax: "::<prefix>prefix get::",
-        supports_slash_commands: true,
     } as const;
 
     readonly manual = PrefixGet.manual;
@@ -116,21 +118,21 @@ export class PrefixGet extends Subcommand<typeof PrefixGet.manual> {
 
     async activate(
         _args: ValidatedArguments<typeof PrefixGet.manual>,
-        message: Message,
+        interaction: BotInteraction,
         _client: Client,
         pg_client: UsingClient,
         _prefix: string,
         _reply: Replier,
     ): Promise<BotCommandProcessResults> {
-        const prefix_result = await get_prefix(message.guild, pg_client);
+        const prefix_result = await get_prefix(interaction.guild, pg_client);
 
         if (prefix_result.trim() === GLOBAL_PREFIX.trim()) {
-            await message.channel.send(`The global prefix is "${prefix_result}" and it hasn't been changed locally, but you already knew that.`);
+            await interaction.reply(`The global prefix is "${prefix_result}" and it hasn't been changed locally, but you already knew that.`);
             return {
                 type: BotCommandProcessResultType.Succeeded,
             };
         } else {
-            await message.channel.send(`The local prefix is "${prefix_result}", but you already knew that.`);
+            await interaction.reply(`The local prefix is "${prefix_result}", but you already knew that.`);
             return {
                 type: BotCommandProcessResultType.Succeeded,
             };
@@ -150,20 +152,20 @@ export class PrefixSet extends Subcommand<typeof PrefixSet.manual> {
                 name: "string or symbol",
                 id: "new_prefix",
                 optional: false,
-                slash_command_description: "new prefix",
+                base_type: "STRING",
+                short_description: "new prefix",
             },
             {
                 name: "server ID",
                 id: "guild_id",
                 optional: true,
+                base_type: "STRING",
                 further_constraint: RT.Snowflake,
-                slash_command_description: "server to set on",
+                short_description: "server to set on",
             },
         ],
-        description:
-            "Sets the provided string as the local prefix, overriding the global prefix.\nYou must be a bot admin or have designated privileges to use this command.",
+        description: "Sets the provided string as the local prefix, overriding the global prefix.",
         syntax: "::<prefix>prefix set:: NEW $1{opt $2}[ SERVER $2]",
-        supports_slash_commands: true,
     } as const;
 
     readonly manual = PrefixSet.manual;
@@ -172,13 +174,13 @@ export class PrefixSet extends Subcommand<typeof PrefixSet.manual> {
 
     async activate(
         args: ValidatedArguments<typeof PrefixSet.manual>,
-        message: TextChannelMessage,
+        interaction: BotInteraction,
         client: Client,
         pg_client: UsingClient,
         _prefix: string,
         reply: Replier,
     ): Promise<BotCommandProcessResults> {
-        let guild: Guild = message.guild;
+        let guild: Guild = interaction.guild;
         if (args.guild_id !== null) {
             try {
                 guild = await client.guilds.fetch(args.guild_id);
@@ -187,14 +189,14 @@ export class PrefixSet extends Subcommand<typeof PrefixSet.manual> {
                 return { type: BotCommandProcessResultType.DidNotSucceed };
             }
         }
-        let designate_status = await designate_user_status({ user: message.author.id, server: guild.id }, pg_client);
+        let designate_status = await designate_user_status({ user: interaction.author.id, server: guild.id }, pg_client);
         switch (designate_status) {
             case DesignateUserStatus.FullAccess:
             case DesignateUserStatus.UserIsAdmin: {
                 const result = await set_prefix(guild, args.new_prefix, pg_client);
 
                 if (result.did_succeed) {
-                    const confirmed = await GiveCheck(message);
+                    const confirmed = await interaction.give_check();
                     if (confirmed === true) {
                         return {
                             type: BotCommandProcessResultType.Succeeded,
@@ -206,14 +208,14 @@ export class PrefixSet extends Subcommand<typeof PrefixSet.manual> {
                     }
                 } else {
                     if (result.result === SetPrefixNonStringResult.LocalPrefixArgumentSameAsGlobalPrefix) {
-                        await message.channel.send(
+                        await interaction.reply(
                             "Setting a local prefix the same as the global prefix is not allowed for flexibility reasons. However, since the prefix you wanted to set was already the prefix, you can use it just like you would if this command had worked.",
                         );
                         return {
                             type: BotCommandProcessResultType.Succeeded,
                         };
                     } else {
-                        await message.channel.send(`set_prefix failed: contact ${MAINTAINER_TAG} for help fixing this error.`);
+                        await interaction.reply(`set_prefix failed: contact ${MAINTAINER_TAG} for help fixing this error.`);
                         log(`set_prefix unexpectedly threw an error:`, LogType.Error);
                         log(result.result, LogType.Error);
                         return {
@@ -248,7 +250,6 @@ export class Prefix extends ParentCommand {
         name: "prefix",
         subcommands: this.subcommand_manuals,
         description: "Manage or get the prefix for your current server.",
-        supports_slash_commands: true,
     } as const;
 
     readonly no_use_no_see = false;
@@ -256,7 +257,7 @@ export class Prefix extends ParentCommand {
 
     async pre_dispatch(
         _subcommand: Subcommand<SubcommandManual>,
-        _message: Message,
+        _interaction: BotInteraction,
         _client: Client,
         _queryable: Queryable<MakesSingleRequest>,
         _prefix: string,
@@ -276,7 +277,6 @@ export class Info extends BotCommand<SimpleCommandManual> {
         arguments: [],
         syntax: "::<prefix>info::",
         description: "Provides a description of useful commands and the design of the bot.",
-        supports_slash_commands: true,
     } as const;
 
     readonly no_use_no_see = false;
@@ -305,25 +305,26 @@ export class DesignateSet extends Subcommand<typeof DesignateSet.manual> {
 
     static readonly manual = {
         name: "set",
-        description: "Designate people who have power in the server to do things like set a prefix, designate others, and set mod channels.",
+        description: "Designate people who have power in the server.",
         arguments: [
             {
                 name: "user ID",
                 id: "user_snowflake",
                 optional: false,
+                base_type: "USER",
                 further_constraint: RT.Snowflake,
-                slash_command_description: "user",
+                short_description: "user",
             },
             {
                 name: "allow designating others",
                 id: "allow_designating",
                 optional: true,
+                base_type: "BOOLEAN",
                 further_constraint: RT.BooleanS,
-                slash_command_description: "allow them to designate others",
+                short_description: "allow them to designate others",
             },
         ],
         syntax: "::<prefix>designate set:: USER $1{opt $2}[ FULL $2]",
-        supports_slash_commands: true,
     } as const;
 
     readonly manual = DesignateSet.manual;
@@ -332,17 +333,17 @@ export class DesignateSet extends Subcommand<typeof DesignateSet.manual> {
 
     async activate(
         args: ValidatedArguments<typeof DesignateSet.manual>,
-        message: Message,
+        interaction: BotInteraction,
         _client: Client,
         pg_client: UsingClient,
         prefix: string,
     ): Promise<BotCommandProcessResults> {
         const reply = async (response: string): Promise<void> => {
-            await message.channel.send(response);
+            await interaction.reply(response);
         };
 
-        const target_handle = create_designate_handle(args.user_snowflake, message);
-        const asker_handle = create_designate_handle(message.author.id, message);
+        const target_handle = create_designate_handle(args.user_snowflake, interaction);
+        const asker_handle = create_designate_handle(interaction.author.id, interaction);
         const user_status = await designate_user_status(asker_handle, pg_client);
         const intention = args.allow_designating === true;
         switch (user_status) {
@@ -367,7 +368,7 @@ export class DesignateSet extends Subcommand<typeof DesignateSet.manual> {
                         };
                     }
                     default: {
-                        await GiveCheck(message);
+                        await interaction.give_check();
                         return { type: BotCommandProcessResultType.Succeeded };
                     }
                 }
@@ -403,11 +404,11 @@ export class DesignateRemove extends Subcommand<typeof DesignateRemove.manual> {
                 id: "user_snowflake",
                 optional: false,
                 further_constraint: RT.Snowflake,
-                slash_command_description: "user",
+                short_description: "user",
+                base_type: "USER",
             },
         ],
         syntax: "::<prefix>designate remove:: USER $1",
-        supports_slash_commands: true,
     } as const;
 
     readonly manual = DesignateRemove.manual;
@@ -416,17 +417,17 @@ export class DesignateRemove extends Subcommand<typeof DesignateRemove.manual> {
 
     async activate(
         args: ValidatedArguments<typeof DesignateSet.manual>,
-        message: Message,
+        interaction: BotInteraction,
         _client: Client,
         pg_client: UsingClient,
         prefix: string,
     ): Promise<BotCommandProcessResults> {
         const reply = async (response: string): Promise<void> => {
-            await message.channel.send(response);
+            await interaction.reply(response);
         };
 
-        const target_handle = create_designate_handle(args.user_snowflake, message);
-        const asker_handle = create_designate_handle(message.author.id, message);
+        const target_handle = create_designate_handle(args.user_snowflake, interaction);
+        const asker_handle = create_designate_handle(interaction.author.id, interaction);
         const user_status = await designate_user_status(asker_handle, pg_client);
         switch (user_status) {
             case DesignateUserStatus.UserIsAdmin:
@@ -449,7 +450,7 @@ export class DesignateRemove extends Subcommand<typeof DesignateRemove.manual> {
                         return { type: BotCommandProcessResultType.DidNotSucceed };
                     }
                     case DesignateRemoveUserResult.UserRemoved: {
-                        await GiveCheck(message);
+                        await interaction.give_check();
                         return { type: BotCommandProcessResultType.Succeeded };
                     }
                     case DesignateRemoveUserResult.UserIsAdmin: {
@@ -492,11 +493,11 @@ export class DesignateGet extends Subcommand<typeof DesignateGet.manual> {
                 id: "user_snowflake",
                 optional: true,
                 further_constraint: RT.Snowflake,
-                slash_command_description: "user",
+                short_description: "user",
+                base_type: "USER",
             },
         ],
         syntax: "::<prefix>designate get::{opt $1}[ USER $1]",
-        supports_slash_commands: true,
     } as const;
 
     readonly manual = DesignateGet.manual;
@@ -506,17 +507,17 @@ export class DesignateGet extends Subcommand<typeof DesignateGet.manual> {
 
     async activate(
         args: ValidatedArguments<typeof DesignateGet.manual>,
-        message: Message,
+        interaction: BotInteraction,
         _client: Client,
         queryable: Queryable<MakesSingleRequest>,
         prefix: string,
     ): Promise<BotCommandProcessResults> {
         const reply = async (response: string): Promise<void> => {
-            await message.channel.send(response);
+            await interaction.reply(response);
         };
-        const target_id = args.user_snowflake === null ? message.author.id : args.user_snowflake;
+        const target_id = args.user_snowflake === null ? interaction.author.id : args.user_snowflake;
         const start_string = args.user_snowflake === null ? `You're` : `The user with ID ${args.user_snowflake} is`;
-        const target_handle = create_designate_handle(target_id, message);
+        const target_handle = create_designate_handle(target_id, interaction);
 
         const status = await designate_user_status(target_handle, queryable);
 
@@ -555,7 +556,6 @@ export class Designate extends ParentCommand {
         name: "designate",
         description: "Manage user permissions in this server.",
         subcommands: this.subcommand_manuals,
-        supports_slash_commands: true,
     } as const;
 
     readonly no_use_no_see = false;
@@ -563,7 +563,7 @@ export class Designate extends ParentCommand {
 
     async pre_dispatch(
         _subcommand: Subcommand<SubcommandManual>,
-        _message: Message,
+        _interaction: BotInteraction,
         _client: Client,
         _queryable: Queryable<MakesSingleRequest>,
         _prefix: string,
@@ -573,4 +573,4 @@ export class Designate extends ParentCommand {
     }
 }
 
-export const STOCK_BOT_COMMANDS: AnyBotCommand[] = [new IDExplain(), new GetCommands(), new Info(), new Prefix(), new Designate()];
+export const STOCK_BOT_COMMANDS: BotCommand[] = [new IDExplain(), new GetCommands(), new Info(), new Prefix(), new Designate()];

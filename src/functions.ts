@@ -1,6 +1,13 @@
-import { Message, Client } from "discord.js";
+import { Message, Client, User, Guild, Interaction, CommandInteraction, TextChannel } from "discord.js";
 import { MakesSingleRequest, PoolInstance as Pool, Queryable, UsesClient, use_client, UsingClient } from "./pg_wrapper.js";
-import { CommandManual, SubcommandManual, argument_structure_from_manual, MultifacetedCommandManual, indent } from "./command_manual.js";
+import {
+    CommandManual,
+    SubcommandManual,
+    argument_structure_from_manual,
+    MultifacetedCommandManual,
+    indent,
+    SimpleCommandManual,
+} from "./command_manual.js";
 import { get_prefix } from "./integrations/server_prefixes.js";
 import { GLOBAL_PREFIX, MODULES } from "./main.js";
 import { performance } from "perf_hooks";
@@ -15,12 +22,14 @@ import {
     handle_GetArgsResult,
     is_call_of,
 } from "./utilities/argument_processing/arguments.js";
-import { GetArgsResult, ValidatedArguments } from "./utilities/argument_processing/arguments_types.js";
+import { ArgumentValues, ValidatedArguments } from "./utilities/argument_processing/arguments_types.js";
 import { log_stack } from "./utilities/runtime_typeguard/runtime_typeguard.js";
+
+export const GREEN_CHECK = "✅";
 
 export const GiveCheck = async (message: Message): Promise<boolean> => {
     try {
-        await message.react("✅");
+        await message.react(GREEN_CHECK);
         return true;
     } catch (err) {
         return false;
@@ -39,9 +48,7 @@ export interface BotCommandProcessResults {
     type: BotCommandProcessResultType;
     not_authorized_message?: string;
 }
-
-export type AnyBotCommand = BotCommand<CommandManual>;
-export abstract class BotCommand<ManualType extends CommandManual> {
+export abstract class BotCommand<ManualType extends CommandManual = CommandManual> {
     abstract readonly manual: ManualType;
     abstract readonly no_use_no_see: boolean;
     abstract readonly permissions: Permissions | undefined;
@@ -53,19 +60,126 @@ export abstract class BotCommand<ManualType extends CommandManual> {
     abstract process(message: Message, client: Client, queryable: Queryable<UsesClient>, prefix: string): PromiseLike<BotCommandProcessResults>;
 }
 
-export type ArgumentValues<Manual extends SubcommandManual> = Exclude<GetArgsResult<Manual["arguments"]>["values"], null>;
-
 export type Replier = (response: string, use_prefix?: boolean) => Promise<void>;
 
-export const MakeReplier = (message: TextChannelMessage, determination_tag_string: string) => {
+export const MakeReplier = (interaction: BotInteraction, determination_tag_string: string) => {
     return async (response: string, use_prefix?: boolean) => {
         let use_prefix_intention = is_boolean(use_prefix) ? use_prefix : true;
-        await message.channel.send(`${use_prefix_intention ? `${determination_tag_string}: ` : ""}${response}`);
+        await interaction.reply(`${use_prefix_intention ? `${determination_tag_string}: ` : ""}${response}`);
     };
 };
 
 export type ManualOf<Command extends Subcommand<SubcommandManual>> = Command extends Subcommand<infer T> ? T : never;
 
+export const enum BotInteractionCreationResultType {
+    NotMessageOrInteraction,
+    NotCommandInteraction,
+    NotInGuildTextChannel,
+    Succeeded,
+}
+
+export type BotInteractionCreationResult =
+    | { type: BotInteractionCreationResultType.Succeeded; interaction: BotInteraction }
+    | { type: Exclude<BotInteractionCreationResultType, BotInteractionCreationResultType.Succeeded> };
+
+type CompleteCommandInteraction = CommandInteraction & { channel: TextChannel } & { guild: Guild };
+export class BotInteraction {
+    readonly author: User;
+    readonly guild: Guild;
+    readonly channel: TextChannel;
+    readonly #_reply: (message: string) => Promise<Message<boolean> | void>;
+    readonly #_give_check: () => Promise<boolean>;
+
+    constructor(item: TextChannelMessage | CompleteCommandInteraction) {
+        if (item instanceof Message) {
+            this.author = item.author;
+            this.#_reply = item.channel.send.bind(item.channel);
+            this.#_give_check = GiveCheck.bind(globalThis, item);
+        } else {
+            this.author = item.user;
+            this.#_reply = async (message: string) => {
+                return await item.reply({
+                    content: message,
+                });
+            };
+            this.#_give_check = async () => {
+                try {
+                    await item.reply({
+                        content: GREEN_CHECK,
+                    });
+                    return true;
+                } catch (err) {
+                    return false;
+                }
+            };
+        }
+        this.guild = item.guild;
+        this.channel = item.channel;
+    }
+
+    async reply(message: string) {
+        await this.#_reply(message);
+    }
+
+    async give_check() {
+        return await this.#_give_check();
+    }
+
+    static readonly Create = (item: Message | Interaction): BotInteractionCreationResult => {
+        if (item instanceof Message) {
+            if (is_text_channel(item)) {
+                return { type: BotInteractionCreationResultType.Succeeded, interaction: new BotInteraction(item) };
+            } else {
+                return { type: BotInteractionCreationResultType.NotInGuildTextChannel };
+            }
+        } else if (item instanceof Interaction) {
+            if (item.isCommand()) {
+                if (item.channel instanceof TextChannel && item.guild instanceof Guild) {
+                    return { type: BotInteractionCreationResultType.Succeeded, interaction: new BotInteraction(item as CompleteCommandInteraction) };
+                } else {
+                    return { type: BotInteractionCreationResultType.NotInGuildTextChannel };
+                }
+            } else {
+                return { type: BotInteractionCreationResultType.NotCommandInteraction };
+            }
+        } else {
+            return { type: BotInteractionCreationResultType.NotMessageOrInteraction };
+        }
+    };
+}
+
+export abstract class NoParametersCommand extends BotCommand<SimpleCommandManual> {
+    constructor() {
+        super();
+    }
+
+    abstract run_activate(
+        interaction: BotInteraction,
+        client: Client,
+        queryable: Queryable<UsesClient>,
+        prefix: string,
+    ): PromiseLike<BotCommandProcessResults>;
+
+    async process(message: Message, client: Client, queryable: Queryable<UsesClient>, prefix: string): Promise<BotCommandProcessResults> {
+        let full_interaction_result = BotInteraction.Create(message);
+
+        switch (full_interaction_result.type) {
+            case BotInteractionCreationResultType.NotMessageOrInteraction:
+            case BotInteractionCreationResultType.NotInGuildTextChannel: {
+                return {
+                    type: BotCommandProcessResultType.Unauthorized,
+                    not_authorized_message: "The command must be used in a guild text channel.",
+                };
+            }
+            case BotInteractionCreationResultType.NotCommandInteraction: {
+                return { type: BotCommandProcessResultType.Invalid };
+            }
+            case BotInteractionCreationResultType.Succeeded: {
+                return await this.run_activate(full_interaction_result.interaction, client, queryable, prefix);
+            }
+        }
+    }
+}
 export abstract class Subcommand<Manual extends SubcommandManual> extends BotCommand<Manual> {
     abstract readonly manual: Manual;
 
@@ -97,7 +211,7 @@ export abstract class Subcommand<Manual extends SubcommandManual> extends BotCom
 
     abstract activate(
         values: ValidatedArguments<Manual>,
-        message: TextChannelMessage,
+        interaction: BotInteraction,
         client: Client,
         pg_client: UsingClient,
         prefix: string,
@@ -105,8 +219,8 @@ export abstract class Subcommand<Manual extends SubcommandManual> extends BotCom
     ): PromiseLike<BotCommandProcessResults>;
 
     async run_activate(
-        args: ValidatedArguments<Manual>,
-        message: TextChannelMessage,
+        args: ArgumentValues<Manual>,
+        interaction: BotInteraction,
         client: Client,
         queryable: Queryable<MakesSingleRequest>,
         prefix: string,
@@ -118,17 +232,18 @@ export abstract class Subcommand<Manual extends SubcommandManual> extends BotCom
 
         if (values.succeeded === false) return { type: BotCommandProcessResultType.Invalid };
 
-        if (is_text_channel(message)) {
-            let result = await this.activate(args, message, client, pg_client, prefix, MakeReplier(message, this.determination_tag_string(prefix)));
+        let result = await this.activate(
+            // @ts-expect-error I am 99% sure this is just a bug
+            values.normalized as ValidatedArguments<Manual>,
+            interaction,
+            client,
+            pg_client,
+            prefix,
+            MakeReplier(interaction, this.determination_tag_string(prefix)),
+        );
 
-            pg_client.handle_release();
-            return result;
-        } else {
-            return {
-                type: BotCommandProcessResultType.Unauthorized,
-                not_authorized_message: "The command was used in a channel that either wasn't in a server or wasn't a text channel.",
-            };
-        }
+        pg_client.handle_release();
+        return result;
     }
 
     async process(message: Message, client: Client, pool: Pool, prefix: string): Promise<BotCommandProcessResults> {
@@ -137,37 +252,49 @@ export abstract class Subcommand<Manual extends SubcommandManual> extends BotCom
 
         const args = get_args(prefix, manual, message.content);
 
-        if (is_text_channel(message)) {
-            const result = await handle_GetArgsResult(message, this.manual.name, args, prefix);
+        let full_interaction_result = BotInteraction.Create(message);
 
-            if (result === false) {
-                return failed;
+        switch (full_interaction_result.type) {
+            case BotInteractionCreationResultType.NotMessageOrInteraction:
+            case BotInteractionCreationResultType.NotInGuildTextChannel: {
+                return {
+                    type: BotCommandProcessResultType.Unauthorized,
+                    not_authorized_message: "The command must be used in a guild text channel.",
+                };
             }
-
-            const spec = argument_structure_from_manual(manual);
-            const values = spec.check(args.values);
-
-            if (values.succeeded === false) {
-                log_stack(values, `${manual.name} command process`);
+            case BotInteractionCreationResultType.NotCommandInteraction: {
                 return { type: BotCommandProcessResultType.Invalid };
             }
+            case BotInteractionCreationResultType.Succeeded: {
+                const result = await handle_GetArgsResult(full_interaction_result.interaction, this.manual.name, args, prefix);
 
-            let pg_client = await use_client(pool, this.determination_tag_string(prefix));
+                if (result === false) {
+                    return failed;
+                }
 
-            let activate_result = await this.run_activate(
-                // @ts-expect-error I have no clue why this errors
-                values.normalized as ValidatedArguments<Manual>,
-                message as TextChannelMessage,
-                client,
-                pg_client,
-                prefix,
-            );
+                const spec = argument_structure_from_manual(manual);
+                const values = spec.check(args.values);
 
-            pg_client.handle_release();
+                if (values.succeeded === false) {
+                    log_stack(values, `${manual.name} command process`);
+                    return { type: BotCommandProcessResultType.Invalid };
+                }
 
-            return activate_result;
-        } else {
-            return { type: BotCommandProcessResultType.Unauthorized };
+                let pg_client = await use_client(pool, this.determination_tag_string(prefix));
+
+                let activate_result = await this.run_activate(
+                    // @ts-expect-error I have no clue why this errors
+                    values.normalized as ValidatedArguments<Manual>,
+                    message as TextChannelMessage,
+                    client,
+                    pg_client,
+                    prefix,
+                );
+
+                pg_client.handle_release();
+
+                return activate_result;
+            }
         }
     }
 }
@@ -190,7 +317,7 @@ export abstract class ParentCommand extends BotCommand<MultifacetedCommandManual
 
     abstract pre_dispatch(
         subcommand: Subcommand<SubcommandManual>,
-        message: TextChannelMessage,
+        interaction: BotInteraction,
         client: Client,
         pool: Pool,
         prefix: string,
@@ -224,48 +351,60 @@ export abstract class ParentCommand extends BotCommand<MultifacetedCommandManual
             return { type: BotCommandProcessResultType.DidNotSucceed };
         }
 
-        if (is_text_channel(message)) {
-            const found_command = this.subcommands[subcommand_index];
+        let full_interaction_result = BotInteraction.Create(message);
 
-            const args_result = get_args(prefix, found, message.content);
-            let res = await handle_GetArgsResult(message, `${this.manual.name} ${found.name}`, args_result, prefix);
-
-            if (res === false) {
-                return { type: BotCommandProcessResultType.DidNotSucceed };
+        switch (full_interaction_result.type) {
+            case BotInteractionCreationResultType.NotMessageOrInteraction:
+            case BotInteractionCreationResultType.NotInGuildTextChannel: {
+                return {
+                    type: BotCommandProcessResultType.Unauthorized,
+                    not_authorized_message: "The command must be used in a guild text channel.",
+                };
             }
+            case BotInteractionCreationResultType.NotCommandInteraction: {
+                return { type: BotCommandProcessResultType.Invalid };
+            }
+            case BotInteractionCreationResultType.Succeeded: {
+                const found_command = this.subcommands[subcommand_index];
+                const interaction = full_interaction_result.interaction;
+                const args_result = get_args(prefix, found, message.content);
+                let res = await handle_GetArgsResult(interaction, `${this.manual.name} ${found.name}`, args_result, prefix);
 
-            const arg_value_specification = argument_structure_from_manual(found);
-            const result = arg_value_specification.check(args_result.values);
-            if (result.succeeded === false) {
-                await message.channel.send(
-                    `${prefix}${this.manual.name}: your message did not have the proper arguments for subcommand ${
-                        found.name
-                    }. Try using '${prefix}commands' to see the syntax for each subcommand.\n${result.information
-                        .map(indent)
-                        .map(x => `${x}.`)
-                        .join("\n")}`,
+                if (res === false) {
+                    return { type: BotCommandProcessResultType.DidNotSucceed };
+                }
+
+                const arg_value_specification = argument_structure_from_manual(found);
+                const result = arg_value_specification.check(args_result.values);
+                if (result.succeeded === false) {
+                    await message.channel.send(
+                        `${prefix}${this.manual.name}: your message did not have the proper arguments for subcommand ${
+                            found.name
+                        }. Try using '${prefix}commands' to see the syntax for each subcommand.\n${result.information
+                            .map(indent)
+                            .map(x => `${x}.`)
+                            .join("\n")}`,
+                    );
+                    return { type: BotCommandProcessResultType.DidNotSucceed };
+                }
+                const pre_dispatch_result = await this.pre_dispatch(
+                    found_command,
+                    interaction,
+                    client,
+                    pool,
+                    prefix,
+                    MakeReplier(interaction, `${prefix}${this.manual.name}`),
                 );
-                return { type: BotCommandProcessResultType.DidNotSucceed };
-            }
-            const pre_dispatch_result = await this.pre_dispatch(
-                found_command,
-                message,
-                client,
-                pool,
-                prefix,
-                MakeReplier(message, `${prefix}${this.manual.name}`),
-            );
 
-            switch (pre_dispatch_result.type) {
-                case BotCommandProcessResultType.PassThrough: {
-                    return await found_command.run_activate(result.normalized, message, client, pool, prefix);
-                }
-                default: {
-                    return pre_dispatch_result;
+                switch (pre_dispatch_result.type) {
+                    case BotCommandProcessResultType.PassThrough: {
+                        return await found_command.run_activate(result.normalized, interaction, client, pool, prefix);
+                    }
+                    default: {
+                        return pre_dispatch_result;
+                    }
                 }
             }
-        } else {
-            return { type: BotCommandProcessResultType.Unauthorized };
         }
     }
 }
@@ -343,14 +482,23 @@ export interface ParseMessageResult {
  */
 // eslint-disable-next-line complexity
 export const process_message_for_commands = async function (
-    stock_commands: AnyBotCommand[],
+    stock_commands: BotCommand[],
     message: Message,
     client: Client,
     pool: Pool,
 ): Promise<ParseMessageResult> {
     const prefix = await get_prefix(message.guild, pool);
 
-    let valid_command: AnyBotCommand | null = null;
+    let valid_command: BotCommand | null = null;
+
+    const full_interaction_result = BotInteraction.Create(message);
+
+    let interaction: BotInteraction;
+    if (full_interaction_result.type === BotInteractionCreationResultType.Succeeded) {
+        interaction = full_interaction_result.interaction;
+    } else {
+        return { did_find_command: false, command_authorized: false, did_use_module: false, module_name: null };
+    }
 
     // ALWAYS check stock bot commands first. NEVER let a module command override a stock command, although we would
     // hope that would've been caught earlier.
@@ -374,7 +522,7 @@ export const process_message_for_commands = async function (
 
         if (regex instanceof RegExp && regex.test(message.content) && valid_command === null) {
             log(`Regex match found!`, LogType.Status, DebugLogType.ProcessMessageForCommandsFunctionDebug);
-            if (allowed(message, bot_command.permissions)) {
+            if (allowed(interaction, bot_command.permissions)) {
                 log(`Match is valid, permissions are a go.`, LogType.Status, DebugLogType.ProcessMessageForCommandsFunctionDebug);
                 valid_command = bot_command;
             } else if (bot_command.no_use_no_see === false) {
@@ -394,7 +542,7 @@ export const process_message_for_commands = async function (
 
     // Check loaded module commands
     for (const module of await MODULES) {
-        if (allowed(message, module.permissions)) {
+        if (allowed(interaction, module.permissions)) {
             // Skip checking command call if the module is already restricted here
             // Check module commands
             for (const bot_command of module.functions) {
@@ -409,7 +557,7 @@ export const process_message_for_commands = async function (
 
                 const regex = make_command_regex(manual.name, prefix);
                 if (regex instanceof RegExp && regex.test(message.content) && valid_command === null && using_module === null) {
-                    if (allowed(message, bot_command.permissions)) {
+                    if (allowed(interaction, bot_command.permissions)) {
                         valid_command = bot_command;
                         using_module = module.name;
                     } else if (bot_command.no_use_no_see === false) {
@@ -427,7 +575,7 @@ export const process_message_for_commands = async function (
     }
 
     // Check permissions validity of valid_command
-    if (is_valid_BotCommand(valid_command) && allowed(message, valid_command.permissions)) {
+    if (is_valid_BotCommand(valid_command) && allowed(interaction, valid_command.permissions)) {
         // Run the command
         const start_time = performance.now();
         const result = await valid_command.process(message, client, pool, prefix);

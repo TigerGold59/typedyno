@@ -3,7 +3,7 @@ import * as Discord from "discord.js";
 import { load_modules, Module } from "./module_loader.js";
 
 import { CONFIG } from "./config.js";
-import { process_message } from "./message.js";
+import { execute_interation_response, process_message } from "./interaction.js";
 
 export const DISCORD_API_TOKEN = process.env.DISCORD_API_TOKEN as string;
 export const GLOBAL_PREFIX = process.env.GLOBAL_PREFIX as string;
@@ -23,13 +23,13 @@ import { Pool, PoolInstance } from "./pg_wrapper.js";
 // I can't even top level 'await' the execution of this async function... it still does the same thing
 // Probably a bug, albeit a very complex one.
 export const MODULES = (async (): Promise<Module[]> => {
-    await new Promise((res, _rej) => setInterval(res, 1000));
+    //await new Promise((res, _rej) => setInterval(res, 1000));
     log("Loading modules...", LogType.Status);
     const res = await load_modules();
     log("Module loading complete.", LogType.Success);
 
     const client = new Discord.Client({
-        intents: [Discord.Intents.FLAGS.GUILD_MESSAGES, Discord.Intents.FLAGS.GUILD_MESSAGE_REACTIONS],
+        intents: [Discord.Intents.FLAGS.GUILD_MESSAGES, Discord.Intents.FLAGS.GUILD_MESSAGE_REACTIONS, Discord.Intents.FLAGS.GUILDS],
     });
     log("Client created. Bot starting up...", LogType.Status);
 
@@ -62,15 +62,13 @@ export const MODULES = (async (): Promise<Module[]> => {
     });
 
     // Send messages through messages.ts
-    client.on("message", message => {
+    client.on("messageCreate", message => {
         void process_message(message, client, connection_pool);
     });
 
-    client.on("interaction", interaction => {
-        if (interaction.isApplicationCommand() && interaction.isCommand() && interaction.options) {
-            if (interaction.)
-        }
-    })
+    client.on("interactionCreate", interaction => {
+        execute_interation_response(interaction, client, connection_pool);
+    });
 
     // Use event listener files
     for (const listener_name of CONFIG.event_listeners) {
