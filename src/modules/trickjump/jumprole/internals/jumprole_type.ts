@@ -24,18 +24,6 @@ export const BULK_JUMPROLE_QUERY_FIELDS = "trickjump_jumps.*, row_to_json(trickj
 export const BULK_JUMPROLE_JOIN = `INNER JOIN trickjump_tiers ON trickjump_jumps.tier_id=trickjump_tiers.id`;
 export const GET_JUMPROLES_IN_BULK_BY_SERVER = `SELECT ${BULK_JUMPROLE_QUERY_FIELDS} FROM trickjump_jumps ${BULK_JUMPROLE_JOIN} WHERE trickjump_jumps.server=$1 ORDER BY trickjump_jumps.updated_at`;
 
-export const KingdomString = RT.string.validate(<Input extends string>(result: Input): TransformResult<Input> => {
-    if (KINGDOM_NAMES_LOWERCASE.includes(result.toLowerCase() as typeof KINGDOM_NAMES_LOWERCASE[number])) {
-        return { succeeded: true, result: result };
-    } else {
-        return {
-            succeeded: false,
-            error: StructureValidationFailedReason.InvalidValue,
-            information: [`input was a string but it wasn't a kingdom name. Valid kingdom names are: ${KINGDOM_NAMES.join()}.`],
-        };
-    }
-});
-
 const TWITTER_REGEX =
     /^\s*https:\/\/(?:(?:www\.)|(?:mobile\.))?twitter\.com\/(?<tag>[a-zA-Z0-9_]{1,16})\/status\/(?<id>[0-9]{3,35})(?:\?(?:[a-z]=[a-zA-Z0-9-_]+)(?:\&(?:[a-z]=[a-zA-Z0-9-_]+))*)?\/?\s*$/i;
 
@@ -121,6 +109,20 @@ export const KINGDOM_NAMES = [
     "Darker Side",
     "Mushroom Kingdom",
 ] as const;
+
+export const KingdomString = RT.string
+    .validate(<Input extends string>(result: Input): TransformResult<Input> => {
+        if (KINGDOM_NAMES_LOWERCASE.includes(result.toLowerCase() as typeof KINGDOM_NAMES_LOWERCASE[number])) {
+            return { succeeded: true, result: result };
+        } else {
+            return {
+                succeeded: false,
+                error: StructureValidationFailedReason.InvalidValue,
+                information: [`input was a string but it wasn't a kingdom name. Valid kingdom names are: ${KINGDOM_NAMES.join()}.`],
+            };
+        }
+    })
+    .with_choices(KINGDOM_NAMES as unknown as string[]);
 
 export type Lowercased<List extends readonly string[]> = {
     [Key in keyof List]: Lowercase<List[Key] & string>;

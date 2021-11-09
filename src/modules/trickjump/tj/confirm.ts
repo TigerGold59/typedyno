@@ -1,12 +1,11 @@
 import { Client } from "discord.js";
 import { UsingClient } from "../../../pg_wrapper.js";
 
-import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, BotInteraction, Replier, Subcommand } from "../../../functions.js";
 
 import { log, LogType } from "../../../utilities/log.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
-import { TextChannelMessage } from "../../../utilities/typeutils.js";
 import { GetJumproleResultType } from "../jumprole/internals/jumprole_type.js";
 import { Jumprole } from "../jumprole/internals/jumprole_type.js";
 import { ConfirmJumproleEntryResult, GetJumproleEntryByJumproleAndHolderResultType, JumproleEntry } from "./internals/entry_type.js";
@@ -23,6 +22,8 @@ export class TJConfirm extends Subcommand<typeof TJConfirm.manual> {
                 name: "jump name",
                 id: "jumprole_name",
                 optional: false,
+                base_type: "STRING",
+                short_description: "current jump name",
             },
         ],
         syntax: "::<prefix>tj confirm:: NAME $1",
@@ -36,7 +37,7 @@ export class TJConfirm extends Subcommand<typeof TJConfirm.manual> {
     // eslint-disable-next-line complexity
     async activate(
         values: ValidatedArguments<typeof TJConfirm.manual>,
-        message: TextChannelMessage,
+        interaction: BotInteraction,
         _client: Client,
         pg_client: UsingClient,
         prefix: string,
@@ -44,7 +45,7 @@ export class TJConfirm extends Subcommand<typeof TJConfirm.manual> {
     ): Promise<BotCommandProcessResults> {
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
-        let jumprole_result = await Jumprole.Get(values.jumprole_name, message.guild.id, pg_client);
+        let jumprole_result = await Jumprole.Get(values.jumprole_name, interaction.guild.id, pg_client);
 
         switch (jumprole_result.type) {
             case GetJumproleResultType.InvalidName: {
@@ -54,7 +55,7 @@ export class TJConfirm extends Subcommand<typeof TJConfirm.manual> {
             }
             case GetJumproleResultType.InvalidServerSnowflake: {
                 log(
-                    `tj confirm: Jumprole.Get with arguments [${values.jumprole_name}, ${message.guild.id}] failed with error GetJumproleResultType.InvalidServerSnowflake.`,
+                    `tj confirm: Jumprole.Get with arguments [${values.jumprole_name}, ${interaction.guild.id}] failed with error GetJumproleResultType.InvalidServerSnowflake.`,
                     LogType.Error,
                 );
                 await reply(
@@ -68,7 +69,7 @@ export class TJConfirm extends Subcommand<typeof TJConfirm.manual> {
                     "an unknown error caused Jumprole.Get to fail with error GetJumproleResultType.GetTierWithIDFailed. It is possible that its tier was deleted.",
                 );
                 log(
-                    `tj confirm: Jumprole.Get with arguments [${values.jumprole_name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.GetTierWithIDFailed.`,
+                    `tj confirm: Jumprole.Get with arguments [${values.jumprole_name}, ${interaction.guild.id}] unexpectedly failed with error GetJumproleResultType.GetTierWithIDFailed.`,
                     LogType.Error,
                 );
 
@@ -86,7 +87,7 @@ export class TJConfirm extends Subcommand<typeof TJConfirm.manual> {
             }
             case GetJumproleResultType.Unknown: {
                 log(
-                    `tj confirm: Jumprole.Get with arguments [${values.jumprole_name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.Unknown.`,
+                    `tj confirm: Jumprole.Get with arguments [${values.jumprole_name}, ${interaction.guild.id}] unexpectedly failed with error GetJumproleResultType.Unknown.`,
                 );
                 await reply(`an unknown error occurred after Jumprole.Get. Contact @${MAINTAINER_TAG} for help.`);
 
@@ -94,7 +95,7 @@ export class TJConfirm extends Subcommand<typeof TJConfirm.manual> {
             }
             case GetJumproleResultType.Success: {
                 let jumprole = jumprole_result.jumprole;
-                let result = await JumproleEntry.Get(message.author.id, jumprole_result.jumprole, pg_client);
+                let result = await JumproleEntry.Get(interaction.author.id, jumprole_result.jumprole, pg_client);
 
                 switch (result.type) {
                     case GetJumproleEntryByJumproleAndHolderResultType.NoneMatched: {
@@ -108,7 +109,7 @@ export class TJConfirm extends Subcommand<typeof TJConfirm.manual> {
                     }
                     case GetJumproleEntryByJumproleAndHolderResultType.InvalidHolderSnowflake: {
                         log(
-                            `tj confirm: JumproleEntry.Get did not accept holder snowflake '${message.author.id}'. Returning status to indicate failure...'`,
+                            `tj confirm: JumproleEntry.Get did not accept holder snowflake '${interaction.author.id}'. Returning status to indicate failure...'`,
                             LogType.Error,
                         );
                         await reply(`an unknown internal error occurred (did not accept holder snowflake). Contact @${MAINTAINER_TAG} for help.`);
@@ -128,7 +129,7 @@ export class TJConfirm extends Subcommand<typeof TJConfirm.manual> {
                         let confirm = await result.entry.confirm(pg_client);
                         switch (confirm) {
                             case ConfirmJumproleEntryResult.Confirmed: {
-                                await GiveCheck(message);
+                                await interaction.give_check();
                                 return { type: BotCommandProcessResultType.Succeeded };
                             }
                             case ConfirmJumproleEntryResult.QueryFailed: {

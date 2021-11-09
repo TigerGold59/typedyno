@@ -1,8 +1,7 @@
 import { Client } from "discord.js";
-import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, BotInteraction, Replier, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 
-import { TextChannelMessage } from "../../../utilities/typeutils.js";
 import { DeleteTierResultType, GetTierResultType, Tier } from "./internals/tier_type.js";
 import { UsingClient } from "../../../pg_wrapper.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
@@ -19,6 +18,8 @@ export class TierDelete extends Subcommand<typeof TierDelete.manual> {
                 name: "name",
                 id: "name",
                 optional: false,
+                short_description: "name",
+                base_type: "STRING",
             },
         ],
         description: "Deletes a tier.",
@@ -34,7 +35,7 @@ export class TierDelete extends Subcommand<typeof TierDelete.manual> {
     // eslint-disable-next-line complexity
     async activate(
         values: ValidatedArguments<typeof TierDelete.manual>,
-        message: TextChannelMessage,
+        interaction: BotInteraction,
         _client: Client,
         using_client: UsingClient,
         prefix: string,
@@ -42,7 +43,7 @@ export class TierDelete extends Subcommand<typeof TierDelete.manual> {
     ): Promise<BotCommandProcessResults> {
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
-        const existing = await Tier.Get(message.guild.id, values.name, using_client);
+        const existing = await Tier.Get(interaction.guild.id, values.name, using_client);
 
         switch (existing.result) {
             case GetTierResultType.NoMatchingEntries: {
@@ -75,7 +76,7 @@ export class TierDelete extends Subcommand<typeof TierDelete.manual> {
                         return failed;
                     }
                     case DeleteTierResultType.Success: {
-                        await GiveCheck(message);
+                        await interaction.give_check();
                         return { type: BotCommandProcessResultType.Succeeded };
                     }
                 }

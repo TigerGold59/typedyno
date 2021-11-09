@@ -1,13 +1,12 @@
 import { Client } from "discord.js";
 import { UsingClient } from "../../../pg_wrapper.js";
 
-import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, BotInteraction, Replier, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 
 import { Jumprole, DeleteJumproleResult, GetJumproleResultType } from "./internals/jumprole_type.js";
 //import { DeleteJumproleResult, delete_jumprole } from "./internals/jumprole_postgres.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
-import { TextChannelMessage } from "../../../utilities/typeutils.js";
 import { log, LogType } from "../../../utilities/log.js";
 
 export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
@@ -22,6 +21,8 @@ export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
                 name: "name",
                 id: "name",
                 optional: false,
+                short_description: "current jump name",
+                base_type: "STRING",
             },
         ],
         description: "Removes the given Jumprole and clears it from all users' Jumprole lists.",
@@ -35,7 +36,7 @@ export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
 
     async activate(
         values: ValidatedArguments<typeof JumproleRemove.manual>,
-        message: TextChannelMessage,
+        interaction: BotInteraction,
         _client: Client,
         pg_client: UsingClient,
         prefix: string,
@@ -44,7 +45,7 @@ export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
         const name = values.name;
 
-        const instance = await Jumprole.Get(name, message.guild.id, pg_client);
+        const instance = await Jumprole.Get(name, interaction.guild.id, pg_client);
         switch (instance.type) {
             case GetJumproleResultType.InvalidName: {
                 await reply(`invalid jump name. Contact @${MAINTAINER_TAG} for help as this should have been caught earlier.`);
@@ -53,7 +54,7 @@ export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
             }
             case GetJumproleResultType.InvalidServerSnowflake: {
                 log(
-                    `jumprole remove: Jumprole.Get with arguments [${name}, ${message.guild.id}] failed with error GetJumproleResultType.InvalidServerSnowflake.`,
+                    `jumprole remove: Jumprole.Get with arguments [${name}, ${interaction.guild.id}] failed with error GetJumproleResultType.InvalidServerSnowflake.`,
                     LogType.Error,
                 );
                 await reply(
@@ -67,7 +68,7 @@ export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
                     "an unknown error caused Jumprole.Get to fail with error GetJumproleResultType.GetTierWithIDFailed. It is possible that its tier was deleted.",
                 );
                 log(
-                    `jumprole remove: Jumprole.Get with arguments [${name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.GetTierWithIDFailed.`,
+                    `jumprole remove: Jumprole.Get with arguments [${name}, ${interaction.guild.id}] unexpectedly failed with error GetJumproleResultType.GetTierWithIDFailed.`,
                     LogType.Error,
                 );
 
@@ -85,7 +86,7 @@ export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
             }
             case GetJumproleResultType.Unknown: {
                 log(
-                    `jumprole remove: Jumprole.Get with arguments [${name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.Unknown.`,
+                    `jumprole remove: Jumprole.Get with arguments [${name}, ${interaction.guild.id}] unexpectedly failed with error GetJumproleResultType.Unknown.`,
                 );
                 await reply(`an unknown error occurred after Jumprole.Get. Contact @${MAINTAINER_TAG} for help.`);
 
@@ -96,7 +97,7 @@ export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
 
                 switch (result) {
                     case DeleteJumproleResult.Success: {
-                        await GiveCheck(message);
+                        await interaction.give_check();
                         return { type: BotCommandProcessResultType.Succeeded };
                     }
                     case DeleteJumproleResult.QueryFailed: {

@@ -1,7 +1,7 @@
 import { Client } from "discord.js";
 import { UsingClient } from "../../../pg_wrapper.js";
 
-import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, BotInteraction, Replier, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js";
@@ -21,10 +21,12 @@ export class JumproleChoose extends Subcommand<typeof JumproleChoose.manual> {
                 name: "channel",
                 id: "channel_snowflake",
                 optional: false,
+                base_type: "CHANNEL",
                 further_constraint: RT.Snowflake,
+                short_description: "channel",
             },
         ],
-        description: "Designates the given channel as the server's channel authorized for all Jumprole commands (except this one).",
+        description: "Designates a Jumprole commands channel.",
         syntax: "::<prefix>jumprole choose:: CHANNEL $1",
     } as const;
 
@@ -39,20 +41,20 @@ export class JumproleChoose extends Subcommand<typeof JumproleChoose.manual> {
 
     async activate(
         values: ValidatedArguments<typeof JumproleChoose.manual>,
-        message: TextChannelMessage,
+        interaction: BotInteraction,
         _client: Client,
         pg_client: UsingClient,
         prefix: string,
         reply: Replier,
     ): Promise<BotCommandProcessResults> {
-        const user_handle = create_designate_handle(message.author.id, message);
+        const user_handle = create_designate_handle(interaction.author.id, interaction);
         const status = await designate_user_status(user_handle, pg_client);
 
         if (status >= 2) {
-            const query_params = [message.guild.id, values.channel_snowflake];
+            const query_params = [interaction.guild.id, values.channel_snowflake];
             try {
                 await pg_client.query(UPSERT_GUILD_JUMPROLE_CHANNEL, query_params);
-                await GiveCheck(message);
+                await interaction.give_check();
                 return { type: BotCommandProcessResultType.Succeeded };
             } catch (err) {
                 await reply(`${prefix}jumprole choose: unknown internal error (query failure). Contact @${MAINTAINER_TAG} for help.`);

@@ -1,8 +1,8 @@
 import { Client } from "discord.js";
-import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, BotInteraction, Replier, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 
-import { null_to_undefined, TextChannelMessage } from "../../../utilities/typeutils.js";
+import { null_to_undefined } from "../../../utilities/typeutils.js";
 import { GetTierResultType, ModifyTierResultType, Tier } from "./internals/tier_type.js";
 import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js";
 import { UsingClient } from "../../../pg_wrapper.js";
@@ -20,21 +20,26 @@ export class TierUpdate extends Subcommand<typeof TierUpdate.manual> {
                 name: "current name",
                 id: "name",
                 optional: false,
+                base_type: "STRING",
+                short_description: "current tier name",
             },
             {
                 name: "new name",
                 id: "new_name",
                 optional: true,
+                base_type: "STRING",
+                short_description: "new tier name",
             },
             {
                 name: "rank number",
                 id: "ordinal",
                 optional: true,
+                base_type: "INTEGER",
                 further_constraint: RT.UInt4Like,
+                short_description: "new rank number",
             },
         ],
-        description:
-            "Updates a tier, changing its name or rank number or both, depending on which are provided. The higher the rank number, the higher the tier.",
+        description: "Updates a tier, changing its name or rank number. The higher the rank number, the higher the tier.",
         syntax: "::<prefix>tier update:: NAME $1{opt $2}[ NEW NAME $2]{opt $3}[ RANK $3]",
         compact_syntaxes: false,
     } as const;
@@ -46,7 +51,7 @@ export class TierUpdate extends Subcommand<typeof TierUpdate.manual> {
     // eslint-disable-next-line complexity
     async activate(
         values: ValidatedArguments<typeof TierUpdate.manual>,
-        message: TextChannelMessage,
+        interaction: BotInteraction,
         _client: Client,
         using_client: UsingClient,
         prefix: string,
@@ -54,7 +59,7 @@ export class TierUpdate extends Subcommand<typeof TierUpdate.manual> {
     ): Promise<BotCommandProcessResults> {
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
-        const existing = await Tier.Get(values.name, message.guild.id, using_client);
+        const existing = await Tier.Get(values.name, interaction.guild.id, using_client);
 
         switch (existing.result) {
             case GetTierResultType.NoMatchingEntries: {
@@ -86,7 +91,7 @@ export class TierUpdate extends Subcommand<typeof TierUpdate.manual> {
 
                 switch (update_result) {
                     case ModifyTierResultType.Success: {
-                        await GiveCheck(message);
+                        await interaction.give_check();
                         return { type: BotCommandProcessResultType.Succeeded };
                     }
                     case ModifyTierResultType.QueryFailed: {

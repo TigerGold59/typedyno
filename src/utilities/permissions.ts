@@ -1,4 +1,4 @@
-import { Message } from "discord.js";
+import { BotInteraction } from "../functions.js";
 import { is_number, is_string } from "./typeutils.js";
 
 export type Snowflake = string;
@@ -130,27 +130,27 @@ export const allowed_under = function (snowflake?: Snowflake, specifier?: Inclus
 };
 
 // eslint-disable-next-line complexity
-export const allowed = function (message: Message, permissions?: Permissions): boolean {
+export const allowed = function (interaction: BotInteraction, permissions?: Permissions): boolean {
     if (!permissions) {
         return true;
     }
 
     switch (
-        allowed_under(message.guild?.id, permissions.servers) // Server level
+        allowed_under(interaction.guild?.id, permissions.servers) // Server level
     ) {
         case TentativePermissionType.NotAllowed: // Never allowed
             return false;
         case TentativePermissionType.AllowedIfLowerLevelAllowed: // Check lower levels for passive allowance
         case TentativePermissionType.AllowedThroughWhitelistIfLowerLevelAllowed:
             switch (
-                allowed_under(message.channel.id, permissions.channels) // Channel level
+                allowed_under(interaction.channel.id, permissions.channels) // Channel level
             ) {
                 case TentativePermissionType.NotAllowed: // Never allowed
                     return false;
                 case TentativePermissionType.AllowedIfLowerLevelAllowed: // Check lower levels for passive allowance
                 case TentativePermissionType.AllowedThroughWhitelistIfLowerLevelAllowed:
                     switch (
-                        allowed_under(message.author.id, permissions.users) // User level
+                        allowed_under(interaction.author.id, permissions.users) // User level
                     ) {
                         case TentativePermissionType.NotAllowed:
                             return false;
@@ -162,7 +162,7 @@ export const allowed = function (message: Message, permissions?: Permissions): b
                     break;
                 case TentativePermissionType.AllowedIfLowerLevelWhitelisted: // Check lower levels for whitelist allowance
                     switch (
-                        allowed_under(message.author.id, permissions.users) // User level
+                        allowed_under(interaction.author.id, permissions.users) // User level
                     ) {
                         case TentativePermissionType.AllowedThroughWhitelistIfLowerLevelAllowed:
                             return true;
@@ -175,11 +175,11 @@ export const allowed = function (message: Message, permissions?: Permissions): b
             break;
         case TentativePermissionType.AllowedIfLowerLevelWhitelisted: // Check lower levels for whitelisted allowance
             switch (
-                allowed_under(message.channel.id, permissions.channels) // Channel level
+                allowed_under(interaction.channel.id, permissions.channels) // Channel level
             ) {
                 case TentativePermissionType.AllowedThroughWhitelistIfLowerLevelAllowed:
                     switch (
-                        allowed_under(message.author.id, permissions.users) // User level
+                        allowed_under(interaction.author.id, permissions.users) // User level
                     ) {
                         case TentativePermissionType.AllowedIfLowerLevelAllowed:
                         case TentativePermissionType.AllowedThroughWhitelistIfLowerLevelAllowed:
@@ -191,7 +191,7 @@ export const allowed = function (message: Message, permissions?: Permissions): b
                     break;
                 case TentativePermissionType.AllowedIfLowerLevelWhitelisted:
                     switch (
-                        allowed_under(message.author.id, permissions.users) // User level
+                        allowed_under(interaction.author.id, permissions.users) // User level
                     ) {
                         case TentativePermissionType.AllowedThroughWhitelistIfLowerLevelAllowed:
                             return true;

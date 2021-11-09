@@ -3,7 +3,7 @@ import * as Discord from "discord.js";
 import { load_modules, Module } from "./module_loader.js";
 
 import { CONFIG } from "./config.js";
-import { process_message } from "./message.js";
+import { execute_interation_response, process_message } from "./interaction.js";
 
 export const DISCORD_API_TOKEN = process.env.DISCORD_API_TOKEN as string;
 export const GLOBAL_PREFIX = process.env.GLOBAL_PREFIX as string;
@@ -23,12 +23,14 @@ import { Pool, PoolInstance } from "./pg_wrapper.js";
 // I can't even top level 'await' the execution of this async function... it still does the same thing
 // Probably a bug, albeit a very complex one.
 export const MODULES = (async (): Promise<Module[]> => {
-    await new Promise((res, _rej) => setInterval(res, 1000));
+    //await new Promise((res, _rej) => setInterval(res, 1000));
     log("Loading modules...", LogType.Status);
     const res = await load_modules();
     log("Module loading complete.", LogType.Success);
 
-    const client = new Discord.Client();
+    const client = new Discord.Client({
+        intents: [Discord.Intents.FLAGS.GUILD_MESSAGES, Discord.Intents.FLAGS.GUILD_MESSAGE_REACTIONS, Discord.Intents.FLAGS.GUILDS],
+    });
     log("Client created. Bot starting up...", LogType.Status);
 
     const connection_pool = new Pool({
@@ -48,9 +50,11 @@ export const MODULES = (async (): Promise<Module[]> => {
         // Set status
         if (!CONFIG.presence_data) {
             void client.user.setPresence({
-                activity: {
-                    name: "@ for server prefix",
-                },
+                activities: [
+                    {
+                        name: "@ for server prefix",
+                    },
+                ],
             });
         } else {
             void client.user.setPresence(CONFIG.presence_data);
@@ -58,8 +62,12 @@ export const MODULES = (async (): Promise<Module[]> => {
     });
 
     // Send messages through messages.ts
-    client.on("message", message => {
+    client.on("messageCreate", message => {
         void process_message(message, client, connection_pool);
+    });
+
+    client.on("interactionCreate", interaction => {
+        execute_interation_response(interaction, client, connection_pool);
     });
 
     // Use event listener files
@@ -71,7 +79,7 @@ export const MODULES = (async (): Promise<Module[]> => {
             connection_pool,
         );
         // Apply the listener (listener name is actually the event name)
-        client.on(listener_name, listener);
+        client.on(listener_name, listener(client, connection_pool));
     }
 
     // Actually log the bot in

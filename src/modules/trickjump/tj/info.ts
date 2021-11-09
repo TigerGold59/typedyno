@@ -1,13 +1,13 @@
 import { Client, MessageEmbed, User } from "discord.js";
 import { UsingClient } from "../../../pg_wrapper.js";
 
-import { BotCommandProcessResults, BotCommandProcessResultType, Replier, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, BotInteraction, Replier, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 
 import { GetJumproleResultType, Jumprole, KINGDOM_NAMES } from "../jumprole/internals/jumprole_type.js";
 //import { DeleteJumproleResult, delete_jumprole } from "./internals/jumprole_postgres.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
-import { is_number, is_string, TextChannelMessage } from "../../../utilities/typeutils.js";
+import { is_number, is_string } from "../../../utilities/typeutils.js";
 import { log, LogType } from "../../../utilities/log.js";
 
 export class TJInfo extends Subcommand<typeof TJInfo.manual> {
@@ -22,6 +22,8 @@ export class TJInfo extends Subcommand<typeof TJInfo.manual> {
                 name: "name",
                 id: "name",
                 optional: false,
+                base_type: "STRING",
+                short_description: "jump name",
             },
         ],
         description: "Retrieves comprehensive info in the given trickjump.",
@@ -35,7 +37,7 @@ export class TJInfo extends Subcommand<typeof TJInfo.manual> {
 
     async activate(
         values: ValidatedArguments<typeof TJInfo.manual>,
-        message: TextChannelMessage,
+        interaction: BotInteraction,
         discord_client: Client,
         pg_client: UsingClient,
         prefix: string,
@@ -44,7 +46,7 @@ export class TJInfo extends Subcommand<typeof TJInfo.manual> {
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
         const name = values.name;
 
-        const instance = await Jumprole.Get(name, message.guild.id, pg_client);
+        const instance = await Jumprole.Get(name, interaction.guild.id, pg_client);
 
         switch (instance.type) {
             case GetJumproleResultType.InvalidName: {
@@ -53,7 +55,7 @@ export class TJInfo extends Subcommand<typeof TJInfo.manual> {
             }
             case GetJumproleResultType.InvalidServerSnowflake: {
                 log(
-                    `tj info: Jumprole.Get with arguments [${name}, ${message.guild.id}] failed with error GetJumproleResultType.InvalidServerSnowflake.`,
+                    `tj info: Jumprole.Get with arguments [${name}, ${interaction.guild.id}] failed with error GetJumproleResultType.InvalidServerSnowflake.`,
                     LogType.Error,
                 );
                 await reply(
@@ -66,7 +68,7 @@ export class TJInfo extends Subcommand<typeof TJInfo.manual> {
                     "an unknown error caused Jumprole.Get to fail with error GetJumproleResultType.GetTierWithIDFailed. It is possible that its tier was deleted.",
                 );
                 log(
-                    `tj info: Jumprole.Get with arguments [${name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.GetTierWithIDFailed.`,
+                    `tj info: Jumprole.Get with arguments [${name}, ${interaction.guild.id}] unexpectedly failed with error GetJumproleResultType.GetTierWithIDFailed.`,
                     LogType.Error,
                 );
                 return failed;
@@ -81,7 +83,7 @@ export class TJInfo extends Subcommand<typeof TJInfo.manual> {
             }
             case GetJumproleResultType.Unknown: {
                 log(
-                    `tj info: Jumprole.Get with arguments [${name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.Unknown.`,
+                    `tj info: Jumprole.Get with arguments [${name}, ${interaction.guild.id}] unexpectedly failed with error GetJumproleResultType.Unknown.`,
                 );
                 await reply(`an unknown error occurred after Jumprole.Get. Contact @${MAINTAINER_TAG} for help.`);
                 return failed;
@@ -123,9 +125,9 @@ export class TJInfo extends Subcommand<typeof TJInfo.manual> {
                     embed.setDescription(`Link: ${jump.link}\n\n`);
                 }
                 embed.setDescription(`${embed.description}Description: \n${jump.description}\n\n`);
-                await message.channel.send(embed);
+                await interaction.channel.send({ embeds: [embed] });
                 if (has_link) {
-                    await message.channel.send(jump.link as string);
+                    await interaction.reply(jump.link as string);
                 }
 
                 return { type: BotCommandProcessResultType.Succeeded };

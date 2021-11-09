@@ -1,12 +1,11 @@
 import { Client } from "discord.js";
 import { UsingClient } from "../../../pg_wrapper.js";
 
-import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, BotInteraction, Replier, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 import { log, LogType } from "../../../utilities/log.js";
-import { Jumprole, KingdomNameToKingdom, CreateJumproleResultType, TwitterLink } from "./internals/jumprole_type.js";
+import { Jumprole, KingdomNameToKingdom, CreateJumproleResultType, TwitterLink, KingdomString } from "./internals/jumprole_type.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
-import { TextChannelMessage } from "../../../utilities/typeutils.js";
 import { GetTierResultType, Tier } from "../tier/internals/tier_type.js";
 export class JumproleCreate extends Subcommand<typeof JumproleCreate.manual> {
     constructor() {
@@ -20,37 +19,52 @@ export class JumproleCreate extends Subcommand<typeof JumproleCreate.manual> {
                 name: "name",
                 id: "name",
                 optional: false,
+                short_description: "jump name",
+                base_type: "STRING",
             },
             {
                 name: "tier",
                 id: "tier",
                 optional: false,
+                short_description: "tier name",
+                base_type: "STRING",
+            },
+            {
+                name: "description",
+                id: "description",
+                optional: false,
+                short_description: "jump description",
+                base_type: "STRING",
             },
             {
                 name: "kingdom",
                 id: "kingdom",
                 optional: true,
+                further_constraint: KingdomString,
+                short_description: "kingdom of jump",
+                base_type: "STRING",
             },
             {
                 name: "location",
                 id: "location",
                 optional: true,
+                short_description: "location of jump",
+                base_type: "STRING",
             },
             {
                 name: "jump type",
                 id: "jump_type",
                 optional: true,
+                short_description: "jump type",
+                base_type: "STRING",
             },
             {
                 name: "link",
                 id: "link",
                 optional: true,
                 further_constraint: TwitterLink,
-            },
-            {
-                name: "description",
-                id: "description",
-                optional: false,
+                short_description: "Twitter link",
+                base_type: "STRING",
             },
         ],
         description: "Creates or updates a Jumprole with the specified properties.",
@@ -64,7 +78,7 @@ export class JumproleCreate extends Subcommand<typeof JumproleCreate.manual> {
 
     async activate(
         args: ValidatedArguments<typeof JumproleCreate.manual>,
-        message: TextChannelMessage,
+        interaction: BotInteraction,
         _client: Client,
         pg_client: UsingClient,
         prefix: string,
@@ -72,7 +86,7 @@ export class JumproleCreate extends Subcommand<typeof JumproleCreate.manual> {
     ): Promise<BotCommandProcessResults> {
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
-        const get_tier = await Tier.Get(args.tier, message.guild.id, pg_client);
+        const get_tier = await Tier.Get(args.tier, interaction.guild.id, pg_client);
 
         switch (get_tier.result) {
             case GetTierResultType.InvalidName: {
@@ -106,15 +120,15 @@ export class JumproleCreate extends Subcommand<typeof JumproleCreate.manual> {
                         jump_type: args.jump_type,
                         link: args.link,
                         description: args.description,
-                        added_by: message.author.id,
-                        server: message.guild.id,
+                        added_by: interaction.author.id,
+                        server: interaction.guild.id,
                     },
                     pg_client,
                 );
 
                 switch (query_result.type) {
                     case CreateJumproleResultType.Success: {
-                        await GiveCheck(message);
+                        await interaction.give_check();
                         return { type: BotCommandProcessResultType.Succeeded };
                     }
                     case CreateJumproleResultType.QueryFailed: {

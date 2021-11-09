@@ -1,33 +1,45 @@
-import type { Message } from "discord.js";
-import { AnyBotCommand } from "./functions.js";
+import { BotCommand, BotInteraction } from "./functions.js";
 import { CreatePasteResult, create_paste } from "./integrations/paste_ee.js";
 import { GLOBAL_PREFIX, MODULES } from "./main.js";
 import { DebugLogType, log, LogType } from "./utilities/log.js";
 import { allowed } from "./utilities/permissions.js";
-import { AnyStructure, InferNormalizedType, log_stack, NormalizedStructure, Structure } from "./utilities/runtime_typeguard/runtime_typeguard.js";
+import {
+    AnyStructure,
+    InferNormalizedType,
+    log_stack,
+    NormalizedStructure,
+    Structure,
+    StructureValidationFailedReason,
+    TransformResult,
+} from "./utilities/runtime_typeguard/runtime_typeguard.js";
 import * as Structs from "./utilities/runtime_typeguard/standard_structures.js";
 import { escape_reg_exp, is_string } from "./utilities/typeutils.js";
+
+// https://discord.com/developers/docs/interactions/application-commands#application-command-object-application-command-option-type
 
 /**
  * An interface which describes an argument a command or subcommand takes.
  */
-export interface CommandArgument {
-    // Concise description of the argument's purpose
-    readonly name: string;
-    // One-word argument name, for internal use
-    readonly id: string;
-    // Whether the argument can be left out
-    readonly optional: boolean;
-    // For auto-generating constraint
-    readonly further_constraint?: AnyStructure;
-}
+
+export const CommandArgumentTypeStructure = Structs.Enum("CommandArgumentType", [
+    "STRING",
+    "BOOLEAN",
+    "INTEGER",
+    "NUMBER",
+    "CHANNEL",
+    "USER",
+] as const);
 
 const CommandArgumentStructure = Structs.object({
     name: Structs.string,
     id: Structs.string,
     optional: Structs.boolean,
+    base_type: CommandArgumentTypeStructure,
     further_constraint: Structs.Optional(Structs.StructureStructure),
+    short_description: Structs.string,
 });
+
+export type CommandArgument = InferNormalizedType<typeof CommandArgumentStructure>;
 
 const is_valid_CommandArgument = function (thing: unknown): thing is CommandArgument {
     return CommandArgumentStructure.check(thing).succeeded;
@@ -44,11 +56,12 @@ export interface SubcommandManual {
     // Example with optional: ::<prefix>proof get::{opt $2}[ |] $1{opt $2}[ | $2]
     // In the example with the optional, the pipelines are only required if argument $2 is present.
     readonly syntax: string;
-    readonly arguments: readonly CommandArgument[];
     // Display all syntaxes, or compact it down into a readable optional thing
     readonly compact_syntaxes?: boolean;
     // A description of the subcommand to be added on in the manual.
     readonly description: string;
+
+    readonly arguments: readonly CommandArgument[];
 }
 
 /**
@@ -62,6 +75,22 @@ const SimpleCommandManualStructure = Structs.object({
     arguments: Structs.array(CommandArgumentStructure),
     compact_syntaxes: Structs.Optional(Structs.boolean),
     description: Structs.string,
+}).validate(<Input extends InferNormalizedType<typeof SimpleCommandManualStructure>>(result: Input): TransformResult<Input> => {
+    let optionals = false;
+    for (let i = 0; i < result.arguments.length; i++) {
+        const arg = result.arguments[i];
+        if (arg.optional) optionals = true;
+        else if (optionals) {
+            return {
+                succeeded: false,
+                error: StructureValidationFailedReason.InvalidValue,
+                information: [
+                    "command arguments were valid but a required argument came after an optional argument, which is not allowed because the slash command API prohibits it.",
+                ],
+            };
+        }
+    }
+    return { succeeded: true, result: result };
 });
 
 const is_valid_SimpleCommandManual = function (thing: unknown): thing is SimpleCommandManual {
@@ -344,9 +373,9 @@ export const create_manual_entry = function (command_manual: CommandManual, pref
 };
 
 export const make_manual = async function (
-    message: Message,
+    interaction: BotInteraction,
     prefix_substitution: string,
-    stock_commands: AnyBotCommand[],
+    stock_commands: BotCommand[],
 ): Promise<CreatePasteResult> {
     log(`make_manual function called. Process starting...`, LogType.Status, DebugLogType.MakeManualFunctionDebug);
 
@@ -380,7 +409,7 @@ export const make_manual = async function (
     }
 
     for (const module of await MODULES) {
-        if (allowed(message, module.permissions) === false && module.hide_when_contradicts_permissions) {
+        if (allowed(interaction, module.permissions) === false && module.hide_when_contradicts_permissions) {
             log(`make_manual hid module ${module.name}: flag module.hide_when_contradicts_permissions set.`);
             continue;
         } else {
@@ -397,7 +426,7 @@ export const make_manual = async function (
                     );
                     continue;
                 }
-                if (allowed(message, bot_command.permissions) === false && bot_command.no_use_no_see) {
+                if (allowed(interaction, bot_command.permissions) === false && bot_command.no_use_no_see) {
                     log(`make_manual hid function ${manual.name}: flag bot_command.hide_when_contradicts_permissions set.`);
                     continue;
                 } else {

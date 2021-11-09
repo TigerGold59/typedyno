@@ -1,10 +1,10 @@
 import { Client } from "discord.js";
 import { UsingClient } from "../../../pg_wrapper.js";
 
-import { BotCommandProcessResults, BotCommandProcessResultType, Replier, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, BotInteraction, Replier, Subcommand } from "../../../functions.js";
 
 import { log, LogType } from "../../../utilities/log.js";
-import { is_string, TextChannelMessage } from "../../../utilities/typeutils.js";
+import { is_string } from "../../../utilities/typeutils.js";
 import { MAINTAINER_TAG, USER_ID_FAQ } from "../../../main.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { create_paste, Paste, url } from "../../../integrations/paste_ee.js";
@@ -23,7 +23,9 @@ export class TJMissing extends Subcommand<typeof TJMissing.manual> {
                 name: "user ID",
                 id: "source",
                 optional: true,
+                base_type: "USER",
                 further_constraint: RT.Snowflake,
+                short_description: "user",
             },
         ],
         syntax: "::<prefix>tj missing::{opt $1}[ SOURCE $1]",
@@ -37,7 +39,7 @@ export class TJMissing extends Subcommand<typeof TJMissing.manual> {
     // eslint-disable-next-line complexity
     async activate(
         values: ValidatedArguments<typeof TJMissing.manual>,
-        message: TextChannelMessage,
+        interaction: BotInteraction,
         _client: Client,
         pg_client: UsingClient,
         _prefix: string,
@@ -45,7 +47,7 @@ export class TJMissing extends Subcommand<typeof TJMissing.manual> {
     ): Promise<BotCommandProcessResults> {
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
-        let user_intention = values.source === null ? message.author.id : values.source;
+        let user_intention = values.source === null ? interaction.author.id : values.source;
 
         if (is_valid_Snowflake(user_intention) === false) {
             await reply(`invalid user ID. ${USER_ID_FAQ}`);
@@ -54,7 +56,7 @@ export class TJMissing extends Subcommand<typeof TJMissing.manual> {
 
         let entry_results = await Jumprole.FromQuery(
             `SELECT ${BULK_JUMPROLE_QUERY_FIELDS} FROM trickjump_jumps ${BULK_JUMPROLE_JOIN} WHERE trickjump_jumps.server=$1 AND NOT EXISTS (SELECT * FROM trickjump_entries WHERE trickjump_entries.server=$2 AND trickjump_entries.holder=$3 AND trickjump_entries.jump_id=trickjump_jumps.id)`,
-            [message.guild.id, message.guild.id, user_intention],
+            [interaction.guild.id, interaction.guild.id, user_intention],
             pg_client,
         );
 
@@ -98,7 +100,7 @@ export class TJMissing extends Subcommand<typeof TJMissing.manual> {
                 let link = await create_paste(head + tiers + tail);
                 if (is_string(link.paste?.id)) {
                     await reply(
-                        `${user_intention === message.author.id ? "you are missing" : `user with ID ${user_intention} is missing`} ${
+                        `${user_intention === interaction.author.id ? "you are missing" : `user with ID ${user_intention} is missing`} ${
                             roles.length
                         } jump${roles.length === 1 ? "" : "s"} - view ${roles.length === 1 ? "it" : "them"} at ${url(link.paste as Paste)}`,
                     );
@@ -110,7 +112,7 @@ export class TJMissing extends Subcommand<typeof TJMissing.manual> {
             }
             case FromJumproleQueryResultType.NoJumproles: {
                 await reply(
-                    `${user_intention === message.author.id ? "you aren't missing" : `user with ID ${user_intention} isn't missing`} any jumps.`,
+                    `${user_intention === interaction.author.id ? "you aren't missing" : `user with ID ${user_intention} isn't missing`} any jumps.`,
                 );
                 return failed;
             }

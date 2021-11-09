@@ -85,11 +85,18 @@ export class Structure<NormalizedType extends NormalizedStructure> {
     readonly name: string;
     readonly transform: Transformer<NormalizedType>;
     readonly validate_transformed: NormalizedStructureValidator<NormalizedType>;
+    readonly choices?: string[];
 
-    constructor(name: string, transform: Transformer<NormalizedType>, validate_transformed: NormalizedStructureValidator<NormalizedType>) {
+    constructor(
+        name: string,
+        transform: Transformer<NormalizedType>,
+        validate_transformed: NormalizedStructureValidator<NormalizedType>,
+        choices?: string[],
+    ) {
         this.name = name;
         this.transform = transform;
         this.validate_transformed = validate_transformed;
+        this.choices = choices;
     }
 
     before(preprocessor: Preprocessor): Structure<NormalizedType> {
@@ -103,6 +110,10 @@ export class Structure<NormalizedType extends NormalizedStructure> {
             },
             this.validate_transformed,
         );
+    }
+
+    with_choices(choices: string[]): Structure<NormalizedType> {
+        return new Structure(this.name, this.transform, this.validate_transformed, choices);
     }
 
     validate(validator: NormalizedStructureValidator<NormalizedType>): Structure<NormalizedType> {

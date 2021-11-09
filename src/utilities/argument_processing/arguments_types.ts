@@ -125,24 +125,14 @@ export type ContainedArgumentsList<Arr extends readonly (readonly [string, Subco
 
 export type ContainedSubcommandNames<Arr extends readonly SubcommandManual[]> = Arr[number]["name"];
 
-type Argument<ArgumentList extends readonly CommandArgument[]> = ArgumentList[number];
-
-type ArgumentID<Argument extends CommandArgument> = Argument["id"];
-
-type PossiblyNullable<ArgumentList extends readonly CommandArgument[], ID extends ArgumentID<Argument<ArgumentList>>> = ID extends ArgumentID<
-    Argument<ArgumentList>
->
-    ? (Argument<ArgumentList> & { readonly id: ID })["optional"] extends false
-        ? string
-        : string | null
-    : never;
+type PossiblyNullable<Argument extends CommandArgument, DefaultType = string> = Argument["optional"] extends false ? DefaultType : DefaultType | null;
 
 export interface GetArgsResult<ArgumentList extends readonly CommandArgument[]> {
     succeeded: boolean;
     compiled: boolean;
     values:
         | {
-              [ID in ArgumentID<Argument<ArgumentList>>]: PossiblyNullable<ArgumentList, ID>;
+              [Argument in ArgumentList[number] as Argument["id"]]: PossiblyNullable<Argument>;
           }
         | null;
     inconsistent_key_offs: [string, number, boolean][];
@@ -153,6 +143,8 @@ type BaseType<Argument extends CommandArgument> = Argument["further_constraint"]
     ? InferNormalizedType<Argument["further_constraint"]>
     : string;
 
+export type ArgumentValues<Manual extends SubcommandManual> = Exclude<GetArgsResult<Manual["arguments"]>["values"], null>;
+
 export type ValidatedArguments<Manual extends SubcommandManual> = {
-    [Argument in Manual["arguments"][number] as Argument["id"]]: Argument["optional"] extends false ? BaseType<Argument> : BaseType<Argument> | null;
+    [Argument in Manual["arguments"][number] as Argument["id"]]: PossiblyNullable<Argument, BaseType<Argument>>;
 };

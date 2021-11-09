@@ -1,8 +1,7 @@
 import { Client } from "discord.js";
-import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, BotInteraction, Replier, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 
-import { TextChannelMessage } from "../../../utilities/typeutils.js";
 import { CreateTierResultType, Tier } from "./internals/tier_type.js";
 import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js";
 import { UsingClient } from "../../../pg_wrapper.js";
@@ -19,12 +18,16 @@ export class TierCreate extends Subcommand<typeof TierCreate.manual> {
                 name: "name",
                 id: "name",
                 optional: false,
+                base_type: "STRING",
+                short_description: "name",
             },
             {
                 name: "rank number",
                 id: "ordinal",
                 optional: false,
+                base_type: "INTEGER",
                 further_constraint: RT.UInt4Like,
+                short_description: "rank number",
             },
         ],
         description: "Creates a tier which may include jumproles. The higher the rank number, the higher the tier.",
@@ -39,7 +42,7 @@ export class TierCreate extends Subcommand<typeof TierCreate.manual> {
     // eslint-disable-next-line complexity
     async activate(
         values: ValidatedArguments<typeof TierCreate.manual>,
-        message: TextChannelMessage,
+        interaction: BotInteraction,
         _client: Client,
         using_client: UsingClient,
         prefix: string,
@@ -47,7 +50,7 @@ export class TierCreate extends Subcommand<typeof TierCreate.manual> {
     ): Promise<BotCommandProcessResults> {
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
-        const exists = await Tier.Create(message.guild.id, values.ordinal, values.name, using_client);
+        const exists = await Tier.Create(interaction.guild.id, values.ordinal, values.name, using_client);
 
         switch (exists.result) {
             case CreateTierResultType.TierAlreadyExists: {
@@ -73,7 +76,7 @@ export class TierCreate extends Subcommand<typeof TierCreate.manual> {
                 return failed;
             }
             case CreateTierResultType.Success: {
-                await GiveCheck(message);
+                await interaction.give_check();
                 return { type: BotCommandProcessResultType.Succeeded };
             }
             case CreateTierResultType.GetTierFailed: {

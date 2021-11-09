@@ -1,11 +1,11 @@
 import { Client } from "discord.js";
 import { UsingClient } from "../../../pg_wrapper.js";
 
-import { BotCommandProcessResults, BotCommandProcessResultType, GiveCheck, Replier, Subcommand } from "../../../functions.js";
+import { BotCommandProcessResults, BotCommandProcessResultType, BotInteraction, Replier, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 
 import { log, LogType } from "../../../utilities/log.js";
-import { is_string, is_text_channel, TextChannelMessage } from "../../../utilities/typeutils.js";
+import { is_string } from "../../../utilities/typeutils.js";
 // import { ModifyJumproleResult, modify_jumprole } from "./internals/jumprole_postgres.js";
 import {
     GetJumproleResultType,
@@ -31,47 +31,62 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
                 name: "name",
                 id: "name",
                 optional: false,
-            },
-            {
-                name: "tier",
-                id: "tier",
-                optional: true,
-            },
-            {
-                name: "new name",
-                id: "new_name",
-                optional: true,
-            },
-            {
-                name: "kingdom",
-                id: "kingdom",
-                optional: true,
-                further_constraint: KingdomString,
-            },
-            {
-                name: "location",
-                id: "location",
-                optional: true,
-            },
-            {
-                name: "jump type",
-                id: "jump_type",
-                optional: true,
-            },
-            {
-                name: "link",
-                id: "link",
-                optional: true,
-                further_constraint: TwitterLink,
+                short_description: "current jump name",
+                base_type: "STRING",
             },
             {
                 name: "description",
                 id: "description",
                 optional: true,
+                short_description: "new jump description",
+                base_type: "STRING",
+            },
+            {
+                name: "tier",
+                id: "tier",
+                optional: true,
+                short_description: "new tier name",
+                base_type: "STRING",
+            },
+            {
+                name: "new name",
+                id: "new_name",
+                optional: true,
+                short_description: "new jump name",
+                base_type: "STRING",
+            },
+            {
+                name: "kingdom",
+                id: "kingdom",
+                optional: true,
+                base_type: "STRING",
+                further_constraint: KingdomString,
+                short_description: "kingdom of jump",
+            },
+            {
+                name: "location",
+                id: "location",
+                optional: true,
+                base_type: "STRING",
+                short_description: "location of jump",
+            },
+            {
+                name: "jump type",
+                id: "jump_type",
+                optional: true,
+                short_description: "jump type",
+                base_type: "STRING",
+            },
+            {
+                name: "link",
+                id: "link",
+                optional: true,
+                base_type: "STRING",
+                further_constraint: TwitterLink,
+                short_description: "Twitter link",
             },
         ],
-        description:
-            "Updates the specified properties of the jumprole. To unset a specific property, provide 'UNSET' as the argument. You cannot unset the NEW NAME property.",
+        description: "Updates a jumprole. To unset a specific property (except NEW NAME), provide 'UNSET' as the argument.",
         syntax: "::<prefix>jumprole update:: NAME $1{opt $2}[ TIER $2]{opt $3}[ NEW NAME $3]{opt $4}[ KINGDOM $4]{opt $5}[ LOCATION $5]{opt $6}[ JUMP TYPE $6]{opt $7}[ LINK $7]{opt $8}[ INFO $8]",
         compact_syntaxes: true,
     } as const;
@@ -83,17 +98,13 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
     // eslint-disable-next-line complexity
     async activate(
         values: ValidatedArguments<typeof JumproleUpdate.manual>,
-        message: TextChannelMessage,
+        interaction: BotInteraction,
         _client: Client,
         pg_client: UsingClient,
         prefix: string,
         reply: Replier,
     ): Promise<BotCommandProcessResults> {
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
-
-        if (is_text_channel(message) === false) {
-            return { type: BotCommandProcessResultType.Unauthorized };
-        }
 
         const change_intention = (provided: string | null): string | null | undefined => {
             if (provided === "UNSET") return null;
@@ -106,7 +117,7 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
         let tier_intention = undefined;
 
         if (values.tier !== null) {
-            const get_tier = await Tier.Get(values.tier, message.guild.id, pg_client);
+            const get_tier = await Tier.Get(values.tier, interaction.guild.id, pg_client);
 
             switch (get_tier.result) {
                 case GetTierResultType.InvalidName: {
@@ -148,7 +159,7 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
             description: values.description === null ? undefined : values.description,
         };
 
-        const get_result = await Jumprole.Get(values.name, message.guild.id, pg_client);
+        const get_result = await Jumprole.Get(values.name, interaction.guild.id, pg_client);
 
         switch (get_result.type) {
             case GetJumproleResultType.InvalidName: {
@@ -158,7 +169,7 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
             }
             case GetJumproleResultType.InvalidServerSnowflake: {
                 log(
-                    `jumprole update: Jumprole.Get with arguments [${values.name}, ${message.guild.id}] failed with error GetJumproleResultType.InvalidServerSnowflake.`,
+                    `jumprole update: Jumprole.Get with arguments [${values.name}, ${interaction.guild.id}] failed with error GetJumproleResultType.InvalidServerSnowflake.`,
                     LogType.Error,
                 );
                 await reply(
@@ -182,7 +193,7 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
                     "an unknown error caused Jumprole.Get to fail with error GetJumproleResultType.GetTierWithIDFailed. It is possible that its tier was deleted.",
                 );
                 log(
-                    `jumprole update: Jumprole.Get with arguments [${values.name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.GetTierWithIDFailed.`,
+                    `jumprole update: Jumprole.Get with arguments [${values.name}, ${interaction.guild.id}] unexpectedly failed with error GetJumproleResultType.GetTierWithIDFailed.`,
                     LogType.Error,
                 );
 
@@ -190,7 +201,7 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
             }
             case GetJumproleResultType.Unknown: {
                 log(
-                    `jumprole update: Jumprole.Get with arguments [${values.name}, ${message.guild.id}] unexpectedly failed with error GetJumproleResultType.Unknown.`,
+                    `jumprole update: Jumprole.Get with arguments [${values.name}, ${interaction.guild.id}] unexpectedly failed with error GetJumproleResultType.Unknown.`,
                 );
                 await reply(`an unknown error occurred after Jumprole.Get. Contact @${MAINTAINER_TAG} for help.`);
 
@@ -201,7 +212,7 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
 
                 switch (result) {
                     case ModifyJumproleResult.Success: {
-                        await GiveCheck(message);
+                        await interaction.give_check();
                         return { type: BotCommandProcessResultType.Succeeded };
                     }
                     case ModifyJumproleResult.InvalidQuery: {
