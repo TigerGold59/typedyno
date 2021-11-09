@@ -72,6 +72,7 @@ export const run_subcommand = async (
                     }
                     default: {
                         bot_command_results = pre_dispatch;
+                        validated = false;
                         break;
                     }
                 }
@@ -165,6 +166,7 @@ export const handle_interaction = async (
                     client,
                     queryable,
                     prefix,
+                    false,
                 );
             } else if (command instanceof NoParametersCommand) {
                 if (allowed(full_interaction, module?.permissions) && allowed(full_interaction, command.permissions)) {
