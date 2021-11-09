@@ -68,12 +68,10 @@ export const run_subcommand = async (
                 );
                 switch (pre_dispatch.type) {
                     case BotCommandProcessResultType.PassThrough: {
-                        log("passed through!", LogType.Error);
                         validated = true;
                         break;
                     }
                     default: {
-                        log("failed!", LogType.Error);
                         bot_command_results = pre_dispatch;
                         validated = false;
                         break;
