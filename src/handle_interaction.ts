@@ -45,6 +45,7 @@ export const run_subcommand = async (
     });
 
     let no_use_no_see = module?.hide_when_contradicts_permissions || command.no_use_no_see || target.no_use_no_see;
+    console.log(no_use_no_see);
     let used_module = module !== null;
 
     if (
@@ -52,7 +53,7 @@ export const run_subcommand = async (
         allowed(full_interaction, command.permissions) &&
         allowed(full_interaction, target.permissions)
     ) {
-        let bot_command_results: BotCommandProcessResults = { type: BotCommandProcessResultType.DidNotSucceed };
+        let bot_command_results: BotCommandProcessResults = { type: BotCommandProcessResultType.Invalid };
         let pg_client = await use_client(queryable, "handle_interaction");
         let validated = true;
         if (validate_pre_dispatch) {
@@ -67,10 +68,12 @@ export const run_subcommand = async (
                 );
                 switch (pre_dispatch.type) {
                     case BotCommandProcessResultType.PassThrough: {
+                        log("passed through!", LogType.Error);
                         validated = true;
                         break;
                     }
                     default: {
+                        log("failed!", LogType.Error);
                         bot_command_results = pre_dispatch;
                         validated = false;
                         break;

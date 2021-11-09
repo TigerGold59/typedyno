@@ -1,4 +1,4 @@
-import { Message, Client, User, Guild, Interaction, CommandInteraction, TextChannel } from "discord.js";
+import { Message, Client, User, Guild, Interaction, CommandInteraction, TextChannel, MessageEmbed } from "discord.js";
 import { MakesSingleRequest, PoolInstance as Pool, Queryable, UsesClient, use_client, UsingClient } from "./pg_wrapper.js";
 import {
     CommandManual,
@@ -89,12 +89,23 @@ export class BotInteraction {
     readonly channel: TextChannel;
     readonly #_reply: (message: string) => Promise<Message<boolean> | void>;
     readonly #_give_check: () => Promise<boolean>;
+    readonly #_embed: (embed: MessageEmbed) => Promise<boolean>;
 
     constructor(item: TextChannelMessage | CompleteCommandInteraction) {
         if (item instanceof Message) {
             this.author = item.author;
             this.#_reply = item.channel.send.bind(item.channel);
             this.#_give_check = GiveCheck.bind(globalThis, item);
+            this.#_embed = async (embed: MessageEmbed) => {
+                try {
+                    await item.channel.send({
+                        embeds: [embed],
+                    });
+                    return true;
+                } catch (err) {
+                    return false;
+                }
+            };
         } else {
             this.author = item.user;
             this.#_reply = async (message: string) => {
@@ -113,9 +124,23 @@ export class BotInteraction {
                     return false;
                 }
             };
+            this.#_embed = async (embed: MessageEmbed) => {
+                try {
+                    await item.reply({
+                        embeds: [embed],
+                    });
+                    return true;
+                } catch (err) {
+                    return false;
+                }
+            };
         }
         this.guild = item.guild;
         this.channel = item.channel;
+    }
+
+    async embed(embed: MessageEmbed): Promise<boolean> {
+        return await this.#_embed(embed);
     }
 
     async reply(message: string) {

@@ -125,7 +125,7 @@ export class TJInfo extends Subcommand<typeof TJInfo.manual> {
                     embed.setDescription(`Link: ${jump.link}\n\n`);
                 }
                 embed.setDescription(`${embed.description}Description: \n${jump.description}\n\n`);
-                await interaction.channel.send({ embeds: [embed] });
+                await interaction.embed(embed);
                 if (has_link) {
                     await interaction.reply(jump.link as string);
                 }
