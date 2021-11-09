@@ -3,9 +3,11 @@ import { performance } from "perf_hooks";
 import { SubcommandManual } from "./command_manual.js";
 import {
     BotCommand,
+    BotCommandProcessResults,
     BotCommandProcessResultType,
     BotInteraction,
     BotInteractionCreationResultType,
+    MakeReplier,
     NoParametersCommand,
     ParentCommand,
     ParseMessageResult,
@@ -22,13 +24,14 @@ import { undefined_to_null } from "./utilities/typeutils.js";
 export const run_subcommand = async (
     rest: readonly CommandInteractionOption<CacheType>[],
     full_interaction: BotInteraction,
-    command: BotCommand,
+    command: ParentCommand | Subcommand<SubcommandManual>,
     target: Subcommand<SubcommandManual> | undefined,
     name: string | undefined,
     module: Module | null,
     client: Client,
     queryable: Queryable<UsesClient>,
     prefix: string,
+    validate_pre_dispatch: boolean = true,
 ): Promise<ParseMessageResult> => {
     if (!target || !name) {
         await full_interaction.reply(`No matching subcommands were found. Use '!commands' to view all the subcommands and their syntaxes.`);
@@ -49,22 +52,48 @@ export const run_subcommand = async (
         allowed(full_interaction, command.permissions) &&
         allowed(full_interaction, target.permissions)
     ) {
+        let bot_command_results: BotCommandProcessResults = { type: BotCommandProcessResultType.DidNotSucceed };
         let pg_client = await use_client(queryable, "handle_interaction");
+        let validated = true;
+        if (validate_pre_dispatch) {
+            if (command instanceof ParentCommand) {
+                let pre_dispatch = await command.pre_dispatch(
+                    target,
+                    full_interaction,
+                    client,
+                    pg_client,
+                    prefix,
+                    MakeReplier(full_interaction, target.determination_tag_string(prefix)),
+                );
+                switch (pre_dispatch.type) {
+                    case BotCommandProcessResultType.PassThrough: {
+                        validated = true;
+                        break;
+                    }
+                    default: {
+                        bot_command_results = pre_dispatch;
+                        break;
+                    }
+                }
+            }
+        }
         const start_time = performance.now();
-        const result = await target.run_activate(arg_values, full_interaction, client, pg_client, prefix);
+        if (validated) {
+            bot_command_results = await target.run_activate(arg_values, full_interaction, client, pg_client, prefix);
+        }
         const end_time = performance.now();
         pg_client.handle_release();
 
         return {
             did_find_command: true,
             no_use_no_see: no_use_no_see,
-            command_worked: result.type === BotCommandProcessResultType.Succeeded,
-            command_authorized: result.type !== BotCommandProcessResultType.Unauthorized,
+            command_worked: bot_command_results.type === BotCommandProcessResultType.Succeeded,
+            command_authorized: bot_command_results.type !== BotCommandProcessResultType.Unauthorized,
             call_to_return_span_ms: end_time - start_time,
             command_name: name,
             did_use_module: used_module,
             module_name: used_module ? undefined_to_null(module?.name) : null,
-            not_authorized_reason: result.not_authorized_message,
+            not_authorized_reason: bot_command_results.not_authorized_message,
         };
     } else {
         return {

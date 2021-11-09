@@ -319,7 +319,7 @@ export abstract class ParentCommand extends BotCommand<MultifacetedCommandManual
         subcommand: Subcommand<SubcommandManual>,
         interaction: BotInteraction,
         client: Client,
-        pool: Pool,
+        queryable: Queryable<MakesSingleRequest>,
         prefix: string,
         reply: Replier,
     ): PromiseLike<BotCommandProcessResults>;
