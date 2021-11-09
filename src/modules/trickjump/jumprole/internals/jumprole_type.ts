@@ -729,7 +729,7 @@ export class Jumprole {
                 case "tier": {
                     const tier = validated_merger_result["tier"];
                     if (tier !== undefined) {
-                        query_assignments.push(["tier", tier?.id]);
+                        query_assignments.push(["tier_id", tier?.id]);
                     }
                 }
             }
