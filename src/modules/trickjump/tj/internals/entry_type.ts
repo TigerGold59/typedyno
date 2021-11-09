@@ -4,7 +4,7 @@ import { MakesSingleRequest, Queryable, UsesClient, use_client } from "../../../
 import { log, LogType } from "../../../../utilities/log.js";
 import { InferNormalizedType, log_stack } from "../../../../utilities/runtime_typeguard/runtime_typeguard.js";
 import * as RT from "../../../../utilities/runtime_typeguard/standard_structures.js";
-import { PositiveIntegerMax, query_failure } from "../../../../utilities/typeutils.js";
+import { PositiveIntegerMax, query_failure, safe_serialize } from "../../../../utilities/typeutils.js";
 import { trickjump_entriesBulkTableRow, trickjump_entriesTableRow } from "../../table_types.js";
 import { GetJumproleFailureType, GetJumproleResultType, Jumprole, JumproleStructure } from "../../jumprole/internals/jumprole_type.js";
 
@@ -321,6 +321,17 @@ export class JumproleEntry {
         try {
             let result = await client.query<trickjump_entriesBulkTableRow>(query_string, query_params);
 
+            if (result.rows.some(x => x.json_build_object === undefined || x.json_build_object.jumprole === undefined)) {
+                let missing = result.rows.find(x => x.json_build_object === undefined || x.json_build_object.jumprole === undefined);
+                query_failure(
+                    `JumproleEntry.WithHolderInServer`,
+                    query_string,
+                    query_params,
+                    `row without jumprole exists: ${safe_serialize(missing)}`,
+                );
+                client.handle_release();
+                return { type: FromQueryResultType.QueryFailed };
+            }
             return { type: FromQueryResultType.Success, values: result.rows.map(JumproleEntry.FromBulkRow) };
         } catch (err) {
             query_failure(`JumproleEntry.WithHolderInServer`, query_string, query_params, err);
@@ -418,6 +429,17 @@ export class JumproleEntry {
             let result = await client.query<trickjump_entriesBulkTableRow>(query_string, query_params);
 
             client.handle_release();
+            if (result.rows.some(x => x.json_build_object === undefined || x.json_build_object.jumprole === undefined)) {
+                let missing = result.rows.find(x => x.json_build_object === undefined || x.json_build_object.jumprole === undefined);
+                query_failure(
+                    `JumproleEntry.WithHolderInServer`,
+                    query_string,
+                    query_params,
+                    `row without jumprole exists: ${safe_serialize(missing)}`,
+                );
+                client.handle_release();
+                return { type: GetJumproleEntriesWithHolderResultType.QueryFailed };
+            }
             return { type: GetJumproleEntriesWithHolderResultType.Success, values: result.rows.map(JumproleEntry.FromBulkRow) };
         } catch (err) {
             query_failure(`JumproleEntry.WithHolderInServer`, query_string, query_params, err);
