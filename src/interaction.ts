@@ -5,7 +5,7 @@ import { STOCK_BOT_COMMANDS } from "./stock_commands.js";
 import { BOT_USER_ID, GLOBAL_PREFIX, MAINTAINER_TAG, MODULES } from "./main.js";
 import { Client, Interaction, Message } from "discord.js";
 import { LogType, log } from "./utilities/log.js";
-import { is_number, is_string } from "./utilities/typeutils.js";
+import { is_number, is_string, is_text_channel } from "./utilities/typeutils.js";
 import { do_check_and_create_registration } from "./slash_commands.js";
 import { Snowflake } from "./utilities/permissions.js";
 import { handle_interaction } from "./handle_interaction.js";
@@ -46,36 +46,6 @@ export const handle_ParseMessageResults = async (command_results: ParseMessageRe
  */
 export const execute_interation_response = async function (interaction: Interaction, client: Client, pool: Pool): Promise<void> {
     if (interaction.isApplicationCommand() && interaction.isCommand()) {
-        if (registered_stock === false) {
-            for (const command of STOCK_BOT_COMMANDS) {
-                let data = do_check_and_create_registration(command);
-                if (data === undefined) continue;
-                if (!client.application) continue;
-                let { id } = await client.application?.commands.create(data);
-                integration_cache[id] = command.id;
-            }
-        }
-        if (interaction.channel === null || interaction.guild === null) {
-            return;
-        } else {
-            if (cached_module_commands.length === 0) {
-                cached_module_commands = (await MODULES).reduce((prev, curr) => {
-                    return prev.concat(
-                        curr.functions.map(func => {
-                            return { command: func, module: curr };
-                        }),
-                    );
-                }, [] as { command: BotCommand; module: Module }[]);
-            }
-            if (guild_registrations[interaction.guild.id] !== true) {
-                for (const command of cached_module_commands) {
-                    let data = do_check_and_create_registration(command.command);
-                    if (data === undefined) continue;
-                    let { id } = await interaction.guild.commands.create(data);
-                    integration_cache[id] = command.command.id;
-                }
-            }
-        }
         let command_id = integration_cache[interaction.commandId];
 
         let stock_command = STOCK_BOT_COMMANDS.find(el => el.id === command_id);
@@ -118,6 +88,35 @@ export const execute_interation_response = async function (interaction: Interact
  * @param pool Connection pool object, used in database requests
  */
 export const process_message = async function (message: Message, client: Client, pool: Pool): Promise<void> {
+    // TODO: Permissions
+    if (registered_stock === false) {
+        for (const command of STOCK_BOT_COMMANDS) {
+            let data = do_check_and_create_registration(command);
+            if (data === undefined) continue;
+            if (!client.application) continue;
+            let { id } = await client.application?.commands.create(data);
+            integration_cache[id] = command.id;
+        }
+    }
+    if (is_text_channel(message)) {
+        if (cached_module_commands.length === 0) {
+            cached_module_commands = (await MODULES).reduce((prev, curr) => {
+                return prev.concat(
+                    curr.functions.map(func => {
+                        return { command: func, module: curr };
+                    }),
+                );
+            }, [] as { command: BotCommand; module: Module }[]);
+        }
+        if (guild_registrations[message.guild.id] !== true) {
+            for (const command of cached_module_commands) {
+                let data = do_check_and_create_registration(command.command);
+                if (data === undefined) continue;
+                let { id } = await message.guild.commands.create(data);
+                integration_cache[id] = command.command.id;
+            }
+        }
+    }
     // Only use this area for non-command responses
     // such as replying to DMs.
     if (message.author.id === BOT_USER_ID) return;
