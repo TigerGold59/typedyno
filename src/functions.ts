@@ -106,6 +106,7 @@ export class BotInteraction {
                 try {
                     await item.reply({
                         content: GREEN_CHECK,
+                        ephemeral: true,
                     });
                     return true;
                 } catch (err) {
