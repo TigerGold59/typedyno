@@ -120,6 +120,7 @@ export class TJList extends Subcommand<typeof TJList.manual> {
                                 values.proof_present ? "" : "n't"
                             } set.`,
                         );
+                        return { type: BotCommandProcessResultType.Succeeded };
                     }
 
                     let last = tiered[0].jumprole.tier.id;

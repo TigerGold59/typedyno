@@ -114,7 +114,7 @@ export class TJMissing extends Subcommand<typeof TJMissing.manual> {
                 await reply(
                     `${user_intention === interaction.author.id ? "you aren't missing" : `user with ID ${user_intention} isn't missing`} any jumps.`,
                 );
-                return failed;
+                return { type: BotCommandProcessResultType.Succeeded };
             }
             case FromJumproleQueryResultType.QueryFailed: {
                 await reply(`an internal error has occurred (query failure). Contact @${MAINTAINER_TAG} for help.`);
