@@ -13,14 +13,14 @@ import {
 } from "./functions.js";
 import { Module } from "./module_loader.js";
 import { Queryable, UsesClient, use_client } from "./pg_wrapper.js";
-import { map_interaction_option_to_str } from "./slash_commands.js";
+import { fix_short_description, map_interaction_option_to_str } from "./slash_commands.js";
 import { ArgumentValues } from "./utilities/argument_processing/arguments_types.js";
 import { log, LogType } from "./utilities/log.js";
 import { allowed } from "./utilities/permissions.js";
 import { undefined_to_null } from "./utilities/typeutils.js";
 
 export const run_subcommand = async (
-    option_data: readonly CommandInteractionOption<CacheType>[],
+    rest: readonly CommandInteractionOption<CacheType>[],
     full_interaction: BotInteraction,
     command: BotCommand,
     target: Subcommand<SubcommandManual> | undefined,
@@ -34,10 +34,9 @@ export const run_subcommand = async (
         await full_interaction.reply(`No matching subcommands were found. Use '!commands' to view all the subcommands and their syntaxes.`);
         return { did_find_command: true, did_use_module: module !== null, module_name: module !== null ? module.name : null };
     }
-    let rest = option_data.slice(1);
     const arg_values: ArgumentValues<SubcommandManual> = {};
     target.manual.arguments.forEach(arg => {
-        let val = rest.find(x => x.name === arg.short_description);
+        let val = rest.find(x => x.name === fix_short_description(arg.short_description));
         if (val === undefined) arg_values[arg.id] = null;
         else arg_values[arg.id] = map_interaction_option_to_str(val);
     });
