@@ -207,3 +207,24 @@ export const allowed = function (interaction: BotInteraction, permissions?: Perm
             }
     }
 };
+
+export const calc_perms = (
+    interaction: BotInteraction,
+    permissions: { permissions: Permissions | undefined; no_use_no_see: boolean }[],
+): { no_use_no_see: boolean; allowed: boolean } => {
+    for (let index = 0; index < permissions.length; index++) {
+        let permission = permissions[index];
+        if (allowed(interaction, permission.permissions)) {
+            continue;
+        } else {
+            return {
+                allowed: false,
+                no_use_no_see: permissions.slice(index).some(x => x.no_use_no_see) === false,
+            };
+        }
+    }
+    return {
+        allowed: true,
+        no_use_no_see: false,
+    };
+};

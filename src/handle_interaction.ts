@@ -18,7 +18,7 @@ import { Queryable, UsesClient, use_client } from "./pg_wrapper.js";
 import { fix_short_description, map_interaction_option_to_str } from "./slash_commands.js";
 import { ArgumentValues } from "./utilities/argument_processing/arguments_types.js";
 import { log, LogType } from "./utilities/log.js";
-import { allowed } from "./utilities/permissions.js";
+import { allowed, calc_perms } from "./utilities/permissions.js";
 import { undefined_to_null } from "./utilities/typeutils.js";
 
 export const run_subcommand = async (
@@ -44,15 +44,15 @@ export const run_subcommand = async (
         else arg_values[arg.id] = map_interaction_option_to_str(val);
     });
 
-    let no_use_no_see = module?.hide_when_contradicts_permissions || command.no_use_no_see || target.no_use_no_see;
-    console.log(no_use_no_see);
     let used_module = module !== null;
 
-    if (
-        allowed(full_interaction, module?.permissions) &&
-        allowed(full_interaction, command.permissions) &&
-        allowed(full_interaction, target.permissions)
-    ) {
+    let { allowed, no_use_no_see } = calc_perms(full_interaction, [
+        { permissions: module?.permissions, no_use_no_see: module?.hide_when_contradicts_permissions || false },
+        { permissions: command.permissions, no_use_no_see: command.no_use_no_see },
+        { permissions: target.permissions, no_use_no_see: target.no_use_no_see },
+    ]);
+
+    if (allowed) {
         let bot_command_results: BotCommandProcessResults = { type: BotCommandProcessResultType.Invalid };
         let pg_client = await use_client(queryable, "handle_interaction");
         let validated = true;
