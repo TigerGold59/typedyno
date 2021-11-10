@@ -90,6 +90,7 @@ export class BotInteraction {
     readonly #_reply: (message: string) => Promise<Message<boolean> | void>;
     readonly #_give_check: () => Promise<boolean>;
     readonly #_embed: (embed: MessageEmbed) => Promise<boolean>;
+    readonly #_follow_up: (message: string) => Promise<Message<boolean> | boolean>;
 
     constructor(item: TextChannelMessage | CompleteCommandInteraction) {
         if (item instanceof Message) {
@@ -106,6 +107,7 @@ export class BotInteraction {
                     return false;
                 }
             };
+            this.#_follow_up = item.channel.send.bind(item.channel);
         } else {
             this.author = item.user;
             this.#_reply = async (message: string) => {
@@ -134,6 +136,16 @@ export class BotInteraction {
                     return false;
                 }
             };
+            this.#_follow_up = async (message: string) => {
+                try {
+                    await item.followUp({
+                        content: message,
+                    });
+                    return true;
+                } catch (err) {
+                    return false;
+                }
+            };
         }
         this.guild = item.guild;
         this.channel = item.channel;
@@ -145,6 +157,10 @@ export class BotInteraction {
 
     async reply(message: string) {
         await this.#_reply(message);
+    }
+
+    async follow_up(message: string) {
+        return await this.#_follow_up(message);
     }
 
     async give_check() {
