@@ -127,7 +127,7 @@ export class TJInfo extends Subcommand<typeof TJInfo.manual> {
                 embed.setDescription(`${embed.description}Description: \n${jump.description}\n\n`);
                 await interaction.embed(embed);
                 if (has_link) {
-                    await interaction.follow_up(jump.link as string);
+                    await interaction.reply(jump.link as string);
                 }
 
                 return { type: BotCommandProcessResultType.Succeeded };

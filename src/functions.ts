@@ -91,8 +91,10 @@ export class BotInteraction {
     readonly #_give_check: () => Promise<boolean>;
     readonly #_embed: (embed: MessageEmbed) => Promise<boolean>;
     readonly #_follow_up: (message: string) => Promise<Message<boolean> | boolean>;
+    #_replied: boolean;
 
     constructor(item: TextChannelMessage | CompleteCommandInteraction) {
+        this.#_replied = false;
         if (item instanceof Message) {
             this.author = item.author;
             this.#_reply = item.channel.send.bind(item.channel);
@@ -117,6 +119,14 @@ export class BotInteraction {
             };
             this.#_give_check = async () => {
                 try {
+                    if (this.#_replied) {
+                        await item.followUp({ content: GREEN_CHECK, ephemeral: false });
+                    } else {
+                        await item.reply({
+                            content: GREEN_CHECK,
+                            ephemeral: false,
+                        });
+                    }
                     await item.reply({
                         content: GREEN_CHECK,
                         ephemeral: true,
@@ -128,9 +138,14 @@ export class BotInteraction {
             };
             this.#_embed = async (embed: MessageEmbed) => {
                 try {
-                    await item.reply({
-                        embeds: [embed],
-                    });
+                    if (this.#_replied) {
+                        await item.followUp({ embeds: [embed] });
+                    } else {
+                        await item.reply({
+                            embeds: [embed],
+                        });
+                    }
+                    this.#_replied = true;
                     return true;
                 } catch (err) {
                     return false;
@@ -156,11 +171,12 @@ export class BotInteraction {
     }
 
     async reply(message: string) {
-        await this.#_reply(message);
-    }
-
-    async follow_up(message: string) {
-        return await this.#_follow_up(message);
+        if (this.#_replied) {
+            this.#_follow_up(message);
+        } else {
+            this.#_reply(message);
+        }
+        this.#_replied = true;
     }
 
     async give_check() {
