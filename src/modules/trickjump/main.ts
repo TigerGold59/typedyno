@@ -14,7 +14,15 @@ const trickjump_module: Module = {
     permissions: {
         servers: {
             type: InclusionSpecifierType.Whitelist,
-            list: ["542766712785862666", "469869605570084886", "571956345415401472"],
+            // test server, main server, elite server, database server, 2P server, sky dram server
+            list: [
+                "542766712785862666",
+                "469869605570084886",
+                "571956345415401472",
+                "692474105332629514",
+                "702296287617351740",
+                "731690792380530738",
+            ],
         },
     },
     functions: [JumproleCMD, TierCMD, TJCMD, ProofCMD],
