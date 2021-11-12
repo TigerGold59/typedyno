@@ -210,6 +210,10 @@ export abstract class Subcommand<Manual extends SubcommandManual> extends BotCom
     determination_tag_string(prefix: string): string {
         let result = get_determination_tag_as_str(prefix, this.manual);
         if (result.type === GetDeterminationTagAsStringResultType.Failed) {
+            log(
+                `${this.manual.name}: failed to get determination tag - invalid syntax string - error #${result.error.reason} at index ${result.error.index}`,
+                LogType.Error,
+            );
             throw new Error(`${this.manual.name}: failed to get determination tag`);
         } else {
             return result.result;

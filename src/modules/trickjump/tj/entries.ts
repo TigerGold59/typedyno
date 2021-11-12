@@ -76,7 +76,7 @@ export class TJEntries extends Subcommand<typeof TJEntries.manual> {
                 short_description: "sort by",
             },
         ],
-        syntax: "::<prefix>tj entries::{opt $1}[ HOLDER $1]{opt $2}[ HAS LINK $2]{opt $3}[ JUMP NAME $3]{opt $4}[ JUMP KINGDOM $4]{opt $6}[ JUMP TIER $6]{opt $7}[ SORT BY $7]",
+        syntax: "::<prefix>tj entries::{opt $1}[ HOLDER $1]{opt $2}[ HAS LINK $2]{opt $3}[ JUMP NAME $3]{opt $4}[ JUMP KINGDOM $4]{opt $5}[ JUMP TIER $5]{opt $6}[ SORT BY $6]",
         description: "List all Jumprole entries with specified constraints.",
         //supports_slash_commands: true,
     } as const;
