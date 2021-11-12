@@ -1,6 +1,6 @@
 import { CacheType, Client, CommandInteraction, CommandInteractionOption } from "discord.js";
 import { performance } from "perf_hooks";
-import { SubcommandManual } from "./command_manual.js";
+import { SubcommandManual } from "../command_manual.js";
 import {
     BotCommand,
     BotCommandProcessResults,
@@ -12,14 +12,14 @@ import {
     ParentCommand,
     ParseMessageResult,
     Subcommand,
-} from "./functions.js";
-import { Module } from "./module_loader.js";
-import { Queryable, UsesClient, use_client } from "./pg_wrapper.js";
+} from "../functions.js";
+import { Module } from "../module_loader.js";
+import { Queryable, UsesClient, use_client } from "../pg_wrapper.js";
 import { fix_short_description, map_interaction_option_to_str } from "./slash_commands.js";
-import { ArgumentValues } from "./utilities/argument_processing/arguments_types.js";
-import { log, LogType } from "./utilities/log.js";
-import { allowed, calc_perms } from "./utilities/permissions.js";
-import { undefined_to_null } from "./utilities/typeutils.js";
+import { ArgumentValues } from "../utilities/argument_processing/arguments_types.js";
+import { log, LogType } from "../utilities/log.js";
+import { allowed, calc_perms } from "../utilities/permissions.js";
+import { undefined_to_null } from "../utilities/typeutils.js";
 
 export const run_subcommand = async (
     rest: readonly CommandInteractionOption<CacheType>[],

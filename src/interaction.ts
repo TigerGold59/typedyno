@@ -6,9 +6,9 @@ import { BOT_USER_ID, GLOBAL_PREFIX, MAINTAINER_TAG, MODULES } from "./main.js";
 import { Client, Interaction, Message } from "discord.js";
 import { LogType, log } from "./utilities/log.js";
 import { is_number, is_string, is_text_channel } from "./utilities/typeutils.js";
-import { do_check_and_create_registration } from "./slash_commands.js";
+import { do_check_and_create_registration } from "./slash_commands/slash_commands.js";
 import { Snowflake } from "./utilities/permissions.js";
-import { handle_interaction } from "./handle_interaction.js";
+import { handle_interaction } from "./slash_commands/handle_interaction.js";
 import { Module } from "./module_loader.js";
 
 // TODO: store integration IDs in the database

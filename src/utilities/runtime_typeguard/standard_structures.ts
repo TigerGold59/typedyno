@@ -722,7 +722,7 @@ export const Snowflake = string
     })
     .validate(<Input extends string>(to_validate: Input): TransformResult<Input> => {
         if (is_valid_Snowflake(to_validate)) return { succeeded: true, result: to_validate };
-        else return error("input was a string but it wasn't a valid Snowflake", StructureValidationFailedReason.InvalidValue);
+        else return error(`input ("${to_validate}"") was a string but it wasn't a valid Snowflake`, StructureValidationFailedReason.InvalidValue);
     })
     .with_name("Snowflake");
 

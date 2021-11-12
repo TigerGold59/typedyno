@@ -15,9 +15,9 @@ import {
     MultifacetedCommandManual,
     SimpleCommandManual,
     SubcommandManual,
-} from "./command_manual.js";
-import { BotCommand } from "./functions.js";
-import { undefined_to_null } from "./utilities/typeutils.js";
+} from "../command_manual.js";
+import { BotCommand } from "../functions.js";
+import { undefined_to_null } from "../utilities/typeutils.js";
 
 export const fix_short_description = (str: string) => {
     return str.toLowerCase().split(" ").join("-");

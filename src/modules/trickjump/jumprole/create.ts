@@ -4,7 +4,7 @@ import { UsingClient } from "../../../pg_wrapper.js";
 import { BotCommandProcessResults, BotCommandProcessResultType, BotInteraction, Replier, Subcommand } from "../../../functions.js";
 import { MAINTAINER_TAG } from "../../../main.js";
 import { log, LogType } from "../../../utilities/log.js";
-import { Jumprole, KingdomNameToKingdom, CreateJumproleResultType, TwitterLink, KingdomString } from "./internals/jumprole_type.js";
+import { Jumprole, KingdomNameToKingdom, CreateJumproleResultType, KingdomString, VideoLink } from "./internals/jumprole_type.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { GetTierResultType, Tier } from "../tier/internals/tier_type.js";
 export class JumproleCreate extends Subcommand<typeof JumproleCreate.manual> {
@@ -62,8 +62,8 @@ export class JumproleCreate extends Subcommand<typeof JumproleCreate.manual> {
                 name: "link",
                 id: "link",
                 optional: true,
-                further_constraint: TwitterLink,
-                short_description: "Twitter link",
+                further_constraint: VideoLink,
+                short_description: "Twitter or YouTube link",
                 base_type: "STRING",
             },
         ],

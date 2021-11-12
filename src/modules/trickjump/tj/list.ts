@@ -4,7 +4,7 @@ import { UsingClient } from "../../../pg_wrapper.js";
 import { BotCommandProcessResults, BotCommandProcessResultType, BotInteraction, Replier, Subcommand } from "../../../functions.js";
 
 import { log, LogType } from "../../../utilities/log.js";
-import { is_string } from "../../../utilities/typeutils.js";
+import { format_date, is_string } from "../../../utilities/typeutils.js";
 import { MAINTAINER_TAG, USER_ID_FAQ } from "../../../main.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { GetJumproleEntriesWithHolderResultType, JumproleEntry, JumproleEntryUpToDateResultType } from "./internals/entry_type.js";
@@ -145,8 +145,7 @@ export class TJList extends Subcommand<typeof TJList.manual> {
                         tail += `\n${tier.name}\n${"-".repeat(tier.name.length)}\n`;
                         for (const entry of list) {
                             let out_of_date = entry.up_to_date().type === JumproleEntryUpToDateResultType.Outdated;
-                            let date = new Date(entry.added_at * 1000);
-                            tail += `${entry.jumprole.name} - given ${date.toDateString()}${
+                            tail += `${entry.jumprole.name} - given ${format_date(entry.added_at)}${
                                 proof_intention ? ` - ${entry.link === null ? "no proof" : `link: ${entry.link}`}` : ""
                             }${out_of_date ? " (*)" : ""}\n`;
                         }

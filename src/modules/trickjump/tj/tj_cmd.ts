@@ -7,10 +7,11 @@ import { TJAll } from "./all.js";
 import { TJMissing } from "./missing.js";
 import { TJInfo } from "./info.js";
 import { TJSet } from "./set.js";
+import { TJEntries } from "./entries.js";
 
 export class TJ extends ParentCommand {
     constructor() {
-        super(new TJGive(), new TJList(), new TJRemove(), new TJConfirm(), new TJAll(), new TJMissing(), new TJInfo(), new TJSet());
+        super(new TJGive(), new TJList(), new TJRemove(), new TJConfirm(), new TJAll(), new TJMissing(), new TJInfo(), new TJSet(), new TJEntries());
     }
 
     readonly manual = {

@@ -1,4 +1,4 @@
-import { Message, Client, User, Guild, Interaction, CommandInteraction, TextChannel, MessageEmbed } from "discord.js";
+import { Message, Client, User, Guild, Interaction, CommandInteraction, TextChannel, MessageEmbed, MessageOptions, MessagePayload } from "discord.js";
 import { MakesSingleRequest, PoolInstance as Pool, Queryable, UsesClient, use_client, UsingClient } from "./pg_wrapper.js";
 import {
     CommandManual,
@@ -87,100 +87,62 @@ export class BotInteraction {
     readonly author: User;
     readonly guild: Guild;
     readonly channel: TextChannel;
-    readonly #_reply: (message: string) => Promise<Message<boolean> | void>;
-    readonly #_give_check: () => Promise<boolean>;
-    readonly #_embed: (embed: MessageEmbed) => Promise<boolean>;
-    readonly #_follow_up: (message: string) => Promise<Message<boolean> | boolean>;
+    readonly #_is_message: boolean;
+    readonly #_underlying: TextChannelMessage | CompleteCommandInteraction;
     #_replied: boolean;
+
+    get is_message() {
+        return this.#_is_message;
+    }
 
     constructor(item: TextChannelMessage | CompleteCommandInteraction) {
         this.#_replied = false;
         if (item instanceof Message) {
+            this.#_is_message = true;
             this.author = item.author;
-            this.#_reply = item.channel.send.bind(item.channel);
-            this.#_give_check = GiveCheck.bind(globalThis, item);
-            this.#_embed = async (embed: MessageEmbed) => {
-                try {
-                    await item.channel.send({
-                        embeds: [embed],
-                    });
-                    return true;
-                } catch (err) {
-                    return false;
-                }
-            };
-            this.#_follow_up = item.channel.send.bind(item.channel);
+            this.#_underlying = item;
         } else {
+            this.#_is_message = false;
             this.author = item.user;
-            this.#_reply = async (message: string) => {
-                return await item.reply({
-                    content: message,
-                });
-            };
-            this.#_give_check = async () => {
-                try {
-                    if (this.#_replied) {
-                        await item.followUp({ content: GREEN_CHECK, ephemeral: false });
-                    } else {
-                        await item.reply({
-                            content: GREEN_CHECK,
-                            ephemeral: false,
-                        });
-                    }
-                    await item.reply({
-                        content: GREEN_CHECK,
-                        ephemeral: true,
-                    });
-                    return true;
-                } catch (err) {
-                    return false;
-                }
-            };
-            this.#_embed = async (embed: MessageEmbed) => {
-                try {
-                    if (this.#_replied) {
-                        await item.followUp({ embeds: [embed] });
-                    } else {
-                        await item.reply({
-                            embeds: [embed],
-                        });
-                    }
-                    this.#_replied = true;
-                    return true;
-                } catch (err) {
-                    return false;
-                }
-            };
-            this.#_follow_up = async (message: string) => {
-                try {
-                    await item.followUp({
-                        content: message,
-                    });
-                    return true;
-                } catch (err) {
-                    return false;
-                }
-            };
+            this.#_underlying = item;
         }
         this.guild = item.guild;
         this.channel = item.channel;
     }
 
     async embed(embed: MessageEmbed): Promise<boolean> {
-        return await this.#_embed(embed);
+        return await this.reply({ embeds: [embed] });
     }
 
-    async reply(message: string) {
-        if (this.#_replied) {
-            this.#_follow_up(message);
-        } else {
-            this.#_reply(message);
+    async reply(message: string | MessagePayload | MessageOptions) {
+        try {
+            if (this.#_is_message) {
+                await (this.#_underlying as TextChannelMessage).channel.send(message);
+            } else {
+                if (this.#_replied) {
+                    await (this.#_underlying as CompleteCommandInteraction).followUp(message);
+                } else {
+                    await (this.#_underlying as CompleteCommandInteraction).reply(message);
+                }
+            }
+            this.#_replied = true;
+            return true;
+        } catch (err) {
+            return false;
         }
-        this.#_replied = true;
     }
 
     async give_check() {
-        return await this.#_give_check();
+        if (this.#_is_message) {
+            try {
+                await (this.#_underlying as TextChannelMessage).react(GREEN_CHECK);
+                return true;
+            } catch (err) {
+                return false;
+            }
+        } else {
+            return await this.reply(GREEN_CHECK);
+        }
     }
 
     static readonly Create = (item: Message | Interaction): BotInteractionCreationResult => {

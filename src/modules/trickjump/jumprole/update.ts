@@ -14,7 +14,7 @@ import {
     KingdomNameToKingdom,
     KingdomString,
     ModifyJumproleResult,
-    TwitterLink,
+    VideoLink,
 } from "./internals/jumprole_type.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { GetTierResultType, Tier } from "../tier/internals/tier_type.js";
@@ -82,8 +82,8 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
                 id: "link",
                 optional: true,
                 base_type: "STRING",
-                further_constraint: TwitterLink,
-                short_description: "Twitter link",
+                further_constraint: VideoLink,
+                short_description: "Twitter or YouTube link",
             },
         ],
         description: "Updates a jumprole. To unset a specific property (except NEW NAME), provide 'UNSET' as the argument.",

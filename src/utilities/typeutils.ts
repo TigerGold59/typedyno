@@ -1,7 +1,9 @@
-import { DMChannel, Guild, Message, TextChannel } from "discord.js";
+import { Client, DMChannel, Guild, Message, TextChannel, User } from "discord.js";
 import { readFile } from "fs";
+import { UNKNOWN_USER_TAG } from "../main.js";
 import { is_alphabetic, is_whitespace } from "./argument_processing/arguments_types.js";
 import { LogType, log } from "./log.js";
+import { Snowflake } from "./permissions.js";
 
 export const is_string = function (thing: unknown): thing is string {
     if (thing === "") {
@@ -240,3 +242,38 @@ type KeysByNotType<O, T> = {
 export type UndefinedToOptional<S extends Record<string | number | symbol, unknown>> = {
     [Key in KeysByType<S, undefined>]?: Exclude<S[Key], undefined>;
 } & { [Key in KeysByNotType<S, undefined>]: S[Key] };
+
+export class UserTagManager {
+    readonly #_fetch: (id: Snowflake) => Promise<string>;
+    #_map: Map<Snowflake, string> = new Map();
+    constructor(client: Client) {
+        this.#_fetch = async (id: Snowflake) => {
+            let user: User | null;
+            try {
+                user = await client.users.fetch(id);
+            } catch (err) {
+                user = null;
+            }
+            if (user === null) {
+                return UNKNOWN_USER_TAG;
+            } else {
+                return user.tag;
+            }
+        };
+    }
+
+    async get(id: Snowflake): Promise<string> {
+        let map_result = this.#_map.get(id);
+        if (map_result === undefined) {
+            let fetch_result = await this.#_fetch(id);
+            this.#_map.set(id, fetch_result);
+            return fetch_result;
+        } else {
+            return map_result;
+        }
+    }
+}
+
+export const format_date = (seconds: number): string => {
+    return new Date(seconds * 1000).toDateString();
+};

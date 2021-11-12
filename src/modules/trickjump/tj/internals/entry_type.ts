@@ -10,7 +10,7 @@ import { GetJumproleFailureType, GetJumproleResultType, Jumprole, JumproleStruct
 
 const CHANGE_JUMP_HASH_BY_ID = "UPDATE trickjump_entries SET jump_hash=$1, updated_at=$2 WHERE id=$3";
 const CHANGE_LINK_BY_ID = "UPDATE trickjump_entries SET link=$1, updated_at=$2 WHERE id=$3";
-const BULK_ENTRY_QUERY_FIELDS = `json_build_object(
+export const BULK_ENTRY_QUERY_FIELDS = `json_build_object(
     'id', e.id,
     'jump_id', e.jump_id,
     'jump_hash', e.jump_hash,
@@ -42,7 +42,7 @@ const BULK_ENTRY_QUERY_FIELDS = `json_build_object(
         )
     )
 )`;
-const BULK_ENTRY_JOIN = `INNER JOIN trickjump_jumps j ON j.id=e.jump_id INNER JOIN trickjump_tiers t ON t.id=j.tier_id`;
+export const BULK_ENTRY_JOIN = `INNER JOIN trickjump_jumps j ON j.id=e.jump_id INNER JOIN trickjump_tiers t ON t.id=j.tier_id`;
 const GET_ENTRIES_BY_HOLDER_AND_SERVER = `SELECT ${BULK_ENTRY_QUERY_FIELDS} FROM trickjump_entries e ${BULK_ENTRY_JOIN} WHERE e.holder=$1 AND e.server=$2`;
 const CREATE_ENTRY =
     "INSERT INTO trickjump_entries (jump_id, jump_hash, holder, link, server, added_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7)";
@@ -147,15 +147,11 @@ export type GetJumproleEntryFromRowResult = { type: GetJumproleResultType.Succes
 export const enum FromQueryResultType {
     Success = "Success",
     QueryFailed = "QueryFailed",
-    GetJumproleFailed = "GetJumproleFailed",
 }
 
-export type FromQueryFailureType = Exclude<FromQueryResultType, FromQueryResultType.Success | FromQueryResultType.GetJumproleFailed>;
+export type FromQueryFailureType = Exclude<FromQueryResultType, FromQueryResultType.Success>;
 
-export type FromQueryResult =
-    | { type: FromQueryResultType.Success; values: JumproleEntry[] }
-    | { type: FromQueryFailureType }
-    | { type: FromQueryResultType.GetJumproleFailed; error: GetJumproleFailureType; jump_id: number };
+export type FromQueryResult = { type: FromQueryResultType.Success; values: JumproleEntry[] } | { type: FromQueryFailureType };
 
 export const enum DeleteJumproleEntryResult {
     Success,
