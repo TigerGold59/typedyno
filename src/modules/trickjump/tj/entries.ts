@@ -187,7 +187,7 @@ export class TJEntries extends Subcommand<typeof TJEntries.manual> {
                         return { type: BotCommandProcessResultType.DidNotSucceed };
                     }
                 }
-                let tail = "";
+                let tail = [];
                 let tags = new UserTagManager(client);
                 for (const entry of roles) {
                     let segment = [] as string[];
@@ -207,9 +207,10 @@ export class TJEntries extends Subcommand<typeof TJEntries.manual> {
                     segment.push(`Added at: ${format_date(entry.added_at)}`);
                     segment.push(`Updated at: ${format_date(entry.updated_at)}`);
                     segment.push(`Jump changed at: ${format_date(entry.jumprole.updated_at)}`);
+                    tail.push(segment.join("\n"));
                 }
 
-                let link = await create_paste(head + tail);
+                let link = await create_paste(head + tail.join("\n\n"));
                 if (is_string(link.paste?.id)) {
                     await reply(
                         `${roles.length} entr${roles.length === 1 ? "y" : "ies"} match your criteria - view ${
