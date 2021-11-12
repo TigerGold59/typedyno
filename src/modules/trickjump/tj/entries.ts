@@ -18,7 +18,7 @@ export class TJEntries extends Subcommand<typeof TJEntries.manual> {
     }
 
     static readonly manual = {
-        name: "list",
+        name: "entries",
         arguments: [
             {
                 name: "user ID",
