@@ -116,7 +116,7 @@ export const handle_interaction = async (
     queryable: Queryable<UsesClient>,
     prefix: string,
 ): Promise<ParseMessageResult> => {
-    const full_interaction_result = BotInteraction.Create(interaction);
+    const full_interaction_result = await BotInteraction.Create(interaction);
 
     switch (full_interaction_result.type) {
         case BotInteractionCreationResultType.Succeeded: {

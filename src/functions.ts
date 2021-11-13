@@ -122,7 +122,7 @@ export class BotInteraction {
                 if (this.#_replied) {
                     await (this.#_underlying as CompleteCommandInteraction).followUp(message);
                 } else {
-                    await (this.#_underlying as CompleteCommandInteraction).reply(message);
+                    await (this.#_underlying as CompleteCommandInteraction).editReply(message);
                 }
             }
             this.#_replied = true;
@@ -145,7 +145,7 @@ export class BotInteraction {
         }
     }
 
-    static readonly Create = (item: Message | Interaction): BotInteractionCreationResult => {
+    static readonly Create = async (item: Message | Interaction): Promise<BotInteractionCreationResult> => {
         if (item instanceof Message) {
             if (is_text_channel(item)) {
                 return { type: BotInteractionCreationResultType.Succeeded, interaction: new BotInteraction(item) };
@@ -155,6 +155,7 @@ export class BotInteraction {
         } else if (item instanceof Interaction) {
             if (item.isCommand()) {
                 if (item.channel instanceof TextChannel && item.guild instanceof Guild) {
+                    await item.deferReply();
                     return { type: BotInteractionCreationResultType.Succeeded, interaction: new BotInteraction(item as CompleteCommandInteraction) };
                 } else {
                     return { type: BotInteractionCreationResultType.NotInGuildTextChannel };
@@ -181,7 +182,7 @@ export abstract class NoParametersCommand extends BotCommand<SimpleCommandManual
     ): PromiseLike<BotCommandProcessResults>;
 
     async process(message: Message, client: Client, queryable: Queryable<UsesClient>, prefix: string): Promise<BotCommandProcessResults> {
-        let full_interaction_result = BotInteraction.Create(message);
+        let full_interaction_result = await BotInteraction.Create(message);
 
         switch (full_interaction_result.type) {
             case BotInteractionCreationResultType.NotMessageOrInteraction:
@@ -286,7 +287,7 @@ export abstract class Subcommand<Manual extends SubcommandManual> extends BotCom
 
         const args = get_args(prefix, manual, message.content);
 
-        let full_interaction_result = BotInteraction.Create(message);
+        let full_interaction_result = await BotInteraction.Create(message);
 
         switch (full_interaction_result.type) {
             case BotInteractionCreationResultType.NotMessageOrInteraction:
@@ -385,7 +386,7 @@ export abstract class ParentCommand extends BotCommand<MultifacetedCommandManual
             return { type: BotCommandProcessResultType.DidNotSucceed };
         }
 
-        let full_interaction_result = BotInteraction.Create(message);
+        let full_interaction_result = await BotInteraction.Create(message);
 
         switch (full_interaction_result.type) {
             case BotInteractionCreationResultType.NotMessageOrInteraction:
@@ -525,7 +526,7 @@ export const process_message_for_commands = async function (
 
     let valid_command: BotCommand | null = null;
 
-    const full_interaction_result = BotInteraction.Create(message);
+    const full_interaction_result = await BotInteraction.Create(message);
 
     let interaction: BotInteraction;
     if (full_interaction_result.type === BotInteractionCreationResultType.Succeeded) {

@@ -69,7 +69,7 @@ export class TJEntries extends Subcommand<typeof TJEntries.manual> {
         ],
         syntax: "::<prefix>tj entries::{opt $1}[ HOLDER $1]{opt $2}[ HAS LINK $2]{opt $3}[ JUMP NAME $3]{opt $4}[ JUMP KINGDOM $4]{opt $5}[ JUMP TIER $5]{opt $6}[ SORT BY $6]",
         description: "List all Jumprole entries with specified constraints.",
-        //supports_slash_commands: true,
+        compact_syntaxes: true,
     } as const;
 
     readonly manual = TJEntries.manual;
