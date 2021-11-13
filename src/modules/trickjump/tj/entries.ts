@@ -63,15 +63,7 @@ export class TJEntries extends Subcommand<typeof TJEntries.manual> {
                 id: "sort_by",
                 optional: true,
                 base_type: "STRING",
-                further_constraint: RT.Enum("value", [
-                    "Jump ID",
-                    "Entry ID",
-                    "Jump Added Date",
-                    "Jump Updated Date",
-                    "Entry Added Date",
-                    "Entry Updated Date",
-                    "Tier",
-                ]),
+                further_constraint: RT.Enum("value", ["Jump ID", "Entry ID", "Jump Updated Date", "Entry Added Date", "Entry Updated Date", "Tier"]),
                 short_description: "sort by",
             },
         ],
@@ -141,7 +133,6 @@ export class TJEntries extends Subcommand<typeof TJEntries.manual> {
         order_intention_map.set("Jump ID", "j.id");
         order_intention_map.set("Entry ID", "e.id");
         order_intention_map.set("Jump ID", "j.id");
-        order_intention_map.set("Jump Added Date", "j.added_at");
         order_intention_map.set("Jump Updated Date", "j.updated_at");
         order_intention_map.set("Entry Added Date", "e.added_at");
         order_intention_map.set("Entry Updated Date", "e.updated_at");
