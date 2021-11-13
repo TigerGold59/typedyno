@@ -41,7 +41,7 @@ export class TJEntries extends Subcommand<typeof TJEntries.manual> {
                 id: "jump_name",
                 optional: true,
                 short_description: "jump name",
-                base_type: "BOOLEAN",
+                base_type: "STRING",
             },
             {
                 name: "jump kingdom",
