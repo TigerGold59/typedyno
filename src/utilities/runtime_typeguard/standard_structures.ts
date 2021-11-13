@@ -809,7 +809,10 @@ export const Base64Hash = string.validate(<Input extends string>(input: Input): 
 });
 
 export const Enum = <Items extends readonly unknown[]>(name: string, items: Items): Structure<Items[number]> => {
-    const item_names = items.map(item => safe_serialize(item));
+    let item_names: string[];
+    if (array(string).check(items).succeeded) {
+        item_names = items as unknown as string[];
+    } else item_names = items.map(item => safe_serialize(item));
     return new Structure(
         name,
         (input: unknown): TransformResult<Items[number]> => {

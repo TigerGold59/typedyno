@@ -40,7 +40,6 @@ export class TJEntries extends Subcommand<typeof TJEntries.manual> {
                 name: "jump name",
                 id: "jump_name",
                 optional: true,
-                further_constraint: RT.BooleanS,
                 short_description: "jump name",
                 base_type: "BOOLEAN",
             },
