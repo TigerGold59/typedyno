@@ -175,8 +175,8 @@ export class TJEntries extends Subcommand<typeof TJEntries.manual> {
                 const criteria = criteria_statements.join("\n");
                 const ordering_by = `Sorted by: ${values.sort_by === null ? "Entry Added Date" : values.sort_by}`;
 
-                const head = `Entries in Server ${interaction.guild.name} Matching Criteria\n${"=".repeat(
-                    36 + interaction.guild.name.length,
+                const head = `Entries in ${interaction.guild.name} Matching Criteria\n${"=".repeat(
+                    29 + interaction.guild.name.length,
                 )}\n\n${criteria}\n${ordering_by}\n\n`;
 
                 for (const entry of roles) {
@@ -191,16 +191,16 @@ export class TJEntries extends Subcommand<typeof TJEntries.manual> {
                 let tags = new UserTagManager(client);
                 for (const entry of roles) {
                     let segment = [] as string[];
-                    if (values.jump_tier !== null) {
+                    if (values.jump_tier === null) {
                         segment.push(`Tier: ${entry.jumprole.tier.name}`);
                     }
-                    if (values.jump_name !== null) {
+                    if (values.jump_name === null) {
                         segment.push(`Jump: ${entry.jumprole.name}`);
                     }
-                    if (values.jump_kingdom !== null && values.jump_name !== null && entry.jumprole.kingdom !== null) {
+                    if (values.jump_kingdom === null && values.jump_name === null && entry.jumprole.kingdom !== null) {
                         segment.push(`Kingdom: ${KINGDOM_NAMES[entry.jumprole.kingdom]}`);
                     }
-                    if (values.source !== null) {
+                    if (values.source === null) {
                         segment.push(`User: ${tags.get(entry.holder)}`);
                     }
                     segment.push(`Proof: ${entry.link === null ? "none" : entry.link}`);
