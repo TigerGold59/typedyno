@@ -92,6 +92,10 @@ export class TJEntries extends Subcommand<typeof TJEntries.manual> {
             Exclude<keyof typeof values, "sort_by">,
             string,
         ][];
+        if (constraints.length < 1) {
+            await reply("you must set at least one constraint.");
+            return { type: BotCommandProcessResultType.DidNotSucceed };
+        }
         for (const [constraint, value] of constraints) {
             switch (constraint) {
                 case "source": {
