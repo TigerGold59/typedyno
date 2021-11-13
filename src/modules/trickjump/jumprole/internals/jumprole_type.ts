@@ -68,7 +68,7 @@ export const TwitterLink = new Structure<string>(
     },
 );
 
-export const YOUTUBE_REGEX = /https:\/\/www\.youtube\.com\/watch?v=(?<tag>[a-zA-Z0-9_]{1,16})\/?/i;
+export const YOUTUBE_REGEX = /https:\/\/www\.youtube\.com\/watch\?v=(?<tag>[a-zA-Z0-9_=]{1,16})\/?/i;
 
 export const YouTubeLink = new Structure<string>(
     "YouTube link",
@@ -96,13 +96,13 @@ export const YouTubeLink = new Structure<string>(
         }
     },
     <Input extends string>(result: Input): TransformResult<Input> => {
-        let matches = TWITTER_REGEX.exec(result);
+        let matches = YOUTUBE_REGEX.exec(result);
         if (matches === null) {
             return {
                 succeeded: false,
                 error: StructureValidationFailedReason.InvalidValue,
                 information: [
-                    `link to Twitter video was a string but it didn't fit the following format: \`https://(mobile.)twitter.com/<username>/status/<tweet snowflake>\``,
+                    `link to YouTube video was a string but it didn't fit the following format: \`https://www.youtube.com/watch?v=<video ID>\``,
                 ],
             };
         } else {

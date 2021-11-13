@@ -75,7 +75,7 @@ export class JumproleRemove extends Subcommand<typeof JumproleRemove.manual> {
                 return failed;
             }
             case GetJumproleResultType.NoneMatched: {
-                await reply(`a jump with that name doesn't exist in this server. You can list all roles with \`${prefix}tj all\`.`);
+                await reply(`a jump with that name doesn't exist in this server. You can list all roles with '${prefix}tj all'.`);
 
                 return failed;
             }

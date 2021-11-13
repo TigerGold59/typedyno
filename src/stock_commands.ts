@@ -25,11 +25,11 @@ import {
 import { Paste, url } from "./integrations/paste_ee.js";
 
 import { SetPrefixNonStringResult, get_prefix, set_prefix } from "./integrations/server_prefixes.js";
-import { GLOBAL_PREFIX, MAINTAINER_TAG } from "./main.js";
+import { GLOBAL_PREFIX, MAINTAINER_TAG, NO_USER_EXISTS_MESSAGE } from "./main.js";
 import { ValidatedArguments } from "./utilities/argument_processing/arguments_types.js";
 import { DebugLogType, LogType, log } from "./utilities/log.js";
 import * as RT from "./utilities/runtime_typeguard/standard_structures.js";
-import { is_string, safe_serialize } from "./utilities/typeutils.js";
+import { get_user_tag, is_string, safe_serialize } from "./utilities/typeutils.js";
 
 export class IDExplain extends BotCommand<SimpleCommandManual> {
     constructor() {
@@ -508,7 +508,7 @@ export class DesignateGet extends Subcommand<typeof DesignateGet.manual> {
     async activate(
         args: ValidatedArguments<typeof DesignateGet.manual>,
         interaction: BotInteraction,
-        _client: Client,
+        client: Client,
         queryable: Queryable<MakesSingleRequest>,
         prefix: string,
     ): Promise<BotCommandProcessResults> {
@@ -516,7 +516,12 @@ export class DesignateGet extends Subcommand<typeof DesignateGet.manual> {
             await interaction.reply(response);
         };
         const target_id = args.user_snowflake === null ? interaction.author.id : args.user_snowflake;
-        const start_string = args.user_snowflake === null ? `You're` : `The user with ID ${args.user_snowflake} is`;
+        const target_tag = await get_user_tag(target_id, client);
+        if (target_tag === false) {
+            await reply(NO_USER_EXISTS_MESSAGE);
+            return { type: BotCommandProcessResultType.DidNotSucceed };
+        }
+        const start_string = args.user_snowflake === null ? `You're` : `${target_tag} is`;
         const target_handle = create_designate_handle(target_id, interaction);
 
         const status = await designate_user_status(target_handle, queryable);

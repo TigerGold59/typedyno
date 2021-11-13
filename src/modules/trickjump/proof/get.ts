@@ -4,12 +4,13 @@ import { UsingClient } from "../../../pg_wrapper.js";
 import { BotCommandProcessResults, BotCommandProcessResultType, BotInteraction, Replier, Subcommand } from "../../../functions.js";
 
 import { log, LogType } from "../../../utilities/log.js";
-import { MAINTAINER_TAG } from "../../../main.js";
+import { MAINTAINER_TAG, NO_USER_EXISTS_MESSAGE } from "../../../main.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { GetJumproleResultType } from "../jumprole/internals/jumprole_type.js";
 import { Jumprole } from "../jumprole/internals/jumprole_type.js";
 import { GetJumproleEntryByJumproleAndHolderResultType, JumproleEntry } from "../tj/internals/entry_type.js";
 import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js";
+import { get_user_tag } from "../../../utilities/typeutils.js";
 export class ProofGet extends Subcommand<typeof ProofGet.manual> {
     constructor() {
         super();
@@ -46,7 +47,7 @@ export class ProofGet extends Subcommand<typeof ProofGet.manual> {
     async activate(
         values: ValidatedArguments<typeof ProofGet.manual>,
         interaction: BotInteraction,
-        _client: Client,
+        client: Client,
         pg_client: UsingClient,
         prefix: string,
         reply: Replier,
@@ -84,7 +85,7 @@ export class ProofGet extends Subcommand<typeof ProofGet.manual> {
                 return failed;
             }
             case GetJumproleResultType.NoneMatched: {
-                await reply(`a jump with that name doesn't exist in this server. You can list all roles with \`${prefix}tj all\`.`);
+                await reply(`a jump with that name doesn't exist in this server. You can list all roles with '${prefix}tj all'.`);
 
                 return failed;
             }
@@ -104,14 +105,17 @@ export class ProofGet extends Subcommand<typeof ProofGet.manual> {
             case GetJumproleResultType.Success: {
                 let jumprole = jumprole_result.jumprole;
                 let user_intention = values.source === null ? interaction.author.id : values.source;
+                let user_tag = await get_user_tag(user_intention, client);
+                if (user_tag === false) {
+                    await reply(NO_USER_EXISTS_MESSAGE);
+                    return { type: BotCommandProcessResultType.DidNotSucceed };
+                }
                 let result = await JumproleEntry.Get(user_intention, jumprole_result.jumprole, pg_client);
 
                 switch (result.type) {
                     case GetJumproleEntryByJumproleAndHolderResultType.NoneMatched: {
                         await reply(
-                            `${
-                                user_intention === interaction.author.id ? "you don't" : `the user with ID ${user_intention} doesn't`
-                            } have that role on this server.`,
+                            `${user_intention === interaction.author.id ? "you don't" : `User ${user_tag} doesn't`} have that role on this server.`,
                         );
                         return failed;
                     }
@@ -144,7 +148,7 @@ export class ProofGet extends Subcommand<typeof ProofGet.manual> {
                         if (link === null) {
                             await reply(
                                 `${
-                                    user_intention === interaction.author.id ? "you don't" : `the user with ID ${user_intention} doesn't`
+                                    user_intention === interaction.author.id ? "you don't" : `user ${user_tag} doesn't`
                                 } have any proof posted for that jump.`,
                             );
                         } else await interaction.reply(link);

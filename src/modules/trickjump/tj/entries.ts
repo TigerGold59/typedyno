@@ -1,11 +1,11 @@
-import { Client, User } from "discord.js";
+import { Client } from "discord.js";
 import { UsingClient } from "../../../pg_wrapper.js";
 
 import { BotCommandProcessResults, BotCommandProcessResultType, BotInteraction, Replier, Subcommand } from "../../../functions.js";
 
 import { log, LogType } from "../../../utilities/log.js";
-import { format_date, is_string, to_num_and_lower, UserTagManager } from "../../../utilities/typeutils.js";
-import { MAINTAINER_TAG } from "../../../main.js";
+import { format_date, get_user_tag, is_string, to_num_and_lower, UserTagManager } from "../../../utilities/typeutils.js";
+import { MAINTAINER_TAG, NO_USER_EXISTS_MESSAGE } from "../../../main.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { BULK_ENTRY_JOIN, BULK_ENTRY_QUERY_FIELDS, FromQueryResultType, JumproleEntry } from "./internals/entry_type.js";
 import { create_paste, Paste, url } from "../../../integrations/paste_ee.js";
@@ -104,17 +104,12 @@ export class TJEntries extends Subcommand<typeof TJEntries.manual> {
         for (const [constraint, value] of constraints) {
             switch (constraint) {
                 case "source": {
-                    let user: User | null;
-                    try {
-                        user = await client.users.fetch(value);
-                    } catch (err) {
-                        user = null;
-                    }
-                    if (user === null) {
-                        await reply(`no user exists with the ID provided for the entry holder.`);
+                    let user_tag = await get_user_tag(value, client);
+                    if (user_tag === false) {
+                        await reply(NO_USER_EXISTS_MESSAGE);
                         return { type: BotCommandProcessResultType.DidNotSucceed };
                     }
-                    criteria_statements.push(`Holder: ${user.tag}`);
+                    criteria_statements.push(`Holder: ${user_tag}`);
                     query_assertions.push(["e.holder", value]);
                     break;
                 }
@@ -201,7 +196,7 @@ export class TJEntries extends Subcommand<typeof TJEntries.manual> {
                         segment.push(`Kingdom: ${KINGDOM_NAMES[entry.jumprole.kingdom]}`);
                     }
                     if (values.source === null) {
-                        segment.push(`User: ${tags.get(entry.holder)}`);
+                        segment.push(`User: ${await tags.get(entry.holder)}`);
                     }
                     segment.push(`Proof: ${entry.link === null ? "none" : entry.link}`);
                     segment.push(`Added at: ${format_date(entry.added_at)}`);

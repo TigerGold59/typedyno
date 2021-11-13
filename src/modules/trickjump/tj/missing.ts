@@ -4,12 +4,11 @@ import { UsingClient } from "../../../pg_wrapper.js";
 import { BotCommandProcessResults, BotCommandProcessResultType, BotInteraction, Replier, Subcommand } from "../../../functions.js";
 
 import { log, LogType } from "../../../utilities/log.js";
-import { is_string } from "../../../utilities/typeutils.js";
-import { MAINTAINER_TAG, USER_ID_FAQ } from "../../../main.js";
+import { get_user_tag, is_string } from "../../../utilities/typeutils.js";
+import { MAINTAINER_TAG, NO_USER_EXISTS_MESSAGE } from "../../../main.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { create_paste, Paste, url } from "../../../integrations/paste_ee.js";
 import { BULK_JUMPROLE_JOIN, BULK_JUMPROLE_QUERY_FIELDS, FromJumproleQueryResultType, Jumprole } from "../jumprole/internals/jumprole_type.js";
-import { is_valid_Snowflake } from "../../../utilities/permissions.js";
 import * as RT from "../../../utilities/runtime_typeguard/standard_structures.js";
 export class TJMissing extends Subcommand<typeof TJMissing.manual> {
     constructor() {
@@ -40,7 +39,7 @@ export class TJMissing extends Subcommand<typeof TJMissing.manual> {
     async activate(
         values: ValidatedArguments<typeof TJMissing.manual>,
         interaction: BotInteraction,
-        _client: Client,
+        client: Client,
         pg_client: UsingClient,
         _prefix: string,
         reply: Replier,
@@ -48,10 +47,10 @@ export class TJMissing extends Subcommand<typeof TJMissing.manual> {
         const failed = { type: BotCommandProcessResultType.DidNotSucceed };
 
         let user_intention = values.source === null ? interaction.author.id : values.source;
-
-        if (is_valid_Snowflake(user_intention) === false) {
-            await reply(`invalid user ID. ${USER_ID_FAQ}`);
-            return failed;
+        let user_tag = await get_user_tag(user_intention, client);
+        if (user_tag === false) {
+            await reply(NO_USER_EXISTS_MESSAGE);
+            return { type: BotCommandProcessResultType.DidNotSucceed };
         }
 
         let entry_results = await Jumprole.FromQuery(
@@ -64,9 +63,7 @@ export class TJMissing extends Subcommand<typeof TJMissing.manual> {
             case FromJumproleQueryResultType.Success: {
                 let roles = entry_results.values;
 
-                const head = `Missing Trickjumps for User with ID ${user_intention}\n${"=".repeat(36 + user_intention.length)}\n\nMissing jumps: ${
-                    roles.length
-                }\n\n`;
+                const head = `Missing Trickjumps for User ${user_tag}\n${"=".repeat(28 + user_tag.length)}\n\nMissing jumps: ${roles.length}\n\n`;
 
                 let tiered = roles.sort((a, b) => b.tier.ordinal - a.tier.ordinal);
 
@@ -100,9 +97,9 @@ export class TJMissing extends Subcommand<typeof TJMissing.manual> {
                 let link = await create_paste(head + tiers + tail);
                 if (is_string(link.paste?.id)) {
                     await reply(
-                        `${user_intention === interaction.author.id ? "you are missing" : `user with ID ${user_intention} is missing`} ${
-                            roles.length
-                        } jump${roles.length === 1 ? "" : "s"} - view ${roles.length === 1 ? "it" : "them"} at ${url(link.paste as Paste)}`,
+                        `${user_intention === interaction.author.id ? "you are missing" : `user ${user_tag} is missing`} ${roles.length} jump${
+                            roles.length === 1 ? "" : "s"
+                        } - view ${roles.length === 1 ? "it" : "them"} at ${url(link.paste as Paste)}`,
                     );
                 } else {
                     await reply(`error creating paste. Contact @${MAINTAINER_TAG} for help.`);
@@ -111,9 +108,7 @@ export class TJMissing extends Subcommand<typeof TJMissing.manual> {
                 return { type: BotCommandProcessResultType.Succeeded };
             }
             case FromJumproleQueryResultType.NoJumproles: {
-                await reply(
-                    `${user_intention === interaction.author.id ? "you aren't missing" : `user with ID ${user_intention} isn't missing`} any jumps.`,
-                );
+                await reply(`${user_intention === interaction.author.id ? "you aren't missing" : `user ${user_tag} isn't missing`} any jumps.`);
                 return { type: BotCommandProcessResultType.Succeeded };
             }
             case FromJumproleQueryResultType.QueryFailed: {

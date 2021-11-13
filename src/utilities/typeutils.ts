@@ -243,22 +243,27 @@ export type UndefinedToOptional<S extends Record<string | number | symbol, unkno
     [Key in KeysByType<S, undefined>]?: Exclude<S[Key], undefined>;
 } & { [Key in KeysByNotType<S, undefined>]: S[Key] };
 
+export const get_user_tag = async (id: Snowflake, client: Client): Promise<string | false> => {
+    let user: User | null;
+    try {
+        user = await client.users.fetch(id);
+    } catch (err) {
+        user = null;
+    }
+    if (user === null) {
+        return false;
+    } else {
+        return user.tag;
+    }
+};
 export class UserTagManager {
     readonly #_fetch: (id: Snowflake) => Promise<string>;
     #_map: Map<Snowflake, string> = new Map();
     constructor(client: Client) {
         this.#_fetch = async (id: Snowflake) => {
-            let user: User | null;
-            try {
-                user = await client.users.fetch(id);
-            } catch (err) {
-                user = null;
-            }
-            if (user === null) {
-                return UNKNOWN_USER_TAG;
-            } else {
-                return user.tag;
-            }
+            let res = await get_user_tag(id, client);
+            if (res === false) return UNKNOWN_USER_TAG;
+            return res;
         };
     }
 

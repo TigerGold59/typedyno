@@ -254,7 +254,17 @@ export abstract class Subcommand<Manual extends SubcommandManual> extends BotCom
         const spec = argument_structure_from_manual(manual);
         const values = spec.check(args);
 
-        if (values.succeeded === false) return { type: BotCommandProcessResultType.Invalid };
+        if (values.succeeded === false) {
+            await interaction.reply(
+                `${this.determination_tag_string(
+                    prefix,
+                )}: your message did not have the proper arguments. Try using '${prefix}commands' to see the syntax for each subcommand.\n${values.information
+                    .map(indent)
+                    .map(x => `${x}.`)
+                    .join("\n")}`,
+            );
+            return { type: BotCommandProcessResultType.DidNotSucceed };
+        }
 
         let result = await this.activate(
             // @ts-expect-error I am 99% sure this is just a bug

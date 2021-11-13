@@ -5,7 +5,7 @@ import { BotCommandProcessResults, BotCommandProcessResultType, BotInteraction, 
 
 import { log, LogType } from "../../../utilities/log.js";
 import { format_date, is_string } from "../../../utilities/typeutils.js";
-import { MAINTAINER_TAG, USER_ID_FAQ } from "../../../main.js";
+import { MAINTAINER_TAG, NO_USER_EXISTS_MESSAGE, USER_ID_FAQ } from "../../../main.js";
 import { ValidatedArguments } from "../../../utilities/argument_processing/arguments_types.js";
 import { GetJumproleEntriesWithHolderResultType, JumproleEntry, JumproleEntryUpToDateResultType } from "./internals/entry_type.js";
 import { create_paste, Paste, url } from "../../../integrations/paste_ee.js";
@@ -86,7 +86,7 @@ export class TJList extends Subcommand<typeof TJList.manual> {
                     user = null;
                 }
                 if (user === null) {
-                    await reply(`no user exists with that ID.`);
+                    await reply(NO_USER_EXISTS_MESSAGE);
                     return { type: BotCommandProcessResultType.DidNotSucceed };
                 } else {
                     if (roles.length === 0) {
@@ -154,11 +154,11 @@ export class TJList extends Subcommand<typeof TJList.manual> {
                     let link = await create_paste(head + tail);
                     if (is_string(link.paste?.id)) {
                         await reply(
-                            `${user_intention === interaction.author.id ? "you have" : `user with ID ${user_intention} has`} ${
-                                tiered.length
-                            } total jump${tiered.length === 1 ? "" : "s"}${
-                                values.proof_present === null ? " " : values.proof_present ? " with proof " : " without proof "
-                            }- view ${tiered.length === 1 ? "it" : "them"} at ${url(link.paste as Paste)}`,
+                            `${user_intention === interaction.author.id ? "you have" : `user ${user.tag} has`} ${tiered.length} total jump${
+                                tiered.length === 1 ? "" : "s"
+                            }${values.proof_present === null ? " " : values.proof_present ? " with proof " : " without proof "}- view ${
+                                tiered.length === 1 ? "it" : "them"
+                            } at ${url(link.paste as Paste)}`,
                         );
                     } else {
                         await reply(`error creating paste. Contact @${MAINTAINER_TAG} for help.`);

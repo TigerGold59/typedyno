@@ -101,8 +101,7 @@ export class JumproleCreate extends Subcommand<typeof JumproleCreate.manual> {
                 return failed;
             }
             case GetTierResultType.NoMatchingEntries: {
-                await reply(`no tier with name "${args.tier} exists in this server."`);
-
+                await reply(`no tier with name "${args.tier}" exists in this server.`);
                 return failed;
             }
             case GetTierResultType.QueryFailed: {

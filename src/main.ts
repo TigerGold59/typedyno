@@ -11,6 +11,7 @@ export const BOT_USER_ID = "864326626111913995";
 export const STOCK_TABLES = ["prefixes", "users"];
 export const MAINTAINER_TAG = "TigerGold59#8729";
 export const UNKNOWN_USER_TAG = "Unknown#0000";
+export const NO_USER_EXISTS_MESSAGE = `no user exists with that ID.`;
 export const USER_ID_FAQ = `A valid user ID is is composed of a number of digits, like this: ${BOT_USER_ID}. You can obtain someone's user ID by turning on Developer Tools in your Discord settings and right clicking, then clicking 'Copy ID' at the bottom.`;
 export type EventListenerModule = (client: Discord.Client, connection_pool: PoolInstance) => (...args: unknown[]) => void;
 
