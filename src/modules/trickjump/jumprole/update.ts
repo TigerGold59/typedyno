@@ -112,7 +112,7 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
             else return undefined;
         };
 
-        const name_change_intention = values.new_name === null ? values.name : values.new_name;
+        const name_change_intention = values.new_name === null ? undefined : values.new_name;
 
         let tier_intention = undefined;
 
