@@ -141,7 +141,7 @@ export class TJEntries extends Subcommand<typeof TJEntries.manual> {
 
         const order_intention = order_intention_map.get(values.sort_by) as string;
 
-        const query_string = `SELECT ${BULK_ENTRY_QUERY_FIELDS} FROM trickjump_entries e ${BULK_ENTRY_JOIN} WHERE ${query_assertions
+        const query_string = `SELECT ${BULK_ENTRY_QUERY_FIELDS} FROM trickjump_entries e ${BULK_ENTRY_JOIN} AND ${query_assertions
             .map(stringify_assertion)
             .join(" AND ")}${values.link !== null ? ` AND ${link_assertion}` : ""} ORDER BY ${order_intention}`;
         const query_params = query_assertions.map(x => x[1]);
