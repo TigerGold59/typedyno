@@ -36,6 +36,7 @@ export const is_number = function (thing: unknown): thing is number {
 
 export const to_num_and_lower = (str: string): string => {
     return str
+        .trim()
         .replace(/-|_/, " ")
         .split("")
         .filter(val => is_alphabetic(val) || /^0-9$/.test(val) || is_whitespace(val))

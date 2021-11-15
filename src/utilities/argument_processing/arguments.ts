@@ -454,7 +454,7 @@ export const syntax_string_to_argument_regex = function (
                     break;
                 }
                 case SyntaxStringSegmentType.ArgumentIdentifier: {
-                    res += `(?<arg_${(part.argument_number as number).toString()}>.+?)`;
+                    res += `(?<arg_${(part.argument_number as number).toString()}>(?:.|\n)+?)`;
                     break;
                 }
             }
