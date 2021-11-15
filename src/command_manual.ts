@@ -13,7 +13,7 @@ import {
     TransformResult,
 } from "./utilities/runtime_typeguard/runtime_typeguard.js";
 import * as Structs from "./utilities/runtime_typeguard/standard_structures.js";
-import { escape_reg_exp, is_string } from "./utilities/typeutils.js";
+import { escape_reg_exp, is_string, to_num_and_lower } from "./utilities/typeutils.js";
 
 // https://discord.com/developers/docs/interactions/application-commands#application-command-object-application-command-option-type
 
@@ -21,14 +21,13 @@ import { escape_reg_exp, is_string } from "./utilities/typeutils.js";
  * An interface which describes an argument a command or subcommand takes.
  */
 
-export const CommandArgumentTypeStructure = Structs.Enum("CommandArgumentType", [
-    "STRING",
-    "BOOLEAN",
-    "INTEGER",
-    "NUMBER",
-    "CHANNEL",
-    "USER",
-] as const);
+export const CommandArgumentTypeStructure = Structs.Enum(
+    "CommandArgumentType",
+    ["STRING", "BOOLEAN", "INTEGER", "NUMBER", "CHANNEL", "USER"] as const,
+    to_num_and_lower as (
+        x: ["STRING", "BOOLEAN", "INTEGER", "NUMBER", "CHANNEL", "USER"][number],
+    ) => ["STRING", "BOOLEAN", "INTEGER", "NUMBER", "CHANNEL", "USER"][number],
+);
 
 const CommandArgumentStructure = Structs.object({
     name: Structs.string,

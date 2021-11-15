@@ -822,7 +822,7 @@ export const Enum = <Items extends readonly unknown[]>(
         name,
         (input: unknown): TransformResult<Items[number]> => {
             let index = fixed_items.indexOf(value_transformer(input));
-            if (index > 0) {
+            if (index > -1) {
                 return { succeeded: true, result: items[index] };
             } else {
                 return {

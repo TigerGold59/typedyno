@@ -63,7 +63,11 @@ export class TJEntries extends Subcommand<typeof TJEntries.manual> {
                 id: "sort_by",
                 optional: true,
                 base_type: "STRING",
-                further_constraint: RT.Enum("value", ["Jump ID", "Entry ID", "Jump Updated Date", "Entry Added Date", "Entry Updated Date", "Tier"]),
+                further_constraint: RT.Enum(
+                    "value",
+                    ["Jump ID", "Entry ID", "Jump Updated Date", "Entry Added Date", "Entry Updated Date", "Tier"],
+                    to_num_and_lower,
+                ),
                 short_description: "sort by",
             },
         ],
