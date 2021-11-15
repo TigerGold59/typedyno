@@ -87,7 +87,7 @@ export class JumproleUpdate extends Subcommand<typeof JumproleUpdate.manual> {
             },
         ],
         description: "Updates a jumprole. To unset a specific property (except NEW NAME), provide 'UNSET' as the argument.",
-        syntax: "::<prefix>jumprole update:: NAME $1{opt $2}[ TIER $2]{opt $3}[ NEW NAME $3]{opt $4}[ KINGDOM $4]{opt $5}[ LOCATION $5]{opt $6}[ JUMP TYPE $6]{opt $7}[ LINK $7]{opt $8}[ INFO $8]",
+        syntax: "::<prefix>jumprole update:: NAME $1{opt $2}[ INFO $2]{opt $3}[ TIER $3]{opt $4}[ NEW NAME $4]{opt $5}[ KINGDOM $5]{opt $6}[ LOCATION $6]{opt $7}[ JUMP TYPE $7]{opt $8}[ LINK $8]",
         compact_syntaxes: true,
     } as const;
 
