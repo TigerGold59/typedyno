@@ -522,8 +522,10 @@ export class Jumprole {
         if (is_string(name) === false) return { type: GetJumproleResultType.InvalidName };
         else if (is_valid_Snowflake(server) === false) return { type: GetJumproleResultType.InvalidServerSnowflake };
         const client = await use_client(queryable, "Jumprole.Get");
+        const query_string = GET_JUMPROLE_BY_NAME_AND_SERVER;
+        const query_params = [to_num_and_lower(name), server];
         try {
-            const result = (await client.query(GET_JUMPROLE_BY_NAME_AND_SERVER, [to_num_and_lower(name), server])) as trickjump_jumpsQueryResults;
+            const result = (await client.query(query_string, query_params)) as trickjump_jumpsQueryResults;
             const row_result = result.rowCount;
             if (row_result > 1) {
                 // Somehow multiple jumps with the same name and server, even though they are guaranteed by PostgreSQL to be unique as a pair
@@ -566,12 +568,8 @@ export class Jumprole {
                 return { type: GetJumproleResultType.NoneMatched };
             }
         } catch (error) {
+            query_failure("Jumprole.get", query_string, query_params, error);
             client.handle_release();
-            log(
-                `Jumprole.get: unexpected error when getting jumprole using name ${to_num_and_lower(name)} and server ${server}! Returning an error.`,
-                LogType.Error,
-            );
-            log(error, LogType.Error);
             return { type: GetJumproleResultType.QueryFailed };
         }
     };
