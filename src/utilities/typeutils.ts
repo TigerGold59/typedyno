@@ -1,7 +1,7 @@
 import { Client, DMChannel, Guild, Interaction, InteractionReplyOptions, Message, MessagePayload, TextChannel, User } from "discord.js";
 import { readFile } from "fs";
 import { UNKNOWN_USER_TAG } from "../main.js";
-import { is_alphabetic, is_whitespace } from "./argument_processing/arguments_types.js";
+import { is_alphabetic, is_digit, is_whitespace } from "./argument_processing/arguments_types.js";
 import { LogType, log } from "./log.js";
 import { Snowflake } from "./permissions.js";
 
@@ -39,7 +39,7 @@ export const to_num_and_lower = (str: string): string => {
         .trim()
         .replace(/-|_/, " ")
         .split("")
-        .filter(val => is_alphabetic(val) || /^0-9$/.test(val) || is_whitespace(val))
+        .filter(val => is_alphabetic(val) || is_digit(val) || is_whitespace(val))
         .join("")
         .toLowerCase();
 };
