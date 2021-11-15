@@ -1,4 +1,4 @@
-import { Client, DMChannel, Guild, Message, TextChannel, User } from "discord.js";
+import { Client, DMChannel, Guild, Interaction, InteractionReplyOptions, Message, MessagePayload, TextChannel, User } from "discord.js";
 import { readFile } from "fs";
 import { UNKNOWN_USER_TAG } from "../main.js";
 import { is_alphabetic, is_whitespace } from "./argument_processing/arguments_types.js";
@@ -281,4 +281,18 @@ export class UserTagManager {
 
 export const format_date = (seconds: number): string => {
     return new Date(seconds * 1000).toDateString();
+};
+
+export const safe_reply = async (interaction: Interaction, options: string | MessagePayload | InteractionReplyOptions): Promise<boolean> => {
+    try {
+        if (interaction.isApplicationCommand() && interaction.isCommand()) {
+            await interaction.reply(options);
+            return true;
+        }
+        return false;
+    } catch (err) {
+        log(`safe_reply: interaction.reply failed. Nothing will be seen from the user's point of view.`, LogType.Error);
+        log(err, LogType.Error);
+        return false;
+    }
 };

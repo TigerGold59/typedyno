@@ -5,7 +5,7 @@ import { STOCK_BOT_COMMANDS } from "./stock_commands.js";
 import { BOT_USER_ID, GLOBAL_PREFIX, MAINTAINER_TAG, MODULES } from "./main.js";
 import { Client, Interaction, Message } from "discord.js";
 import { LogType, log } from "./utilities/log.js";
-import { is_number, is_string, is_text_channel } from "./utilities/typeutils.js";
+import { is_number, is_string, is_text_channel, safe_reply } from "./utilities/typeutils.js";
 import { do_check_and_create_registration } from "./slash_commands/slash_commands.js";
 import { Snowflake } from "./utilities/permissions.js";
 import { handle_interaction } from "./slash_commands/handle_interaction.js";
@@ -55,7 +55,7 @@ export const execute_interation_response = async function (interaction: Interact
             const prefix = await get_prefix(interaction.guild, pool);
             let command_results = await handle_interaction(stock_command, null, interaction, client, pg_client, prefix);
             await handle_ParseMessageResults(command_results, async (message: string) => {
-                await interaction.reply({
+                await safe_reply(interaction, {
                     content: message,
                 });
             });
@@ -63,7 +63,7 @@ export const execute_interation_response = async function (interaction: Interact
         }
         let module_command = cached_module_commands.find(el => el.command.id === command_id);
         if (!module_command) {
-            await interaction.reply({
+            await safe_reply(interaction, {
                 content: `An internal error has occurred (you used an integration that has been removed). Contact @${MAINTAINER_TAG} for help.`,
             });
         } else {
@@ -71,7 +71,7 @@ export const execute_interation_response = async function (interaction: Interact
             const prefix = await get_prefix(interaction.guild, pool);
             let command_results = await handle_interaction(module_command.command, module_command.module, interaction, client, pg_client, prefix);
             await handle_ParseMessageResults(command_results, async (message: string) => {
-                await interaction.reply({
+                await safe_reply(interaction, {
                     content: message,
                 });
             });

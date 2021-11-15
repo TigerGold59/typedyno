@@ -808,16 +808,22 @@ export const Base64Hash = string.validate(<Input extends string>(input: Input): 
     else return error("input was string but didn't match 32 byte base64 string regex", StructureValidationFailedReason.InvalidValue);
 });
 
-export const Enum = <Items extends readonly unknown[]>(name: string, items: Items): Structure<Items[number]> => {
+export const Enum = <Items extends readonly unknown[]>(
+    name: string,
+    items: Items,
+    value_transformer: (arg0: Items[number]) => Items[number] = x => x,
+): Structure<Items[number]> => {
     let item_names: string[];
+    const fixed_items = items.map(value_transformer);
     if (array(string).check(items).succeeded) {
         item_names = items as unknown as string[];
     } else item_names = items.map(item => safe_serialize(item));
     return new Structure(
         name,
         (input: unknown): TransformResult<Items[number]> => {
-            if (items.includes(input)) {
-                return { succeeded: true, result: input };
+            let index = fixed_items.indexOf(value_transformer(input));
+            if (index > 0) {
+                return { succeeded: true, result: items[index] };
             } else {
                 return {
                     succeeded: false,

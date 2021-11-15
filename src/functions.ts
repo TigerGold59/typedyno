@@ -155,8 +155,19 @@ export class BotInteraction {
         } else if (item instanceof Interaction) {
             if (item.isCommand()) {
                 if (item.channel instanceof TextChannel && item.guild instanceof Guild) {
-                    await item.deferReply();
-                    return { type: BotInteractionCreationResultType.Succeeded, interaction: new BotInteraction(item as CompleteCommandInteraction) };
+                    try {
+                        await item.deferReply();
+                        return {
+                            type: BotInteractionCreationResultType.Succeeded,
+                            interaction: new BotInteraction(item as CompleteCommandInteraction),
+                        };
+                    } catch (err) {
+                        log(
+                            `BotInteraction.create: item.deferReply() failed! Returning BotInteractionCreationResultType.NotCommandInteraction...`,
+                            LogType.Error,
+                        );
+                        return { type: BotInteractionCreationResultType.NotCommandInteraction };
+                    }
                 } else {
                     return { type: BotInteractionCreationResultType.NotInGuildTextChannel };
                 }

@@ -155,19 +155,7 @@ export const KINGDOM_NAMES = [
     "Mushroom Kingdom",
 ] as const;
 
-export const KingdomString = RT.string
-    .validate(<Input extends string>(result: Input): TransformResult<Input> => {
-        if (KINGDOM_NAMES_LOWERCASE.includes(result.toLowerCase() as typeof KINGDOM_NAMES_LOWERCASE[number])) {
-            return { succeeded: true, result: result };
-        } else {
-            return {
-                succeeded: false,
-                error: StructureValidationFailedReason.InvalidValue,
-                information: [`input was a string but it wasn't a kingdom name. Valid kingdom names are: ${KINGDOM_NAMES.join()}.`],
-            };
-        }
-    })
-    .with_choices(KINGDOM_NAMES as unknown as string[]);
+export const KingdomString = RT.Enum("Kingdom", KINGDOM_NAMES as readonly string[], to_num_and_lower);
 
 export type Lowercased<List extends readonly string[]> = {
     [Key in keyof List]: Lowercase<List[Key] & string>;
