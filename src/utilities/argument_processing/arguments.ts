@@ -474,7 +474,7 @@ export const syntax_string_to_argument_regex = function (
     return {
         type: SyntaxStringTestingResultType.Success,
         tests: {
-            regex: new RegExp(res, "mi"),
+            regex: new RegExp(res, "i"),
             argument_references: argument_keyoff_accumulator,
             determination_tag: determination_tag_regex,
         },
