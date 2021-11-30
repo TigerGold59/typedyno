@@ -469,7 +469,7 @@ export const syntax_string_to_argument_regex = function (
     }
     res += "$";
 
-    let determination_tag_regex = new RegExp(`^${determination_tag_regex_str}`, "mi");
+    let determination_tag_regex = new RegExp(`^${determination_tag_regex_str}`, "i");
 
     return {
         type: SyntaxStringTestingResultType.Success,

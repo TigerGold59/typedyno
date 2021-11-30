@@ -64,7 +64,7 @@ export const execute_interation_response = async function (interaction: Interact
         let module_command = cached_module_commands.find(el => el.command.id === command_id);
         if (!module_command) {
             await safe_reply(interaction, {
-                content: `An internal error has occurred (you used an integration that has been removed). Contact @${MAINTAINER_TAG} for help.`,
+                content: `An internal error has occurred (you used an integration that has been removed). This may mean the bot has been restarted and this server had yet to receive a message, meaning the bot hadn't registered slash commands with Discord yet. If not, contact @${MAINTAINER_TAG} for help.`,
             });
         } else {
             let pg_client = await use_client(pool, "execute_interaction_response");
