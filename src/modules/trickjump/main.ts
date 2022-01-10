@@ -15,6 +15,7 @@ const trickjump_module: Module = {
         servers: {
             type: InclusionSpecifierType.Whitelist,
             // test server, main server, elite server, database server, 2P server, sky dram server
+            // extra challenges elite server
             list: [
                 "542766712785862666",
                 "469869605570084886",
@@ -22,6 +23,7 @@ const trickjump_module: Module = {
                 "692474105332629514",
                 "702296287617351740",
                 "731690792380530738",
+                "864860202645192704",
             ],
         },
     },
