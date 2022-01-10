@@ -284,7 +284,7 @@ export class Tier {
             return ModifyTierResultType.Success;
         }
         query_params.push(this.id);
-        const assignment_string = assignments.map(val => `${val[0]}=${val[1]}`).join(", ");
+        const assignment_string = assignments.map(val => `${val[0]}=$${val[1]}`).join(", ");
         const query_string = `UPDATE trickjump_tiers SET ${assignment_string} WHERE id=${(assignments.length + 1).toString()}`;
         try {
             await queryable.query(query_string, query_params);
