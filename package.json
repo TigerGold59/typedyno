@@ -13,7 +13,7 @@
         "heroku-postbuild": "tsc"
     },
     "engines": {
-        "node": ">=16.8.0"
+        "node": "^16.8.0"
     },
     "author": "tigergold59",
     "license": "MIT",
