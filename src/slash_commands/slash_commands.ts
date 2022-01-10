@@ -49,7 +49,6 @@ export const create_option_from_argument = (
             description: argument.name,
             required: argument.optional !== true,
             channel_types: [ChannelTypes.GUILD_TEXT],
-            // @ts-ignore
             type: argument.base_type,
         };
     }

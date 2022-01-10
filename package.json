@@ -19,7 +19,7 @@
     "license": "MIT",
     "dependencies": {
         "chalk": "^4.1.0",
-        "discord.js": "^13.3.1",
+        "discord.js": "13.3.1",
         "paste.ee": "^1.0.1",
         "pg": "^8.5.1",
         "reflect-metadata": "^0.1.13"
