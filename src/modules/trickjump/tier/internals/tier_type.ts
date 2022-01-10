@@ -272,6 +272,8 @@ export class Tier {
         const ordinal_assigned = is_string(new_merger.ordinal);
         if (name_assigned) {
             assignments.push(["name", "1"]);
+            assignments.push(["display_name", "2"]);
+            query_params.push(to_num_and_lower(new_merger.name as string));
             query_params.push(new_merger.name as string);
         }
         if (ordinal_assigned) {
