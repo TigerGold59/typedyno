@@ -68,24 +68,29 @@ export const TwitterLink = new Structure<string>(
     },
 );
 
-export const YOUTUBE_REGEX = /https:\/\/www\.youtube\.com\/watch\?v=(?<tag>[a-zA-Z0-9_=]{1,16})\/?/i;
+export const YOUTUBE_NORMAL_REGEX = /https:\/\/www\.youtube\.com\/watch\?v=(?<tag>[a-zA-Z0-9_=]{1,16})\/?/i;
+export const YOUTUBE_SHORTENED_REGEX = /https:\/\/youtu.be\/(?<tag>[a-zA-Z0-9_=]{1,16})\/?/i;
 
 export const YouTubeLink = new Structure<string>(
     "YouTube link",
     (input: unknown): TransformResult<string> => {
         if (is_string(input)) {
-            let matches = YOUTUBE_REGEX.exec(input);
-            if (matches === null) {
+            let matches_normal = YOUTUBE_NORMAL_REGEX.exec(input);
+            let matches_shortened = YOUTUBE_SHORTENED_REGEX.exec(input);
+            if (matches_normal === null && matches_shortened === null) {
                 return {
                     succeeded: false,
                     error: StructureValidationFailedReason.InvalidValue,
                     information: [
-                        `link to YouTube video was a string but it didn't fit the following format: \`https://www.youtube.com/watch?v=<video ID>\``,
+                        `link to YouTube video was a string but it didn't fit any of the following formats: \`https://www.youtube.com/watch?v=<video ID>\` or \`https://youtu.be/<video ID>\``,
                     ],
                 };
+            } else if (matches_normal === null) {
+                let groups = (matches_shortened as RegExpExecArray).groups as { tag: string };
+                return { succeeded: true, result: `https://youtu.be/${groups.tag}` };
             } else {
-                let groups = matches.groups as { tag: string };
-                return { succeeded: true, result: `https://www.youtube.com/watch?v=${groups.tag}` };
+                let groups = matches_normal.groups as { tag: string };
+                return { succeeded: true, result: `https://youtu.be/${groups.tag}` };
             }
         } else {
             return {
@@ -96,13 +101,14 @@ export const YouTubeLink = new Structure<string>(
         }
     },
     <Input extends string>(result: Input): TransformResult<Input> => {
-        let matches = YOUTUBE_REGEX.exec(result);
-        if (matches === null) {
+        let matches_normal = YOUTUBE_NORMAL_REGEX.exec(result);
+        let matches_shortened = YOUTUBE_SHORTENED_REGEX.exec(result);
+        if (matches_normal === null && matches_shortened === null) {
             return {
                 succeeded: false,
                 error: StructureValidationFailedReason.InvalidValue,
                 information: [
-                    `link to YouTube video was a string but it didn't fit the following format: \`https://www.youtube.com/watch?v=<video ID>\``,
+                    `link to YouTube video was a string but it didn't fit any of the following formats: \`https://www.youtube.com/watch?v=<video ID>\` or \`https://youtu.be/<video ID>\``,
                 ],
             };
         } else {
