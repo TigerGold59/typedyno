@@ -1,4 +1,4 @@
-import { CacheType, Client, CommandInteraction, CommandInteractionOption } from "discord.js";
+import { CacheType, Client, CommandInteractionOption } from "discord.js";
 import { performance } from "perf_hooks";
 import { SubcommandManual } from "../command_manual.js";
 import {
@@ -6,7 +6,7 @@ import {
     BotCommandProcessResults,
     BotCommandProcessResultType,
     BotInteraction,
-    BotInteractionCreationResultType,
+    CompleteCommandInteraction,
     MakeReplier,
     NoParametersCommand,
     ParentCommand,
@@ -111,98 +111,95 @@ export const run_subcommand = async (
 export const handle_interaction = async (
     command: BotCommand,
     module: Module | null,
-    interaction: CommandInteraction,
+    interaction: BotInteraction,
     client: Client,
     queryable: Queryable<UsesClient>,
     prefix: string,
 ): Promise<ParseMessageResult> => {
-    const full_interaction_result = await BotInteraction.Create(interaction);
-
-    switch (full_interaction_result.type) {
-        case BotInteractionCreationResultType.Succeeded: {
-            let full_interaction = full_interaction_result.interaction;
-            if (command instanceof ParentCommand) {
-                let subcommands = command.subcommands;
-                let option_data = interaction.options.data;
-                let first_option = option_data[0];
-                switch (first_option.type) {
-                    case "SUB_COMMAND": {
-                        let target = subcommands.find(x => x.manual.name === interaction.options.getSubcommand());
-                        let subcommand_data = option_data[0] as CommandInteractionOption;
-                        let subcommand_options_data = subcommand_data.options;
-                        if (!subcommand_options_data) {
-                            subcommand_options_data = [];
-                            /*log(option_data, LogType.Mismatch);
+    if (interaction.is_message) {
+        log(`handle_interaction: unexpectedly received non-slash-command BotInteraction. Interaction:`, LogType.Mismatch);
+        log(interaction, LogType.Mismatch);
+        return { did_find_command: false, did_use_module: false, module_name: null };
+    } else {
+        const underlying = interaction.underlying as CompleteCommandInteraction;
+        if (command instanceof ParentCommand) {
+            let subcommands = command.subcommands;
+            let option_data = underlying.options.data;
+            let first_option = option_data[0];
+            switch (first_option.type) {
+                case "SUB_COMMAND": {
+                    let target = subcommands.find(x => x.manual.name === underlying.options.getSubcommand());
+                    let subcommand_data = option_data[0] as CommandInteractionOption;
+                    let subcommand_options_data = subcommand_data.options;
+                    if (!subcommand_options_data) {
+                        subcommand_options_data = [];
+                        /*log(option_data, LogType.Mismatch);
                             throw new Error(
                                 `handle_interaction: command ${command.manual.name} was given options where subcommand had no options data`,
                             );*/
-                        }
-                        return await run_subcommand(
-                            subcommand_options_data,
-                            full_interaction,
-                            command,
-                            target,
-                            `${command.manual.name} ${target?.manual.name}`,
-                            module,
-                            client,
-                            queryable,
-                            prefix,
-                        );
                     }
-                    default: {
-                        log(option_data, LogType.Mismatch);
-                        throw new Error(
-                            `handle_interaction: command ${command.manual.name} was given options where subcommand wasn't the first option (err)`,
-                        );
-                    }
+                    return await run_subcommand(
+                        subcommand_options_data,
+                        interaction,
+                        command,
+                        target,
+                        `${command.manual.name} ${target?.manual.name}`,
+                        module,
+                        client,
+                        queryable,
+                        prefix,
+                    );
                 }
-            } else if (command instanceof Subcommand) {
-                return await run_subcommand(
-                    interaction.options.data,
-                    full_interaction,
-                    command,
-                    command,
-                    command.manual.name,
-                    module,
-                    client,
-                    queryable,
-                    prefix,
-                    false,
-                );
-            } else if (command instanceof NoParametersCommand) {
-                if (allowed(full_interaction, module?.permissions) && allowed(full_interaction, command.permissions)) {
-                    let pg_client = await use_client(queryable, "handle_interaction");
-                    const start_time = performance.now();
-                    const result = await command.run_activate(full_interaction, client, pg_client, prefix);
-                    const end_time = performance.now();
-                    pg_client.handle_release();
-                    let used_module = module !== null;
-                    let no_use_no_see = module?.hide_when_contradicts_permissions || command.no_use_no_see;
-                    return {
-                        did_find_command: true,
-                        no_use_no_see: no_use_no_see,
-                        command_worked: result.type === BotCommandProcessResultType.Succeeded,
-                        command_authorized: result.type !== BotCommandProcessResultType.Unauthorized,
-                        call_to_return_span_ms: end_time - start_time,
-                        command_name: command.manual.name,
-                        did_use_module: used_module,
-                        module_name: used_module ? undefined_to_null(module?.name) : null,
-                        not_authorized_reason: result.not_authorized_message,
-                    };
-                } else {
-                    return {
-                        did_find_command: true,
-                        did_use_module: module !== null,
-                        module_name: module !== null ? module.name : null,
-                        no_use_no_see: module?.hide_when_contradicts_permissions || command.no_use_no_see,
-                        command_name: command.manual.name,
-                    };
+                default: {
+                    log(option_data, LogType.Mismatch);
+                    throw new Error(
+                        `handle_interaction: command ${command.manual.name} was given options where subcommand wasn't the first option (err)`,
+                    );
                 }
-            } else {
-                return { did_find_command: false, did_use_module: module !== null, module_name: module !== null ? module.name : null };
             }
-        }
-        default: {
+        } else if (command instanceof Subcommand) {
+            return await run_subcommand(
+                underlying.options.data,
+                interaction,
+                command,
+                command,
+                command.manual.name,
+                module,
+                client,
+                queryable,
+                prefix,
+                false,
+            );
+        } else if (command instanceof NoParametersCommand) {
+            if (allowed(interaction, module?.permissions) && allowed(interaction, command.permissions)) {
+                let pg_client = await use_client(queryable, "handle_interaction");
+                const start_time = performance.now();
+                const result = await command.run_activate(interaction, client, pg_client, prefix);
+                const end_time = performance.now();
+                pg_client.handle_release();
+                let used_module = module !== null;
+                let no_use_no_see = module?.hide_when_contradicts_permissions || command.no_use_no_see;
+                return {
+                    did_find_command: true,
+                    no_use_no_see: no_use_no_see,
+                    command_worked: result.type === BotCommandProcessResultType.Succeeded,
+                    command_authorized: result.type !== BotCommandProcessResultType.Unauthorized,
+                    call_to_return_span_ms: end_time - start_time,
+                    command_name: command.manual.name,
+                    did_use_module: used_module,
+                    module_name: used_module ? undefined_to_null(module?.name) : null,
+                    not_authorized_reason: result.not_authorized_message,
+                };
+            } else {
+                return {
+                    did_find_command: true,
+                    did_use_module: module !== null,
+                    module_name: module !== null ? module.name : null,
+                    no_use_no_see: module?.hide_when_contradicts_permissions || command.no_use_no_see,
+                    command_name: command.manual.name,
+                };
+            }
+        } else {
             return { did_find_command: false, did_use_module: module !== null, module_name: module !== null ? module.name : null };
         }
     }

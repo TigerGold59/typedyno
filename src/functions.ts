@@ -82,7 +82,11 @@ export type BotInteractionCreationResult =
     | { type: BotInteractionCreationResultType.Succeeded; interaction: BotInteraction }
     | { type: Exclude<BotInteractionCreationResultType, BotInteractionCreationResultType.Succeeded> };
 
-type CompleteCommandInteraction = CommandInteraction & { channel: TextChannel } & { guild: Guild };
+export type CompleteCommandInteraction = CommandInteraction & { channel: TextChannel } & { guild: Guild };
+
+export const is_complete_interaction = (item: unknown): item is CompleteCommandInteraction => {
+    return item instanceof CommandInteraction && item.channel instanceof TextChannel && item.guild instanceof Guild;
+};
 export class BotInteraction {
     readonly author: User;
     readonly guild: Guild;
@@ -93,6 +97,10 @@ export class BotInteraction {
 
     get is_message() {
         return this.#_is_message;
+    }
+
+    get underlying() {
+        return this.#_underlying;
     }
 
     constructor(item: TextChannelMessage | CompleteCommandInteraction) {

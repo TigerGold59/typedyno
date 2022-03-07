@@ -1,11 +1,17 @@
 import { get_prefix } from "./integrations/server_prefixes.js";
 import { PoolInstance as Pool, use_client } from "./pg_wrapper.js";
-import { BotCommand, ParseMessageResult, process_message_for_commands as process_message_for_commands_with_stock } from "./functions.js";
+import {
+    BotCommand,
+    BotInteraction,
+    BotInteractionCreationResultType,
+    ParseMessageResult,
+    process_message_for_commands as process_message_for_commands_with_stock,
+} from "./functions.js";
 import { STOCK_BOT_COMMANDS } from "./stock_commands.js";
 import { BOT_USER_ID, GLOBAL_PREFIX, MAINTAINER_TAG, MODULES } from "./main.js";
 import { Client, Interaction, Message } from "discord.js";
 import { LogType, log } from "./utilities/log.js";
-import { is_number, is_string, is_text_channel, safe_reply } from "./utilities/typeutils.js";
+import { is_number, is_string, is_text_channel, safe_serialize } from "./utilities/typeutils.js";
 import { do_check_and_create_registration } from "./slash_commands/slash_commands.js";
 import { Snowflake } from "./utilities/permissions.js";
 import { handle_interaction } from "./slash_commands/handle_interaction.js";
@@ -48,30 +54,45 @@ export const handle_ParseMessageResults = async (command_results: ParseMessageRe
 export const execute_interation_response = async function (interaction: Interaction, client: Client, pool: Pool): Promise<void> {
     if (interaction.isApplicationCommand() && interaction.isCommand()) {
         let command_id = integration_cache[interaction.commandId];
+        let bot_interaction_creation_result = await BotInteraction.Create(interaction);
+        let bot_interaction: BotInteraction;
+        switch (bot_interaction_creation_result.type) {
+            case BotInteractionCreationResultType.Succeeded: {
+                bot_interaction = bot_interaction_creation_result.interaction;
+                break;
+            }
+            default: {
+                log(
+                    `execute_interaction_response: unexpectedly failed creating BotInteraction - result was ${bot_interaction_creation_result.type}.`,
+                    LogType.Error,
+                );
+                log(`Interaction:`, LogType.Error);
+                log(safe_serialize(interaction), LogType.Error);
+                return;
+            }
+        }
 
         let stock_command = STOCK_BOT_COMMANDS.find(el => el.id === command_id);
         if (stock_command !== undefined) {
             let pg_client = await use_client(pool, "execute_interaction_response");
             const prefix = await get_prefix(interaction.guild, pool);
-            let command_results = await handle_interaction(stock_command, null, interaction, client, pg_client, prefix);
+            let command_results = await handle_interaction(stock_command, null, bot_interaction, client, pg_client, prefix);
             await handle_ParseMessageResults(command_results, async (message: string) => {
-                await safe_reply(interaction, {
-                    content: message,
-                });
+                await bot_interaction.reply(message);
             });
             pg_client.handle_release();
         }
         let module_command = cached_module_commands.find(el => el.command.id === command_id);
         if (!module_command) {
-            await safe_reply(interaction, {
+            await bot_interaction.reply({
                 content: `An internal error has occurred (you used an integration that has been removed). This may mean the bot has been restarted and this server had yet to receive a message, meaning the bot hadn't registered slash commands with Discord yet. If not, contact @${MAINTAINER_TAG} for help.`,
             });
         } else {
             let pg_client = await use_client(pool, "execute_interaction_response");
             const prefix = await get_prefix(interaction.guild, pool);
-            let command_results = await handle_interaction(module_command.command, module_command.module, interaction, client, pg_client, prefix);
+            let command_results = await handle_interaction(module_command.command, module_command.module, bot_interaction, client, pg_client, prefix);
             await handle_ParseMessageResults(command_results, async (message: string) => {
-                await safe_reply(interaction, {
+                await bot_interaction.reply({
                     content: message,
                 });
             });
