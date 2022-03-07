@@ -93,6 +93,13 @@ export const escape_reg_exp = function (str: string): string {
 };
 
 export const safe_serialize = function (value: unknown, call_stack: unknown[] = []): string {
+    if (value instanceof Error) {
+        if (is_string(value.stack)) {
+            return value.stack;
+        } else {
+            return `${value.name}: ${value.message}`;
+        }
+    }
     const type = typeof value;
     switch (type) {
         case "symbol": {
